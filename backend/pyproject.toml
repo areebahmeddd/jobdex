@@ -1,0 +1,30 @@
+[project]
+name = "jobdex"
+version = "1.0.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.136.3",
+    "httpx>=0.28.1",
+    "loguru>=0.7.3",
+    "psycopg2-binary>=2.9.12",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.1",
+    "sqlalchemy>=2.0.50",
+    "uvicorn[standard]>=0.48.0",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.0.0",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"

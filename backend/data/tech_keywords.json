@@ -1,0 +1,40 @@
+{
+  "keywords": [
+    "python", "javascript", "typescript", "java", "go", "golang", "rust",
+    "c++", "c#", "ruby", "php", "swift", "kotlin", "scala", "elixir",
+    "r", "matlab", "julia", "haskell", "clojure", "erlang", "dart",
+    "react", "vue", "angular", "next.js", "nuxt", "svelte", "remix",
+    "django", "fastapi", "flask", "rails", "laravel", "spring boot",
+    "express", "nestjs", "graphql", "grpc",
+    "react native", "flutter", "swiftui", "jetpack compose",
+    "aws", "azure", "gcp", "google cloud", "kubernetes", "k8s", "docker",
+    "terraform", "ansible", "helm", "github actions", "jenkins", "circleci",
+    "gitlab ci", "argocd",
+    "postgresql", "postgres", "mysql", "mongodb", "redis", "elasticsearch",
+    "cassandra", "dynamodb", "bigquery", "snowflake", "dbt", "clickhouse",
+    "neo4j", "sqlite", "supabase", "firebase",
+    "pytorch", "tensorflow", "scikit-learn", "spark", "kafka", "airflow",
+    "hugging face", "langchain", "openai", "llm", "rag", "vector db",
+    "pandas", "numpy", "scipy",
+    "datadog", "prometheus", "grafana", "sentry", "splunk", "new relic",
+    "stripe", "twilio", "sendgrid", "segment", "mixpanel", "amplitude",
+    "node.js", "nodejs", "deno", "bun",
+    "microservices", "event-driven", "cqrs", "websockets", "rest api"
+  ],
+  "job_type_map": {
+    "full-time": "fulltime",
+    "full time": "fulltime",
+    "fulltime": "fulltime",
+    "permanent": "fulltime",
+    "part-time": "parttime",
+    "part time": "parttime",
+    "parttime": "parttime",
+    "contract": "contract",
+    "contractor": "contract",
+    "freelance": "contract",
+    "internship": "internship",
+    "intern": "internship",
+    "co-op": "internship",
+    "temporary": "contract"
+  }
+}

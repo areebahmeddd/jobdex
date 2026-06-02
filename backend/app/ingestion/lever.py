@@ -1,0 +1,101 @@
+"""Lever ATS ingester.
+
+Public API, no auth required.
+Endpoint: https://api.lever.co/v0/postings/{slug}?mode=json
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+import httpx
+
+from app.config import settings
+from app.ingestion.base import BaseIngester
+from app.ingestion.normalizer import (
+    classify_role,
+    classify_seniority,
+    extract_tech_stack,
+    make_snippet,
+    normalize_job_type,
+    normalize_location,
+    strip_html,
+)
+from app.models import Company, Job
+
+_BASE = "https://api.lever.co/v0/postings"
+
+
+class LeverIngester(BaseIngester):
+    ats_type = "lever"
+
+    async def fetch_raw(self, slug: str) -> list[dict]:
+        url = f"{_BASE}/{slug}?mode=json"
+        async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT) as client:
+            r = await client.get(url)
+            r.raise_for_status()
+            data = r.json()
+            return data if isinstance(data, list) else data.get("postings", [])
+
+    def get_job_id(self, raw: dict) -> str:
+        return str(raw["id"])
+
+    def build_job(self, raw: dict, company: Company, slug: str) -> Job:
+        title = raw.get("text", "")
+        cats = raw.get("categories") or {}
+        loc_raw = cats.get("location", "") or ""
+        department = cats.get("department", "") or ""
+        team = cats.get("team", "") or ""
+        commitment = cats.get("commitment", "") or ""
+
+        html = raw.get("description", "") or raw.get("descriptionPlain", "") or ""
+        plain = strip_html(html)
+
+        loc = normalize_location(
+            loc_raw,
+            fallback_city=company.city,
+            fallback_country_code=company.country_code,
+        )
+        full_dept = " ".join(filter(None, [department, team]))
+        category, subcategory = classify_role(title, plain, full_dept)
+        seniority = classify_seniority(title)
+        job_type = normalize_job_type(commitment)
+        tech = extract_tech_stack(title, plain[:2000])
+        posted_at = _parse_ts(raw.get("createdAt"))
+
+        return Job(
+            company_id=company.id,
+            title=title,
+            title_normalized=title.lower().strip(),
+            description=plain[:20000],
+            description_snippet=make_snippet(plain),
+            location_raw=loc_raw,
+            city=loc["city"],
+            country=loc["country"],
+            country_code=loc["country_code"],
+            region=loc["region"],
+            latitude=loc["latitude"],
+            longitude=loc["longitude"],
+            is_remote=loc["is_remote"],
+            remote_type=loc["remote_type"],
+            job_type=job_type or "fulltime",
+            seniority=seniority,
+            role_category=category,
+            role_subcategory=subcategory,
+            tech_stack=tech,
+            department=full_dept,
+            source_url=raw.get("hostedUrl", "") or raw.get("applyUrl", ""),
+            ats_type=self.ats_type,
+            ats_job_id=str(raw["id"]),
+            posted_at=posted_at,
+            is_active=True,
+        )
+
+
+def _parse_ts(ts) -> datetime | None:
+    if not ts:
+        return None
+    try:
+        return datetime.fromtimestamp(int(ts) / 1000, tz=UTC)
+    except (TypeError, ValueError, OSError):
+        return None

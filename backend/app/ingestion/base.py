@@ -1,0 +1,171 @@
+"""Base ingester shared by all ATS clients.
+
+Subclasses implement fetch_raw(), get_job_id(), and build_job().
+The ingest() loop (resolve company -> fetch -> upsert -> commit) lives here.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+from abc import ABC, abstractmethod
+from datetime import UTC, datetime
+
+import httpx
+from loguru import logger
+from sqlalchemy.orm import Session
+
+from app.models import Company, Job
+from app.schemas import IngestResult
+
+
+def _backfill_company_hq(company: Company, db: Session) -> None:
+    """Set company HQ fields from the most common city across its active jobs."""
+    from sqlalchemy import func, select
+
+    # Find the most-common city name first, then pick one matching row.
+    subq = (
+        select(Job.city, func.count().label("cnt"))
+        .where(
+            Job.company_id == company.id,
+            Job.city.isnot(None),
+            Job.is_active.is_(True),
+        )
+        .group_by(Job.city)
+        .order_by(func.count().desc())
+        .limit(1)
+        .subquery()
+    )
+    row = (
+        db.query(Job)
+        .filter(
+            Job.company_id == company.id,
+            Job.city == db.query(subq.c.city).scalar_subquery(),
+            Job.is_active.is_(True),
+        )
+        .first()
+    )
+    if row:
+        company.city = row.city
+        company.country = row.country
+        company.country_code = row.country_code
+        company.region = row.region
+        company.latitude = row.latitude
+        company.longitude = row.longitude
+
+
+class BaseIngester(ABC):
+    ats_type: str  # must be set by subclass
+
+    @abstractmethod
+    async def fetch_raw(self, slug: str) -> list[dict]:
+        """Call the ATS API and return raw job dicts."""
+        ...
+
+    @abstractmethod
+    def get_job_id(self, raw: dict) -> str:
+        """Extract the stable job ID from a raw job dict."""
+        ...
+
+    @abstractmethod
+    def build_job(self, raw: dict, company: Company, slug: str) -> Job:
+        """Parse a raw job dict into an unsaved Job ORM object."""
+        ...
+
+    def make_hash(self, slug: str, job_id: str) -> str:
+        return hashlib.sha256(f"{self.ats_type}:{slug}:{job_id}".encode()).hexdigest()
+
+    def _resolve_company(self, slug: str, db: Session) -> Company:
+        """Return the Company for this slug, creating a stub if needed."""
+        company = (
+            db.query(Company)
+            .filter(Company.ats_slug == slug, Company.ats_type == self.ats_type)
+            .first()
+        )
+        if company is None:
+            company = db.query(Company).filter(Company.slug == slug).first()
+        if company is None:
+            logger.info(f"[{self.ats_type}] Creating company stub for slug='{slug}'")
+            company = Company(
+                name=slug.replace("-", " ").title(),
+                slug=slug,
+                ats_type=self.ats_type,
+                ats_slug=slug,
+            )
+            db.add(company)
+            db.flush()
+        return company
+
+    async def ingest(self, slug: str, db: Session) -> IngestResult:
+        result = IngestResult(company_slug=slug, ats_type=self.ats_type)
+        company = self._resolve_company(slug, db)
+
+        try:
+            raw_jobs = await self.fetch_raw(slug)
+        except httpx.HTTPStatusError as exc:
+            msg = f"HTTP {exc.response.status_code} from {self.ats_type} board '{slug}'"
+            logger.error(msg)
+            result.errors.append(msg)
+            company.crawl_error = msg
+            db.commit()
+            return result
+        except httpx.RequestError as exc:
+            msg = f"Network error from {self.ats_type} board '{slug}': {exc}"
+            logger.error(msg)
+            result.errors.append(msg)
+            company.crawl_error = msg
+            db.commit()
+            return result
+
+        result.total_fetched = len(raw_jobs)
+        logger.info(f"[{self.ats_type}] '{slug}' -> {len(raw_jobs)} raw jobs")
+
+        now = datetime.now(tz=UTC)
+
+        for raw in raw_jobs:
+            try:
+                job_id = self.get_job_id(raw)
+                dedup_hash = self.make_hash(slug, job_id)
+                existing = db.query(Job).filter(Job.dedup_hash == dedup_hash).first()
+                if existing:
+                    existing.last_seen_at = now
+                    existing.is_active = True
+                    result.updated_jobs += 1
+                else:
+                    job = self.build_job(raw, company, slug)
+                    job.dedup_hash = dedup_hash
+                    job.first_seen_at = now
+                    job.last_seen_at = now
+                    db.add(job)
+                    result.new_jobs += 1
+            except Exception as exc:  # noqa: BLE001
+                msg = f"Error on job id={raw.get('id', '?')}: {exc}"
+                logger.warning(msg)
+                result.errors.append(msg)
+
+            await asyncio.sleep(0)  # yield to event loop
+
+        company.last_crawled_at = now
+        company.ats_type = self.ats_type
+        company.ats_slug = slug
+        company.crawl_error = None
+
+        # Backfill HQ coords from jobs if company was a stub.
+        if company.city is None:
+            _backfill_company_hq(company, db)
+
+        db.commit()
+
+        logger.info(
+            f"[{self.ats_type}] '{slug}' done - "
+            f"new={result.new_jobs} updated={result.updated_jobs} errors={len(result.errors)}"
+        )
+        return result
+
+    async def probe(self, slug: str) -> bool:
+        """Return True if this ATS has a valid (possibly empty) board for *slug*."""
+        try:
+            jobs = await self.fetch_raw(slug)
+            return isinstance(jobs, list)
+        except Exception:
+            return False

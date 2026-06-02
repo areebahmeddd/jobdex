@@ -1,0 +1,34 @@
+# virtual environment
+.venv/
+.env/
+venv/
+env/
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# tests
+tests/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# environment variables
+.env
+
+# caches & tooling
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.pre-commit-config.yaml
+
+# dev-only
+Dockerfile
+.dockerignore
+scripts/
+README.md
+*.log
