@@ -92,7 +92,7 @@ class CompanyResponse(BaseModel):
 
 
 class CompanyDetailResponse(CompanyResponse):
-    jobs: list[JobResponse] = []
+    pass
 
 
 # Cities
@@ -121,7 +121,7 @@ class SearchResponse(BaseModel):
     jobs: list[JobResponse] = []
     total_companies: int = 0
     total_jobs: int = 0
-    page: int = 1
+    offset: int = 0
     limit: int = 20
     filters: dict = {}
 
@@ -135,6 +135,7 @@ class IngestResult(BaseModel):
     total_fetched: int = 0
     new_jobs: int = 0
     updated_jobs: int = 0
+    deactivated_jobs: int = 0  # jobs on previous board no longer returned by ATS
     skipped: int = 0
     errors: list[str] = []
 

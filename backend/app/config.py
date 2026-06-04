@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "JobDex API"
     APP_VERSION: str = "1.0.0"
+    APP_DESCRIPTION: str = "A global index of startup hiring by city"
     DEBUG: bool = False
 
     DATABASE_URL: str = "postgresql://localhost/jobdex"

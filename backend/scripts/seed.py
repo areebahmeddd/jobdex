@@ -53,7 +53,7 @@ warn_count = 0
 def ingest(ats: str, slug: str, name: str) -> None:
     global ok_count, fail_count, warn_count
     try:
-        r = httpx.post(f"{BASE}/ingest/{ats}/{slug}", headers=HEADERS, timeout=90.0)
+        r = httpx.post(f"{BASE}/admin/ingest/{ats}/{slug}", headers=HEADERS, timeout=90.0)
         if r.status_code == 200:
             d = r.json()
             fetched = d.get("total_fetched", 0)

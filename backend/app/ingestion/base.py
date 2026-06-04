@@ -21,28 +21,21 @@ from app.schemas import IngestResult
 
 def _backfill_company_hq(company: Company, db: Session) -> None:
     """Set company HQ fields from the most common city across its active jobs."""
-    from sqlalchemy import func, select
+    from sqlalchemy import func
 
-    # Find the most-common city name first, then pick one matching row.
-    subq = (
-        select(Job.city, func.count().label("cnt"))
-        .where(
-            Job.company_id == company.id,
-            Job.city.isnot(None),
-            Job.is_active.is_(True),
-        )
+    top_city = (
+        db.query(Job.city)
+        .filter(Job.company_id == company.id, Job.city.isnot(None), Job.is_active.is_(True))
         .group_by(Job.city)
         .order_by(func.count().desc())
         .limit(1)
-        .subquery()
+        .scalar()
     )
+    if not top_city:
+        return
     row = (
         db.query(Job)
-        .filter(
-            Job.company_id == company.id,
-            Job.city == db.query(subq.c.city).scalar_subquery(),
-            Job.is_active.is_(True),
-        )
+        .filter(Job.company_id == company.id, Job.city == top_city, Job.is_active.is_(True))
         .first()
     )
     if row:
@@ -85,7 +78,7 @@ class BaseIngester(ABC):
         if company is None:
             company = db.query(Company).filter(Company.slug == slug).first()
         if company is None:
-            logger.info(f"[{self.ats_type}] Creating company stub for slug='{slug}'")
+            logger.info(f"[{self.ats_type}] '{slug}' creating company stub")
             company = Company(
                 name=slug.replace("-", " ").title(),
                 slug=slug,
@@ -120,16 +113,28 @@ class BaseIngester(ABC):
         result.total_fetched = len(raw_jobs)
         logger.info(f"[{self.ats_type}] '{slug}' -> {len(raw_jobs)} raw jobs")
 
+        # All dedup hashes for this company.
+        existing_rows = (
+            db.query(Job.dedup_hash, Job.id, Job.is_active)
+            .filter(Job.company_id == company.id, Job.dedup_hash.isnot(None))
+            .all()
+        )
+        existing_hash_to_id: dict[str, str] = {r.dedup_hash: r.id for r in existing_rows}
+        active_hashes: set[str] = {r.dedup_hash for r in existing_rows if r.is_active}
+        seen_hashes: set[str] = set()
+
         now = datetime.now(tz=UTC)
 
         for raw in raw_jobs:
             try:
                 job_id = self.get_job_id(raw)
                 dedup_hash = self.make_hash(slug, job_id)
-                existing = db.query(Job).filter(Job.dedup_hash == dedup_hash).first()
-                if existing:
-                    existing.last_seen_at = now
-                    existing.is_active = True
+                seen_hashes.add(dedup_hash)
+                if dedup_hash in existing_hash_to_id:
+                    db.query(Job).filter(Job.id == existing_hash_to_id[dedup_hash]).update(
+                        {"last_seen_at": now, "is_active": True},
+                        synchronize_session=False,
+                    )
                     result.updated_jobs += 1
                 else:
                     job = self.build_job(raw, company, slug)
@@ -143,14 +148,22 @@ class BaseIngester(ABC):
                 logger.warning(msg)
                 result.errors.append(msg)
 
-            await asyncio.sleep(0)  # yield to event loop
+            await asyncio.sleep(0)
+
+        expired = active_hashes - seen_hashes
+        if expired:
+            db.query(Job).filter(Job.dedup_hash.in_(expired)).update(
+                {"is_active": False}, synchronize_session=False
+            )
+            result.deactivated_jobs = len(expired)
+            logger.info(f"[{self.ats_type}] '{slug}' deactivated {len(expired)} expired jobs")
 
         company.last_crawled_at = now
         company.ats_type = self.ats_type
         company.ats_slug = slug
         company.crawl_error = None
 
-        # Backfill HQ coords from jobs if company was a stub.
+        # Backfill company HQ if it was a stub.
         if company.city is None:
             _backfill_company_hq(company, db)
 
@@ -158,12 +171,13 @@ class BaseIngester(ABC):
 
         logger.info(
             f"[{self.ats_type}] '{slug}' done - "
-            f"new={result.new_jobs} updated={result.updated_jobs} errors={len(result.errors)}"
+            f"new={result.new_jobs} updated={result.updated_jobs} "
+            f"deactivated={result.deactivated_jobs} errors={len(result.errors)}"
         )
         return result
 
     async def probe(self, slug: str) -> bool:
-        """Return True if this ATS has a valid (possibly empty) board for *slug*."""
+        """Return True if this ATS has a valid board for the given slug."""
         try:
             jobs = await self.fetch_raw(slug)
             return isinstance(jobs, list)

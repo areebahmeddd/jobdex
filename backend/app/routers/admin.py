@@ -1,11 +1,11 @@
 """Admin and ingestion endpoints.
 
-POST /ingest/greenhouse/{slug}  ingest a Greenhouse board
-POST /ingest/lever/{slug}       ingest a Lever board
-POST /ingest/ashby/{slug}       ingest an Ashby board
-POST /ingest/discover/{slug}    probe all three ATS types, ingest the first match
-GET  /stats                     aggregate stats
-POST /admin/reset               delete all jobs (dev)
+POST /admin/ingest/greenhouse/{slug}  ingest a Greenhouse board
+POST /admin/ingest/lever/{slug}       ingest a Lever board
+POST /admin/ingest/ashby/{slug}       ingest an Ashby board
+POST /admin/ingest/discover/{slug}    probe all three ATS types, ingest the first match
+GET  /admin/stats                     aggregate stats
+POST /admin/reset                     delete all jobs (dev)
 """
 
 import asyncio
@@ -21,7 +21,7 @@ from app.ingestion import INGESTERS, ashby, greenhouse, lever
 from app.models import City, Company, Job
 from app.schemas import DiscoverResult, IngestResult, StatsResponse
 
-router = APIRouter(tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["admin"])
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -29,9 +29,6 @@ _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 def _check_admin(api_key: str | None = Security(_api_key_header)):
     if settings.ADMIN_API_KEY and api_key != settings.ADMIN_API_KEY:
         raise HTTPException(status_code=403, detail="Invalid or missing X-API-Key header")
-
-
-# Per-ATS ingestion
 
 
 @router.post("/ingest/greenhouse/{slug}", response_model=IngestResult)
@@ -61,16 +58,13 @@ async def ingest_ashby(
     return await ashby.ingest(slug.lower(), db)
 
 
-# Auto-discover
-
-
 @router.post("/ingest/discover/{slug}", response_model=DiscoverResult)
 async def discover_and_ingest(
     slug: str,
     db: Session = Depends(get_db),
     _: None = Depends(_check_admin),
 ):
-    """Probe Greenhouse, Lever, then Ashby in order. Ingest from the first match."""
+    """Probe each ATS in order and ingest from the first match."""
     slug = slug.lower()
     discovery_order = ["greenhouse", "lever", "ashby"]
 
@@ -97,9 +91,6 @@ async def discover_and_ingest(
         discovered=False,
         message="Not found on Greenhouse, Lever, or Ashby. Check the slug or try a different ATS.",
     )
-
-
-# Stats
 
 
 @router.get("/stats", response_model=StatsResponse)
@@ -164,10 +155,7 @@ def stats(db: Session = Depends(get_db)):
     )
 
 
-# Reset
-
-
-@router.post("/admin/reset", response_model=dict)
+@router.post("/reset", response_model=dict)
 def reset_database(
     db: Session = Depends(get_db),
     _: None = Depends(_check_admin),

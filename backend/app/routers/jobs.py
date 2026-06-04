@@ -1,10 +1,15 @@
 """Job listing and detail endpoints.
 
-GET /jobs       paginated job listing with filters
+GET /jobs       paginated job listing with filters (supports cursor pagination)
 GET /jobs/{id}  full job detail
 """
 
+import base64
+import json
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import and_, or_, text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -15,7 +20,21 @@ from app.schemas import JobDetailResponse, JobResponse
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
-def _enrich(job: Job, company: Company) -> JobResponse:
+def _encode_cursor(posted_at: datetime | None, job_id: str) -> str:
+    payload = {"p": posted_at.isoformat() if posted_at else "", "i": job_id}
+    return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+
+
+def _decode_cursor(cursor: str) -> tuple[datetime | None, str] | None:
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(cursor).decode())
+        posted_at = datetime.fromisoformat(payload["p"]) if payload["p"] else None
+        return posted_at, payload["i"]
+    except Exception:
+        return None
+
+
+def _build_job_response(job: Job, company: Company) -> JobResponse:
     data = JobResponse.model_validate(job)
     data.company_name = company.name
     data.company_slug = company.slug
@@ -23,7 +42,7 @@ def _enrich(job: Job, company: Company) -> JobResponse:
     return data
 
 
-def _enrich_detail(job: Job, company: Company) -> JobDetailResponse:
+def _build_job_detail_response(job: Job, company: Company) -> JobDetailResponse:
     data = JobDetailResponse.model_validate(job)
     data.company_name = company.name
     data.company_slug = company.slug
@@ -40,7 +59,8 @@ def list_jobs(
     role_subcategory: str | None = Query(None),
     seniority: str | None = Query(None),
     is_remote: bool | None = Query(None),
-    q: str | None = Query(None, description="Free-text search on title"),
+    q: str | None = Query(None, description="Full-text search on title, snippet, and role"),
+    cursor: str | None = Query(None, description="Opaque cursor for keyset pagination"),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -66,17 +86,55 @@ def list_jobs(
         query = query.filter(Job.seniority == seniority.lower())
     if is_remote is not None:
         query = query.filter(Job.is_remote.is_(is_remote))
-    if q:
-        query = query.filter(Job.title.ilike(f"%{q}%"))
 
-    total = query.count()
-    rows = query.order_by(Job.posted_at.desc()).offset(offset).limit(limit).all()
+    if q:
+        query = query.filter(
+            text(
+                "to_tsvector('english',"
+                " coalesce(jobs.title,'') || ' ' ||"
+                " coalesce(jobs.description_snippet,'') || ' ' ||"
+                " coalesce(jobs.role_category,''))"
+                " @@ websearch_to_tsquery('english', :q)"
+            ).bindparams(q=q)
+        )
+
+    if cursor:
+        decoded = _decode_cursor(cursor)
+        if decoded:
+            cursor_posted_at, cursor_id = decoded
+            if cursor_posted_at:
+                query = query.filter(
+                    or_(
+                        Job.posted_at < cursor_posted_at,
+                        and_(Job.posted_at == cursor_posted_at, Job.id < cursor_id),
+                    )
+                )
+            else:
+                query = query.filter(and_(Job.posted_at.is_(None), Job.id < cursor_id))
+        rows = query.order_by(Job.posted_at.desc().nullslast(), Job.id.desc()).limit(limit).all()
+        total = None  # not computed for cursor pages
+    else:
+        total = query.count()
+        rows = (
+            query.order_by(Job.posted_at.desc().nullslast(), Job.id.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+    enriched = [_build_job_response(j, c) for j, c in rows]
+
+    next_cursor = None
+    if len(enriched) == limit:
+        last = rows[-1][0]  # Job object
+        next_cursor = _encode_cursor(last.posted_at, last.id)
 
     return {
-        "jobs": [_enrich(j, c).model_dump() for j, c in rows],
+        "jobs": [e.model_dump() for e in enriched],
         "total": total,
         "limit": limit,
-        "offset": offset,
+        "offset": offset if not cursor else None,
+        "next_cursor": next_cursor,
     }
 
 
@@ -90,4 +148,4 @@ def get_job(job_id: str, db: Session = Depends(get_db)):
     )
     if not row:
         raise HTTPException(status_code=404, detail="Job not found")
-    return _enrich_detail(row[0], row[1])
+    return _build_job_detail_response(row[0], row[1])

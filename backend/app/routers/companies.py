@@ -1,12 +1,13 @@
 """Company listing and detail endpoints.
 
 GET /companies              paginated listing with filters
-GET /companies/{slug}       company detail with active jobs
-GET /companies/{slug}/jobs  jobs for a single company
+GET /companies/{slug}       company detail (no embedded jobs)
+GET /companies/{slug}/jobs  paginated jobs for a single company
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -17,7 +18,7 @@ from app.schemas import CompanyDetailResponse, CompanyResponse, JobResponse
 router = APIRouter(prefix="/companies", tags=["companies"])
 
 
-def _job_response(job: Job, company: Company) -> JobResponse:
+def _build_job_response(job: Job, company: Company) -> JobResponse:
     data = JobResponse.model_validate(job)
     data.company_name = company.name
     data.company_slug = company.slug
@@ -25,29 +26,43 @@ def _job_response(job: Job, company: Company) -> JobResponse:
     return data
 
 
-def _company_response(company: Company, db: Session) -> CompanyResponse:
-    job_count = (
-        db.query(func.count(Job.id))
-        .filter(Job.company_id == company.id, Job.is_active.is_(True))
-        .scalar()
-    ) or 0
-
-    categories = [
-        row[0]
-        for row in db.query(Job.role_category)
+def _bulk_categories(company_ids: list[str], db: Session) -> dict[str, list[str]]:
+    """Return {company_id: [role_category, ...]} for all given company IDs in one query."""
+    rows = (
+        db.query(Job.company_id, Job.role_category)
         .filter(
-            Job.company_id == company.id,
+            Job.company_id.in_(company_ids),
             Job.is_active.is_(True),
             Job.role_category.isnot(None),
         )
         .distinct()
         .all()
-        if row[0]
-    ]
+    )
+    result: dict[str, list[str]] = {}
+    for r in rows:
+        result.setdefault(r.company_id, []).append(r.role_category)
+    return result
 
+
+def _enriched_company_query(db: Session):
+    """Return a base query with active job_count joined via subquery."""
+    job_count_sq = (
+        db.query(Job.company_id, func.count(Job.id).label("job_count"))
+        .filter(Job.is_active.is_(True))
+        .group_by(Job.company_id)
+        .subquery()
+    )
+    return db.query(
+        Company, func.coalesce(job_count_sq.c.job_count, 0).label("job_count")
+    ).outerjoin(job_count_sq, job_count_sq.c.company_id == Company.id)
+
+
+def _build_company_response(
+    company: Company, job_count: int, categories: list[str]
+) -> CompanyResponse:
     data = CompanyResponse.model_validate(company)
     data.job_count = job_count
-    data.open_role_categories = categories
+    data.open_role_categories = sorted(categories)
     return data
 
 
@@ -55,8 +70,8 @@ def _company_response(company: Company, db: Session) -> CompanyResponse:
 def list_companies(
     city: str | None = Query(None),
     country_code: str | None = Query(None),
-    region: str | None = Query(None, description="e.g. south_asia, middle_east"),
-    industry: str | None = Query(None, description="Partial match on industry tags"),
+    region: str | None = Query(None),
+    industry: str | None = Query(None),
     stage: str | None = Query(None),
     ats_type: str | None = Query(None),
     q: str | None = Query(None, description="Search company name / description"),
@@ -64,34 +79,33 @@ def list_companies(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    query = db.query(Company).filter(Company.is_active.is_(True))
+    base = _enriched_company_query(db).filter(Company.is_active.is_(True))
 
     if city:
         canonical = canonicalize_city(city) or city
-        query = query.filter(Company.city == canonical)
+        base = base.filter(Company.city == canonical)
     if country_code:
-        query = query.filter(Company.country_code == country_code.upper())
+        base = base.filter(Company.country_code == country_code.upper())
     if region:
-        query = query.filter(Company.region == region.lower())
+        base = base.filter(Company.region == region.lower())
     if stage:
-        query = query.filter(Company.stage == stage.lower())
+        base = base.filter(Company.stage == stage.lower())
     if ats_type:
-        query = query.filter(Company.ats_type == ats_type.lower())
+        base = base.filter(Company.ats_type == ats_type.lower())
     if q:
-        query = query.filter(Company.name.ilike(f"%{q}%") | Company.description.ilike(f"%{q}%"))
-
-    all_companies = query.order_by(Company.name).all()
-
-    # Industry filter runs in Python because SQLite has no JSON index.
+        base = base.filter(Company.name.ilike(f"%{q}%") | Company.description.ilike(f"%{q}%"))
     if industry:
-        low = industry.lower()
-        all_companies = [
-            c for c in all_companies if any(low in tag.lower() for tag in (c.industry or []))
-        ]
+        base = base.filter(Company.industry.cast(JSONB).contains([industry.lower()]))
 
-    total = len(all_companies)
-    paged = all_companies[offset : offset + limit]
-    results = [_company_response(c, db) for c in paged]
+    total = base.count()
+    rows = base.order_by(Company.name).offset(offset).limit(limit).all()
+
+    company_ids = [company.id for company, _ in rows]
+    categories_map = _bulk_categories(company_ids, db)
+    results = [
+        _build_company_response(company, job_count, categories_map.get(company.id, []))
+        for company, job_count in rows
+    ]
 
     return {
         "companies": [r.model_dump() for r in results],
@@ -107,23 +121,25 @@ def get_company(slug: str, db: Session = Depends(get_db)):
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    active_jobs = (
-        db.query(Job)
+    job_count = (
+        db.query(func.count(Job.id))
         .filter(Job.company_id == company.id, Job.is_active.is_(True))
-        .order_by(Job.posted_at.desc())
-        .all()
+        .scalar()
+        or 0
     )
+    categories = _bulk_categories([company.id], db).get(company.id, [])
 
     data = CompanyDetailResponse.model_validate(company)
-    data.jobs = [_job_response(j, company) for j in active_jobs]
-    data.job_count = len(data.jobs)
-    data.open_role_categories = list({j.role_category for j in active_jobs if j.role_category})
+    data.job_count = job_count
+    data.open_role_categories = sorted(categories)
     return data
 
 
 @router.get("/{slug}/jobs", response_model=dict)
 def company_jobs(
     slug: str,
+    city: str | None = Query(None),
+    country_code: str | None = Query(None),
     role_category: str | None = Query(None),
     seniority: str | None = Query(None),
     is_remote: bool | None = Query(None),
@@ -136,6 +152,12 @@ def company_jobs(
         raise HTTPException(status_code=404, detail="Company not found")
 
     query = db.query(Job).filter(Job.company_id == company.id, Job.is_active.is_(True))
+
+    if city:
+        canonical = canonicalize_city(city) or city
+        query = query.filter(Job.city == canonical)
+    if country_code:
+        query = query.filter(Job.country_code == country_code.upper())
     if role_category:
         query = query.filter(Job.role_category == role_category.lower())
     if seniority:
@@ -148,13 +170,16 @@ def company_jobs(
 
     return {
         "company": {
+            "id": company.id,
             "name": company.name,
             "slug": company.slug,
             "city": company.city,
+            "country_code": company.country_code,
             "latitude": company.latitude,
             "longitude": company.longitude,
+            "logo_url": company.logo_url,
         },
-        "jobs": [_job_response(j, company).model_dump() for j in jobs],
+        "jobs": [_build_job_response(j, company).model_dump() for j in jobs],
         "total": total,
         "limit": limit,
         "offset": offset,

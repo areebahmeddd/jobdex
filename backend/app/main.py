@@ -8,12 +8,12 @@ from app.config import settings
 from app.database import SessionLocal, init_db
 from app.ingestion.normalizer import get_city_data, get_featured_cities
 from app.models import City
-from app.routers import admin, cities, companies, jobs, search
+from app.routers import admin, cities, companies, jobs, map, search
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}…")
+    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}...")
     init_db()
     _seed_cities()
     logger.info("Ready.")
@@ -22,9 +22,7 @@ async def lifespan(app: FastAPI):
 
 
 def _seed_cities():
-    """Populate the cities table from data/cities.json on every startup.
-    Existing rows are left untouched; slug is unique so conflicts are skipped.
-    """
+    """Seed cities from data/cities.json; rows with an existing slug are skipped."""
     city_data = get_city_data()
     featured = set(get_featured_cities())
     db = SessionLocal()
@@ -61,7 +59,7 @@ def _seed_cities():
                 )
                 added += 1
         db.commit()
-        logger.info(f"Cities: {added} new rows added, table now ready")
+        logger.info(f"Seeded {added} cities")
     finally:
         db.close()
 
@@ -69,7 +67,7 @@ def _seed_cities():
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description=("JobDex startup job discovery API. Filter by city, role, and industry. "),
+    description=settings.APP_DESCRIPTION,
     lifespan=lifespan,
 )
 
@@ -84,6 +82,7 @@ app.include_router(jobs.router)
 app.include_router(companies.router)
 app.include_router(search.router)
 app.include_router(cities.router)
+app.include_router(map.router)
 app.include_router(admin.router)
 
 
@@ -98,11 +97,15 @@ def root():
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "docs": "/docs",
-        "primary_endpoint": "GET /search?city=&role=&industry=",
+        "primary_endpoint": "GET /map/companies  (globe render)",
         "supported_ats": ["greenhouse", "lever", "ashby"],
         "endpoints": {
+            "map": {
+                "companies": "GET  /map/companies?region=&role=&lat_min=&lat_max=&lng_min=&lng_max=",
+                "cities": "GET  /map/cities?region=&role=&featured_only=true",
+            },
             "search": "GET  /search?city=&role=&industry=&country_code=&region=",
-            "jobs": "GET  /jobs?city=&role_category=&seniority=&is_remote=",
+            "jobs": "GET  /jobs?city=&role_category=&seniority=&is_remote=&q=&cursor=",
             "companies": "GET  /companies?city=&industry=&country_code=&region=",
             "cities": "GET  /cities?region=&featured_only=true",
             "stats": "GET  /stats",

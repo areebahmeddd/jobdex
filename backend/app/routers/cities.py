@@ -1,6 +1,6 @@
 """City listing and detail endpoints.
 
-GET /cities        all known cities with live job/company counts
+GET /cities        paginated city list with live job/company counts
 GET /cities/{slug} single city detail
 """
 
@@ -9,23 +9,30 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import City, Company, Job
+from app.models import City, Job
 from app.schemas import CityResponse
 
 router = APIRouter(prefix="/cities", tags=["cities"])
 
 
-def _enrich(city: City, db: Session) -> CityResponse:
-    job_count = (
-        db.query(func.count(Job.id)).filter(Job.is_active.is_(True), Job.city == city.name).scalar()
-    ) or 0
+def _counts_by_city(db: Session, city_names: list[str]) -> dict[str, tuple[int, int]]:
+    """Return {city_name: (job_count, company_count)} for the given city names."""
+    if not city_names:
+        return {}
+    rows = (
+        db.query(
+            Job.city,
+            func.count(Job.id).label("job_count"),
+            func.count(func.distinct(Job.company_id)).label("company_count"),
+        )
+        .filter(Job.is_active.is_(True), Job.city.in_(city_names))
+        .group_by(Job.city)
+        .all()
+    )
+    return {r.city: (r.job_count, r.company_count) for r in rows}
 
-    company_count = (
-        db.query(func.count(Company.id))
-        .filter(Company.is_active.is_(True), Company.city == city.name)
-        .scalar()
-    ) or 0
 
+def _build_city_response(city: City, job_count: int, company_count: int) -> CityResponse:
     return CityResponse(
         id=city.id,
         name=city.name,
@@ -42,11 +49,13 @@ def _enrich(city: City, db: Session) -> CityResponse:
     )
 
 
-@router.get("", response_model=list[CityResponse])
+@router.get("", response_model=dict)
 def list_cities(
-    region: str | None = Query(None, description="Filter by region slug"),
+    region: str | None = Query(None),
     country_code: str | None = Query(None),
     featured_only: bool = Query(False),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
     q = db.query(City)
@@ -56,8 +65,21 @@ def list_cities(
         q = q.filter(City.region == region.lower())
     if country_code:
         q = q.filter(City.country_code == country_code.upper())
-    cities = q.order_by(City.name).all()
-    return [_enrich(c, db) for c in cities]
+
+    total = q.count()
+    cities = q.order_by(City.name).offset(offset).limit(limit).all()
+
+    names = [c.name for c in cities]
+    counts = _counts_by_city(db, names)
+
+    return {
+        "cities": [
+            _build_city_response(c, *counts.get(c.name, (0, 0))).model_dump() for c in cities
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.get("/{slug}", response_model=CityResponse)
@@ -65,4 +87,6 @@ def get_city(slug: str, db: Session = Depends(get_db)):
     city = db.query(City).filter(City.slug == slug).first()
     if not city:
         raise HTTPException(status_code=404, detail="City not found")
-    return _enrich(city, db)
+    counts = _counts_by_city(db, [city.name])
+    job_count, company_count = counts.get(city.name, (0, 0))
+    return _build_city_response(city, job_count, company_count)

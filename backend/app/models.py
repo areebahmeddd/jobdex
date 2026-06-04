@@ -2,7 +2,6 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import (
-    JSON,
     Boolean,
     DateTime,
     Float,
@@ -11,7 +10,9 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -33,7 +34,7 @@ class Company(Base):
     longitude: Mapped[float | None] = mapped_column(Float)
     region: Mapped[str | None] = mapped_column(String(50))
 
-    industry: Mapped[list | None] = mapped_column(JSON, default=list)
+    industry: Mapped[list | None] = mapped_column(JSONB, default=list)
     stage: Mapped[str | None] = mapped_column(String(50))
     founded_year: Mapped[int | None] = mapped_column(Integer)
     employee_count_range: Mapped[str | None] = mapped_column(String(50))
@@ -57,6 +58,7 @@ class Company(Base):
     __table_args__ = (
         Index("ix_companies_city_country", "city", "country_code"),
         Index("ix_companies_region", "region"),
+        Index("ix_companies_industry_gin", "industry", postgresql_using="gin"),
     )
 
 
@@ -85,7 +87,7 @@ class Job(Base):
     seniority: Mapped[str | None] = mapped_column(String(50), index=True)
     role_category: Mapped[str | None] = mapped_column(String(100), index=True)
     role_subcategory: Mapped[str | None] = mapped_column(String(100))
-    tech_stack: Mapped[list | None] = mapped_column(JSON, default=list)
+    tech_stack: Mapped[list | None] = mapped_column(JSONB, default=list)
     department: Mapped[str | None] = mapped_column(String(255))
 
     salary_min: Mapped[int | None] = mapped_column(Integer)
@@ -109,11 +111,41 @@ class Job(Base):
     company: Mapped["Company"] = relationship("Company", back_populates="jobs")
 
     __table_args__ = (
-        Index("ix_jobs_city_category", "city", "role_category"),
-        Index("ix_jobs_active_posted", "is_active", "posted_at"),
         Index("ix_jobs_company_active", "company_id", "is_active"),
-        Index("ix_jobs_region_category", "region", "role_category"),
-        Index("ix_jobs_country_category", "country_code", "role_category"),
+        Index(
+            "ix_jobs_fts_gin",
+            text(
+                "to_tsvector('english',"
+                " coalesce(title,'') || ' ' ||"
+                " coalesce(description_snippet,'') || ' ' ||"
+                " coalesce(role_category,''))"
+            ),
+            postgresql_using="gin",
+            postgresql_where=text("is_active = TRUE"),
+        ),
+        Index(
+            "ix_jobs_active_city_role",
+            "city",
+            "role_category",
+            postgresql_where=text("is_active = TRUE"),
+        ),
+        Index(
+            "ix_jobs_active_region_role",
+            "region",
+            "role_category",
+            postgresql_where=text("is_active = TRUE"),
+        ),
+        Index(
+            "ix_jobs_active_country_role",
+            "country_code",
+            "role_category",
+            postgresql_where=text("is_active = TRUE"),
+        ),
+        Index(
+            "ix_jobs_active_posted",
+            "posted_at",
+            postgresql_where=text("is_active = TRUE"),
+        ),
     )
 
 

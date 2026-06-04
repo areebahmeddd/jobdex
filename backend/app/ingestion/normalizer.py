@@ -1,7 +1,6 @@
 """Location, role, seniority, and tech-stack normalization.
 
 All patterns and city coordinates are loaded from data/*.json at import time.
-Nothing is hardcoded in this module.
 """
 
 from __future__ import annotations
@@ -13,8 +12,6 @@ import httpx
 from loguru import logger
 
 from app.config import DATA_DIR, settings
-
-# Data files loaded once at module import.
 
 
 def _load(filename: str) -> dict:
@@ -28,7 +25,6 @@ _role_cfg = _load("role_patterns.json")
 _seniority_cfg = _load("seniority_patterns.json")
 _tech_cfg = _load("tech_keywords.json")
 
-# Convenience lookups
 _city_data: dict[str, dict] = _cities_cfg["cities"]
 _city_aliases: dict[str, str] = {k.lower(): v for k, v in _cities_cfg["aliases"].items()}
 _regions_map: dict[str, list] = _cities_cfg["regions"]
@@ -121,7 +117,7 @@ def normalize_location(
     elif is_remote and not _has_known_city(lowered):
         result["is_remote"] = True
         result["remote_type"] = "fully-remote"
-        # Anchor remote-only roles to company HQ for map rendering.
+        # Anchor to company HQ for map coordinates.
         _apply_city(result, fallback_city)
         if not result["country_code"] and fallback_country_code:
             result["country_code"] = fallback_country_code
@@ -130,17 +126,17 @@ def normalize_location(
         result["is_remote"] = True
         result["remote_type"] = "hybrid"
 
-    # 1. Alias lookup
+    # 1. Alias lookup.
     canonical = _city_aliases.get(lowered)
     if canonical and canonical in _city_data:
         return {**result, **_city_fields(canonical)}
 
-    # 2. Exact full-string match
+    # 2. Exact full-string match.
     for city_name in _city_data:
         if city_name.lower() == lowered:
             return {**result, **_city_fields(city_name)}
 
-    # 3. City name contained anywhere in string
+    # 3. City name contained anywhere in string.
     for city_name in _city_data:
         if city_name.lower() in lowered:
             return {**result, **_city_fields(city_name)}
@@ -244,7 +240,7 @@ def make_snippet(text: str, max_chars: int = 500) -> str:
         return plain
     truncated = plain[:max_chars]
     last_space = truncated.rfind(" ")
-    return (truncated[:last_space] if last_space > 0 else truncated) + "…"
+    return (truncated[:last_space] if last_space > 0 else truncated) + "..."
 
 
 # Private helpers
