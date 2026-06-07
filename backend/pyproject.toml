@@ -1,6 +1,7 @@
 [project]
 name = "jobdex"
 version = "1.0.0"
+description = "A global index of startup hiring by city"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.136.3",

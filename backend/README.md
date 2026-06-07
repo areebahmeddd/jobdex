@@ -89,7 +89,7 @@ cd backend
 docker build -t jobdex-backend .
 
 docker run -p 8000:8000 \
-  -e DATABASE_URL="postgresql+asyncpg://..." \
+  -e DATABASE_URL="postgresql+psycopg2://..." \
   -e ADMIN_API_KEY="your-key" \
   jobdex-backend
 ```
@@ -98,20 +98,24 @@ docker run -p 8000:8000 \
 
 ### Endpoints
 
-| Method | Path                      | Auth | Description                        |
-| ------ | ------------------------- | ---- | ---------------------------------- |
-| `GET`  | `/health`                 |      | Health check                       |
-| `GET`  | `/`                       |      | Supported ATS providers            |
-| `GET`  | `/search`                 |      | Map-first job discovery            |
-| `GET`  | `/jobs`                   |      | Paginated job listing              |
-| `GET`  | `/jobs/{id}`              |      | Job details                        |
-| `GET`  | `/companies`              |      | Company listing                    |
-| `GET`  | `/companies/{slug}`       |      | Company details and active jobs    |
-| `GET`  | `/cities`                 |      | Cities with job and company counts |
-| `GET`  | `/stats`                  |      | Aggregate platform statistics      |
-| `POST` | `/ingest/{ats}/{slug}`    | ✓    | Ingest a job board                 |
-| `POST` | `/ingest/discover/{slug}` | ✓    | Auto-detect ATS and ingest         |
-| `POST` | `/admin/reset`            | ✓    | Clear all jobs (development only)  |
+| Method | Path                            | Auth | Description                        |
+| ------ | ------------------------------- | ---- | ---------------------------------- |
+| `GET`  | `/health`                       |      | Health check                       |
+| `GET`  | `/`                             |      | Supported ATS providers            |
+| `GET`  | `/search`                       |      | Cross-entity job discovery         |
+| `GET`  | `/jobs`                         |      | Paginated job listing              |
+| `GET`  | `/jobs/{id}`                    |      | Job detail                         |
+| `GET`  | `/companies`                    |      | Company listing                    |
+| `GET`  | `/companies/{slug}`             |      | Company detail                     |
+| `GET`  | `/companies/{slug}/jobs`        |      | Paginated jobs for a company       |
+| `GET`  | `/cities`                       |      | Cities with job and company counts |
+| `GET`  | `/cities/{slug}`                |      | City detail                        |
+| `GET`  | `/map/companies`                |      | Company map pins                   |
+| `GET`  | `/map/cities`                   |      | City cluster map pins              |
+| `GET`  | `/admin/stats`                  | ✓    | Aggregate platform statistics      |
+| `POST` | `/admin/ingest/{ats}/{slug}`    | ✓    | Ingest a job board                 |
+| `POST` | `/admin/ingest/discover/{slug}` | ✓    | Auto-detect ATS and ingest         |
+| `POST` | `/admin/reset`                  | ✓    | Clear all jobs (development only)  |
 
 Protected routes require:
 
@@ -135,26 +139,26 @@ GET /search?city=Bangalore&role=engineering&region=south_asia&is_remote=false
 | `country_code` | `IN`, `US`, `GB`                                       |
 | `region`       | `south_asia`, `north_america`, `europe`, `middle_east` |
 | `is_remote`    | `true`, `false`                                        |
-| `page`         | `1`                                                    |
 | `limit`        | `20`                                                   |
+| `offset`       | `0`                                                    |
 
 ### Ingesting Job Boards
 
 ```bash
 # Greenhouse
-curl -X POST http://localhost:8000/ingest/greenhouse/airbnb \
+curl -X POST http://localhost:8000/admin/ingest/greenhouse/airbnb \
   -H "X-API-Key: <ADMIN_API_KEY>"
 
 # Lever
-curl -X POST http://localhost:8000/ingest/lever/spotify \
+curl -X POST http://localhost:8000/admin/ingest/lever/spotify \
   -H "X-API-Key: <ADMIN_API_KEY>"
 
 # Ashby
-curl -X POST http://localhost:8000/ingest/ashby/linear \
+curl -X POST http://localhost:8000/admin/ingest/ashby/linear \
   -H "X-API-Key: <ADMIN_API_KEY>"
 
 # Auto-detect
-curl -X POST http://localhost:8000/ingest/discover/notion \
+curl -X POST http://localhost:8000/admin/ingest/discover/notion \
   -H "X-API-Key: <ADMIN_API_KEY>"
 ```
 
@@ -192,7 +196,7 @@ backend/
 │   └── tech_keywords.json
 ├── scripts/
 │   ├── seed.py
-│   └── validate.py
+│   └── test_e2e.py
 ├── .env.example
 ├── Dockerfile
 ├── pyproject.toml
@@ -211,18 +215,17 @@ backend/
 
 ### Validation
 
-Run the integration suite against a local instance:
+Run the E2E test suite against a local instance:
 
 ```bash
-uv run python scripts/validate.py --api-key <ADMIN_API_KEY>
+uv run python scripts/test_e2e.py
 ```
 
 Against a remote deployment:
 
 ```bash
-uv run python scripts/validate.py \
-  --base-url https://your-server.example.com \
-  --api-key <ADMIN_API_KEY>
+uv run python scripts/test_e2e.py \
+  --base-url https://your-server.example.com
 ```
 
 ### Pre-commit Hooks

@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     CRAWL_DELAY: float = 0.3
 
     GEOCODE_UNKNOWN_CITIES: bool = False
-    GEOCODE_USER_AGENT: str = "JobDex/1.0 (+https://github.com/areebahmeddd/jobdex.ai)"
+    GEOCODE_USER_AGENT: str = "JobDex/1.0 (+https://github.com/areebahmeddd/jobdex)"
 
     ADMIN_API_KEY: str | None = None
 
