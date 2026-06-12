@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import distinct, func
 from sqlalchemy.orm import Session
 
@@ -170,11 +170,11 @@ def map_cities(
     city_q = (
         db.query(
             City,
-            func.coalesce(job_agg.c.job_count, 0).label("job_count"),
-            func.coalesce(job_agg.c.company_count, 0).label("company_count"),
+            job_agg.c.job_count,
+            job_agg.c.company_count,
         )
-        .outerjoin(job_agg, job_agg.c.city_id == City.id)
-        .filter(City.latitude.isnot(None))
+        .join(job_agg, job_agg.c.city_id == City.id)
+        .filter(City.latitude.isnot(None), job_agg.c.job_count > 0)
     )
 
     if region:
@@ -211,4 +211,44 @@ def map_cities(
             for r in rows
         ],
         "total": len(rows),
+    }
+
+
+@router.get("/companies/{slug}/offices")
+def company_offices(slug: str, db: Session = Depends(get_db)):
+    """Return distinct office locations derived from active jobs for the given company slug."""
+    company = db.query(Company).filter(Company.slug == slug, Company.is_active.is_(True)).first()
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    rows = (
+        db.query(
+            Job.city,
+            Job.country_code,
+            func.avg(Job.latitude).label("latitude"),
+            func.avg(Job.longitude).label("longitude"),
+            func.count(Job.id).label("job_count"),
+        )
+        .filter(
+            Job.company_id == company.id,
+            Job.is_active.is_(True),
+            Job.city.isnot(None),
+            Job.latitude.isnot(None),
+        )
+        .group_by(Job.city, Job.country_code)
+        .order_by(func.count(Job.id).desc())
+        .all()
+    )
+
+    return {
+        "offices": [
+            {
+                "city": r.city,
+                "country_code": r.country_code,
+                "latitude": float(r.latitude),
+                "longitude": float(r.longitude),
+                "job_count": r.job_count,
+            }
+            for r in rows
+        ]
     }

@@ -46,6 +46,16 @@ _REMOTE_PATTERNS = [
 ]
 _HYBRID_PATTERNS = [r"\bhybrid\b", r"\bflexible location\b", r"\bpartially remote\b"]
 
+# Locations permanently excluded from the index.
+_BLOCKED_COUNTRY_CODES: frozenset[str] = frozenset({"IL"})
+_BLOCKED_CITY_SUBSTRINGS: tuple[str, ...] = (
+    "israel",
+    "tel aviv",
+    "haifa",
+    "beer sheva",
+    "jerusalem",
+)
+
 
 def get_city_data() -> dict[str, dict]:
     """Return the full city metadata dictionary keyed by canonical city name."""
@@ -78,6 +88,16 @@ def get_region_for_country(country_code: str) -> str | None:
         if country_code.upper() in codes:
             return region
     return None
+
+
+def is_blocked_location(country_code: str | None, city: str | None) -> bool:
+    """Return True if the resolved location is in a permanently excluded country or city."""
+    if country_code and country_code.upper() in _BLOCKED_COUNTRY_CODES:
+        return True
+    if city:
+        city_lower = city.lower()
+        return any(sub in city_lower for sub in _BLOCKED_CITY_SUBSTRINGS)
+    return False
 
 
 def normalize_location(

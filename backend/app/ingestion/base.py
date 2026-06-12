@@ -9,6 +9,7 @@ import httpx
 from loguru import logger
 from sqlalchemy.orm import Session
 
+from app.ingestion.normalizer import get_region_for_country, is_blocked_location
 from app.models import Company, Job
 from app.schemas import IngestResponse
 
@@ -43,6 +44,35 @@ def _backfill_company_hq(company: Company, db: Session) -> None:
         company.region = row.region
         company.latitude = row.latitude
         company.longitude = row.longitude
+
+
+async def _fetch_company_geo(name: str) -> dict:
+    """Query Clearbit autocomplete for company HQ city, country, coordinates, and logo URL."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(
+                "https://autocomplete.clearbit.com/v1/companies/suggest",
+                params={"query": name},
+            )
+            if r.status_code != 200:
+                return {}
+            results = r.json()
+            if not results:
+                return {}
+            top = results[0]
+            geo = top.get("geo") or {}
+            return {
+                "city": geo.get("city"),
+                "country_code": geo.get("countryCode"),
+                "country": geo.get("country"),
+                "latitude": geo.get("lat"),
+                "longitude": geo.get("lng"),
+                "logo_url": (
+                    f"https://logo.clearbit.com/{top['domain']}" if top.get("domain") else None
+                ),
+            }
+    except Exception:
+        return {}
 
 
 class BaseIngester(ABC):
@@ -93,6 +123,25 @@ class BaseIngester(ABC):
         result = IngestResponse(company_slug=slug, ats_type=self.ats_type)
         company = self._resolve_company(slug, db)
 
+        if not company.latitude:
+            geo = await _fetch_company_geo(company.name)
+            if geo and not is_blocked_location(geo.get("country_code"), geo.get("city")):
+                if geo.get("latitude") and geo.get("longitude"):
+                    company.latitude = geo["latitude"]
+                    company.longitude = geo["longitude"]
+                if geo.get("city") and not company.city:
+                    company.city = geo["city"]
+                if geo.get("country_code") and not company.country_code:
+                    company.country_code = geo["country_code"]
+                    company.region = get_region_for_country(geo["country_code"])
+                if geo.get("country") and not company.country:
+                    company.country = geo["country"]
+                if geo.get("logo_url") and not company.logo_url:
+                    company.logo_url = geo["logo_url"]
+                logger.debug(
+                    f"[{self.ats_type}] '{slug}' geocoded HQ: {company.city}, {company.country_code}"
+                )
+
         try:
             raw_jobs = await self.fetch_raw(slug)
         except httpx.HTTPStatusError as exc:
@@ -138,6 +187,13 @@ class BaseIngester(ABC):
                     result.updated_jobs += 1
                 else:
                     job = self.build_job(raw, company, slug)
+                    if is_blocked_location(job.country_code, job.city):
+                        logger.info(
+                            f"[{self.ats_type}] '{slug}' skipping blocked location:"
+                            f" {job.city}, {job.country_code}"
+                        )
+                        seen_hashes.discard(dedup_hash)
+                        continue
                     job.dedup_hash = dedup_hash
                     job.first_seen_at = now
                     job.last_seen_at = now

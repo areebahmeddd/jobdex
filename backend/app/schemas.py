@@ -78,6 +78,7 @@ class CompanyResponse(BaseModel):
 
     industry: list[str] = []
     stage: str | None = None
+    founded_year: int | None = None
     logo_url: str | None = None
     ats_type: str | None = None
 
@@ -88,7 +89,7 @@ class CompanyResponse(BaseModel):
 
 
 class CompanyDetailResponse(CompanyResponse):
-    pass
+    founded_year: int | None = None
 
 
 # Cities
