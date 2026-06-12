@@ -1,0 +1,114 @@
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Geist+Mono:wght@300;400;500;600;700&family=Geist:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Geist", "Inter", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Fira Code", monospace;
+
+  --color-brand: oklch(52% 0.24 290);
+  --color-brand-soft: oklch(62% 0.2 290);
+  --color-brand-muted: oklch(72% 0.14 290);
+
+  --radius-card: 0.75rem;
+  --radius-drawer: 1rem;
+}
+
+:root {
+  --panel-bg: oklch(98% 0 0);
+  --panel-border: oklch(91% 0 0);
+  --card-bg: oklch(100% 0 0);
+  --text-primary: oklch(20% 0 0);
+  --text-secondary: oklch(50% 0 0);
+}
+
+.dark {
+  --panel-bg: oklch(11% 0 0);
+  --panel-border: oklch(22% 0 0);
+  --card-bg: oklch(15% 0 0);
+  --text-primary: oklch(95% 0 0);
+  --text-secondary: oklch(70% 0 0);
+}
+
+/* Custom styles for complete interface responsiveness */
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--panel-bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+/* Hide scrollbars but keep functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom pulse animations for interactive elements */
+@keyframes pin-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.5);
+  }
+  70% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 8px rgba(139, 92, 246, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+  }
+}
+
+.pin-pulse-active {
+  animation: pin-pulse 2s infinite;
+}
+
+/* HTML Globe Pin Styles */
+.globe-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.globe-pin:hover {
+  transform: scale(1.25) translateY(-4px);
+  z-index: 999;
+}
+
+.globe-pin-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid #8b5cf6;
+  background-color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  font-weight: 700;
+  font-size: 11px;
+  color: #1e1b4b;
+}
+
+.globe-pin-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #a855f7;
+  border: 1px solid #ffffff;
+  margin-top: 2px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
