@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="frontend/public/logo.svg" alt="JobDex" height="56" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="frontend/public/logo-dark.svg" />
+    <img src="frontend/public/logo.svg" alt="JobDex" height="56" />
+  </picture>
 </p>
 
 <p align="center">
@@ -9,7 +12,7 @@
 
 <br />
 
-Aggregates live job postings from Greenhouse, Lever, and Ashby into a unified schema and plots them on an interactive world map. Filter by city, region, industry, or role to explore where startups are hiring without the noise of traditional job boards.
+JobDex is a startup-focused job board built around map-first discovery. Instead of starting with a search box and scrolling through pages of listings, users explore opportunities geographically, browsing jobs by city, region, or remote status on an interactive map.
 
 > Open source alternative to [nextdoor.company](https://nextdoor.company)
 
