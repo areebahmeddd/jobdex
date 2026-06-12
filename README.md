@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="frontend/public/logo-dark.svg" />
-    <img src="frontend/public/logo.svg" alt="JobDex" height="56" />
+    <img src="frontend/public/logo-light.svg" alt="JobDex" height="56" />
   </picture>
 </p>
 
