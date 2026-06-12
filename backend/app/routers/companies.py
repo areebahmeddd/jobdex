@@ -30,14 +30,14 @@ def _bulk_categories(company_ids: list[str], db: Session) -> dict[str, list[str]
     return result
 
 
-def _company_query_with_counts(db: Session):
+def _company_query_with_counts(db: Session, city: str | None = None):
     """Return a base query joining Company with active job counts via a subquery."""
-    job_count_sq = (
-        db.query(Job.company_id, func.count(Job.id).label("job_count"))
-        .filter(Job.is_active.is_(True))
-        .group_by(Job.company_id)
-        .subquery()
+    job_count_q = db.query(Job.company_id, func.count(Job.id).label("job_count")).filter(
+        Job.is_active.is_(True)
     )
+    if city:
+        job_count_q = job_count_q.filter(Job.city == city)
+    job_count_sq = job_count_q.group_by(Job.company_id).subquery()
     return db.query(
         Company, func.coalesce(job_count_sq.c.job_count, 0).label("job_count")
     ).outerjoin(job_count_sq, job_count_sq.c.company_id == Company.id)
@@ -57,11 +57,19 @@ def list_companies(
     db: Session = Depends(get_db),
 ):
     """Return a paginated list of active companies with optional filters."""
-    base = _company_query_with_counts(db).filter(Company.is_active.is_(True))
+    canonical_city = canonicalize_city(city) if city else None
+    effective_city = canonical_city or city if city else None
 
-    if city:
-        canonical = canonicalize_city(city) or city
-        base = base.filter(Company.city == canonical)
+    base = _company_query_with_counts(db, city=effective_city).filter(Company.is_active.is_(True))
+
+    if effective_city:
+        city_company_ids = (
+            db.query(Job.company_id)
+            .filter(Job.city == effective_city, Job.is_active.is_(True))
+            .distinct()
+            .subquery()
+        )
+        base = base.filter(Company.id.in_(city_company_ids))
     if country_code:
         base = base.filter(Company.country_code == country_code.upper())
     if region:
@@ -161,6 +169,7 @@ def list_company_jobs(
         },
         "jobs": [build_job_response(j, company).model_dump() for j in jobs],
         "total": total,
+        "has_more": (offset + len(jobs)) < total,
         "limit": limit,
         "offset": offset,
     }
