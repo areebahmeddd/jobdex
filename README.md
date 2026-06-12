@@ -1,18 +1,17 @@
-# JobDex
+<p align="center">
+  <img src="frontend/public/logo.svg" alt="JobDex" height="56" />
+</p>
 
-JobDex is a startup-focused job board built around **map-first discovery**. Instead of starting with a search box and scrolling through pages of listings, users explore opportunities geographically, browsing jobs by city, region, or remote status on an interactive map.
+<p align="center">
+  <a href="https://github.com/areebahmeddd/jobdex/releases"><img src="https://img.shields.io/github/v/release/areebahmeddd/jobdex?style=flat-square" alt="release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="license" /></a>
+</p>
 
-The platform aggregates live job postings directly from company career pages across Greenhouse, Lever, and Ashby, then normalizes them into a unified schema containing company information, role categories, seniority levels, technology keywords, location data, and city coordinates. This normalization layer enables consistent filtering and discovery across companies regardless of which applicant tracking system they use.
+<br />
 
-> Inspired by [nextdoor.company](https://nextdoor.company)
+Aggregates live job postings from Greenhouse, Lever, and Ashby into a unified schema and plots them on an interactive world map. Filter by city, region, industry, or role to explore where startups are hiring without the noise of traditional job boards.
 
-## Data Sources
-
-| ATS        | Source                                                   |
-| ---------- | -------------------------------------------------------- |
-| Greenhouse | `boards-api.greenhouse.io/v1/boards/{slug}/jobs`         |
-| Lever      | `api.lever.co/v0/postings/{slug}`                        |
-| Ashby      | `api.ashbyhq.com/posting-api/job-board/{slug}`           |
+> Open source alternative to [nextdoor.company](https://nextdoor.company)
 
 ## Architecture
 
@@ -25,39 +24,32 @@ The platform aggregates live job postings directly from company career pages acr
                                           │ REST API
                                           ▼
                                ┌──────────────────────┐
-                               │      Frontend        │
-                               │   Map + Listings     │
+                               │   Frontend (React)   │
+                               │   Map + Discovery    │
                                └──────────────────────┘
 ```
 
-### Backend
+## Data Sources
 
-- FastAPI service responsible for ATS ingestion, job normalization, and search APIs
-- Aggregates jobs from Greenhouse, Lever, and Ashby
-- Exposes endpoints for jobs, companies, cities, and filtering
+| ATS        | Endpoint                                              |
+| ---------- | ----------------------------------------------------- |
+| Greenhouse | `boards-api.greenhouse.io/v1/boards/{slug}/jobs`      |
+| Lever      | `api.lever.co/v0/postings/{slug}`                     |
+| Ashby      | `api.ashbyhq.com/posting-api/job-board/{slug}`        |
 
-### Frontend
+## Getting Started
 
-- Map-first job discovery interface
-- Geographic exploration of opportunities
-- Listing search and filtering
-
-### Database
-
-- Neon serverless PostgreSQL
-- SQLAlchemy-managed schema and models
-
-## Repository Structure
-
-```text
-jobdex/
-├── backend/            # FastAPI API, ingestion pipeline, data files
-├── frontend/           # Frontend application
-├── docker-compose.yaml
-└── README.md
+```bash
+git clone https://github.com/areebahmeddd/jobdex
+cd jobdex
+docker compose up
 ```
+
+- Frontend: `http://localhost:3000`
+- Backend API: `http://localhost:8000`
+- API docs: `http://localhost:8000/docs`
 
 ## Documentation
 
-- `backend/README.md` - API setup, configuration, endpoints, and development workflow
+- `backend/README.md` - API setup, configuration, endpoints, and ingestion
 - `frontend/README.md` - Frontend setup and development

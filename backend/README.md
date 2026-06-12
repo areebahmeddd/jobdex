@@ -8,12 +8,12 @@ FastAPI backend for JobDex. Handles ATS ingestion, job normalization, PostgreSQL
 | --------------------- | --------------------------------- |
 | API                   | FastAPI + Uvicorn                 |
 | ORM                   | SQLAlchemy 2.0 (`Mapped[]` style) |
-| Database              | Neon serverless PostgreSQL        |
+| Database              | Neon serverless PostgreSQL (18)   |
 | Configuration         | pydantic-settings                 |
 | HTTP Client           | httpx                             |
 | Logging               | loguru                            |
 | Dependency Management | uv                                |
-| Linting & Formatting  | ruff + pre-commit                 |
+| Linting & Formatting  | ruff                              |
 | Deployment            | Docker + Docker Compose           |
 
 ## Getting Started
@@ -38,18 +38,6 @@ Copy the example environment file:
 
 ```bash
 cp .env.example .env
-```
-
-At minimum, configure:
-
-- `DATABASE_URL`
-- `ADMIN_API_KEY`
-
-You can create a Neon project and retrieve a connection string using:
-
-```bash
-neon projects create --name jobdex --region-id aws-ap-southeast-1
-neon connection-string
 ```
 
 ### Running Locally
@@ -177,45 +165,9 @@ All settings are loaded from `.env`.
 | `HTTP_TIMEOUT`           | `30.0`                          | ATS request timeout in seconds         |
 | `CRAWL_DELAY`            | `0.3`                           | Delay between ATS requests             |
 | `GEOCODE_UNKNOWN_CITIES` | `false`                         | Geocode unknown cities using Nominatim |
-| `GEOCODE_USER_AGENT`     | `JobDex API/1.0`                | User-Agent sent to Nominatim           |
+| `GEOCODE_USER_AGENT`     | `jobdex-api/1.0`                | User-Agent sent to Nominatim           |
 | `ADMIN_API_KEY`          | `Unset`                         | Protect admin and ingestion routes     |
 | `DEBUG`                  | `false`                         | FastAPI debug mode                     |
-
-## Project Structure
-
-```text
-backend/
-├── app/
-│   ├── config.py
-│   ├── database.py
-│   ├── main.py
-│   ├── models.py
-│   ├── schemas.py
-│   ├── ingestion/
-│   └── routers/
-│       └── _builders.py
-├── data/
-│   ├── cities.json
-│   ├── role_patterns.json
-│   ├── seniority_patterns.json
-│   └── tech_keywords.json
-├── scripts/
-│   ├── seed.py
-│   ├── test_e2e.py
-│   └── validate.py
-├── .env.example
-├── Dockerfile
-├── pyproject.toml
-└── README.md
-```
-
-### Directory Overview
-
-- `app/` - FastAPI application code
-- `app/ingestion/` - ATS-specific ingestion clients
-- `app/routers/` - API route handlers
-- `data/` - Normalization datasets and lookup files
-- `scripts/` - Development and operational utilities
 
 ## Development
 
@@ -233,26 +185,3 @@ Against a remote deployment:
 uv run python scripts/test_e2e.py \
   --base-url https://your-server.example.com
 ```
-
-### Pre-commit Hooks
-
-Install hooks:
-
-```bash
-uv run pre-commit install
-```
-
-Run manually:
-
-```bash
-uv run pre-commit run --all-files
-```
-
-Configured hooks:
-
-- end-of-file-fixer
-- trailing-whitespace
-- check-json
-- check-yaml
-- ruff check --fix
-- ruff format
