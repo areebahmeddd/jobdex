@@ -1,9 +1,3 @@
-"""Job listing and detail endpoints.
-
-GET /jobs       paginated job listing with filters (supports cursor pagination)
-GET /jobs/{id}  full job detail
-"""
-
 import base64
 import json
 from datetime import datetime
@@ -15,39 +9,26 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.ingestion.normalizer import canonicalize_city
 from app.models import Company, Job
-from app.schemas import JobDetailResponse, JobResponse
+from app.routers._builders import build_job_detail_response, build_job_response
+from app.schemas import JobDetailResponse
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
 def _encode_cursor(posted_at: datetime | None, job_id: str) -> str:
+    """Encode a keyset pagination cursor from a posted_at datetime and job ID."""
     payload = {"p": posted_at.isoformat() if posted_at else "", "i": job_id}
     return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
 
 
 def _decode_cursor(cursor: str) -> tuple[datetime | None, str] | None:
+    """Decode a keyset pagination cursor, returning (posted_at, job_id) or None if invalid."""
     try:
         payload = json.loads(base64.urlsafe_b64decode(cursor).decode())
         posted_at = datetime.fromisoformat(payload["p"]) if payload["p"] else None
         return posted_at, payload["i"]
     except Exception:
         return None
-
-
-def _build_job_response(job: Job, company: Company) -> JobResponse:
-    data = JobResponse.model_validate(job)
-    data.company_name = company.name
-    data.company_slug = company.slug
-    data.company_logo_url = company.logo_url
-    return data
-
-
-def _build_job_detail_response(job: Job, company: Company) -> JobDetailResponse:
-    data = JobDetailResponse.model_validate(job)
-    data.company_name = company.name
-    data.company_slug = company.slug
-    data.company_logo_url = company.logo_url
-    return data
 
 
 @router.get("", response_model=dict)
@@ -65,6 +46,7 @@ def list_jobs(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
+    """Return a paginated list of active jobs with optional filters and keyset or offset pagination."""
     query = (
         db.query(Job, Company)
         .join(Company, Job.company_id == Company.id)
@@ -122,7 +104,7 @@ def list_jobs(
             .all()
         )
 
-    enriched = [_build_job_response(j, c) for j, c in rows]
+    enriched = [build_job_response(j, c) for j, c in rows]
 
     next_cursor = None
     if len(enriched) == limit:
@@ -140,6 +122,7 @@ def list_jobs(
 
 @router.get("/{job_id}", response_model=JobDetailResponse)
 def get_job(job_id: str, db: Session = Depends(get_db)):
+    """Return full details for a single job by its ID."""
     row = (
         db.query(Job, Company)
         .join(Company, Job.company_id == Company.id)
@@ -148,4 +131,4 @@ def get_job(job_id: str, db: Session = Depends(get_db)):
     )
     if not row:
         raise HTTPException(status_code=404, detail="Job not found")
-    return _build_job_detail_response(row[0], row[1])
+    return build_job_detail_response(row[0], row[1])

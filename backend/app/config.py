@@ -17,6 +17,10 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "postgresql://localhost/jobdex"
     DB_ECHO: bool = False
+    DB_POOL_SIZE: int = 2
+    DB_MAX_OVERFLOW: int = 3
+    DB_POOL_TIMEOUT: int = 30
+    DB_POOL_RECYCLE: int = 600
 
     HTTP_TIMEOUT: float = 30.0
     CRAWL_DELAY: float = 0.3

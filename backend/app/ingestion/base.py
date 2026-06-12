@@ -1,9 +1,3 @@
-"""Base ingester shared by all ATS clients.
-
-Subclasses implement fetch_raw(), get_job_id(), and build_job().
-The ingest() loop (resolve company -> fetch -> upsert -> commit) lives here.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -16,7 +10,11 @@ from loguru import logger
 from sqlalchemy.orm import Session
 
 from app.models import Company, Job
-from app.schemas import IngestResult
+from app.schemas import IngestResponse
+
+# Shared limits used by all ingester build_job() implementations.
+_TECH_EXTRACT_CHARS: int = 2000  # description chars passed to extract_tech_stack
+_DESCRIPTION_MAX_CHARS: int = 20000  # max chars stored in job.description
 
 
 def _backfill_company_hq(company: Company, db: Session) -> None:
@@ -56,7 +54,7 @@ class BaseIngester(ABC):
         ...
 
     @abstractmethod
-    def get_job_id(self, raw: dict) -> str:
+    def extract_job_id(self, raw: dict) -> str:
         """Extract the stable job ID from a raw job dict."""
         ...
 
@@ -66,6 +64,7 @@ class BaseIngester(ABC):
         ...
 
     def make_hash(self, slug: str, job_id: str) -> str:
+        """Compute a SHA-256 dedup hash from the ATS type, slug, and job ID."""
         return hashlib.sha256(f"{self.ats_type}:{slug}:{job_id}".encode()).hexdigest()
 
     def _resolve_company(self, slug: str, db: Session) -> Company:
@@ -89,8 +88,9 @@ class BaseIngester(ABC):
             db.flush()
         return company
 
-    async def ingest(self, slug: str, db: Session) -> IngestResult:
-        result = IngestResult(company_slug=slug, ats_type=self.ats_type)
+    async def ingest(self, slug: str, db: Session) -> IngestResponse:
+        """Fetch jobs from the ATS, upsert new and updated records, and deactivate expired ones."""
+        result = IngestResponse(company_slug=slug, ats_type=self.ats_type)
         company = self._resolve_company(slug, db)
 
         try:
@@ -127,7 +127,7 @@ class BaseIngester(ABC):
 
         for raw in raw_jobs:
             try:
-                job_id = self.get_job_id(raw)
+                job_id = self.extract_job_id(raw)
                 dedup_hash = self.make_hash(slug, job_id)
                 seen_hashes.add(dedup_hash)
                 if dedup_hash in existing_hash_to_id:

@@ -1,13 +1,3 @@
-"""Admin and ingestion endpoints.
-
-POST /admin/ingest/greenhouse/{slug}  ingest a Greenhouse board
-POST /admin/ingest/lever/{slug}       ingest a Lever board
-POST /admin/ingest/ashby/{slug}       ingest an Ashby board
-POST /admin/ingest/discover/{slug}    probe all three ATS types, ingest the first match
-GET  /admin/stats                     aggregate stats
-POST /admin/reset                     delete all jobs (dev)
-"""
-
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Security
@@ -19,57 +9,59 @@ from app.config import settings
 from app.database import get_db
 from app.ingestion import INGESTERS, ashby, greenhouse, lever
 from app.models import City, Company, Job
-from app.schemas import DiscoverResult, IngestResult, StatsResponse
+from app.schemas import DiscoverResponse, IngestResponse, StatsResponse
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-def _check_admin(api_key: str | None = Security(_api_key_header)):
+def _require_admin(api_key: str | None = Security(_api_key_header)):
+    """Raise HTTP 403 if the provided API key does not match the configured admin key."""
     if settings.ADMIN_API_KEY and api_key != settings.ADMIN_API_KEY:
         raise HTTPException(status_code=403, detail="Invalid or missing X-API-Key header")
 
 
-@router.post("/ingest/greenhouse/{slug}", response_model=IngestResult)
+@router.post("/ingest/greenhouse/{slug}", response_model=IngestResponse)
 async def ingest_greenhouse(
     slug: str,
     db: Session = Depends(get_db),
-    _: None = Depends(_check_admin),
+    _: None = Depends(_require_admin),
 ):
+    """Ingest job listings from a Greenhouse board identified by slug."""
     return await greenhouse.ingest(slug.lower(), db)
 
 
-@router.post("/ingest/lever/{slug}", response_model=IngestResult)
+@router.post("/ingest/lever/{slug}", response_model=IngestResponse)
 async def ingest_lever(
     slug: str,
     db: Session = Depends(get_db),
-    _: None = Depends(_check_admin),
+    _: None = Depends(_require_admin),
 ):
+    """Ingest job listings from a Lever board identified by slug."""
     return await lever.ingest(slug.lower(), db)
 
 
-@router.post("/ingest/ashby/{slug}", response_model=IngestResult)
+@router.post("/ingest/ashby/{slug}", response_model=IngestResponse)
 async def ingest_ashby(
     slug: str,
     db: Session = Depends(get_db),
-    _: None = Depends(_check_admin),
+    _: None = Depends(_require_admin),
 ):
+    """Ingest job listings from an Ashby board identified by slug."""
     return await ashby.ingest(slug.lower(), db)
 
 
-@router.post("/ingest/discover/{slug}", response_model=DiscoverResult)
+@router.post("/ingest/discover/{slug}", response_model=DiscoverResponse)
 async def discover_and_ingest(
     slug: str,
     db: Session = Depends(get_db),
-    _: None = Depends(_check_admin),
+    _: None = Depends(_require_admin),
 ):
-    """Probe each ATS in order and ingest from the first match."""
+    """Probe Greenhouse, Lever, and Ashby in order and ingest from the first matching board."""
     slug = slug.lower()
-    discovery_order = ["greenhouse", "lever", "ashby"]
 
-    for ats_name in discovery_order:
-        ingester = INGESTERS[ats_name]
+    for ats_name, ingester in INGESTERS.items():
         try:
             found = await ingester.probe(slug)
         except Exception:
@@ -77,16 +69,16 @@ async def discover_and_ingest(
 
         if found:
             result = await ingester.ingest(slug, db)
-            return DiscoverResult(
+            return DiscoverResponse(
                 company_slug=slug,
                 ats_type=ats_name,
                 discovered=True,
                 message=f"Found on {ats_name} - {result.new_jobs} new jobs ingested",
                 ingest_result=result,
             )
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(settings.CRAWL_DELAY)
 
-    return DiscoverResult(
+    return DiscoverResponse(
         company_slug=slug,
         discovered=False,
         message="Not found on Greenhouse, Lever, or Ashby. Check the slug or try a different ATS.",
@@ -94,7 +86,11 @@ async def discover_and_ingest(
 
 
 @router.get("/stats", response_model=StatsResponse)
-def stats(db: Session = Depends(get_db)):
+def get_stats(
+    db: Session = Depends(get_db),
+    _: None = Depends(_require_admin),
+):
+    """Return aggregate platform statistics across companies, jobs, cities, and ATS providers."""
     total_companies = db.query(func.count(Company.id)).scalar() or 0
     total_jobs = db.query(func.count(Job.id)).scalar() or 0
     active_jobs = db.query(func.count(Job.id)).filter(Job.is_active.is_(True)).scalar() or 0
@@ -156,11 +152,11 @@ def stats(db: Session = Depends(get_db)):
 
 
 @router.post("/reset", response_model=dict)
-def reset_database(
+def reset(
     db: Session = Depends(get_db),
-    _: None = Depends(_check_admin),
+    _: None = Depends(_require_admin),
 ):
-    """Delete all jobs and reset company crawl state. Keeps companies and cities."""
+    """Delete all jobs and reset company crawl state, keeping companies and cities intact."""
     deleted = db.query(Job).delete()
     db.query(Company).update({"last_crawled_at": None, "crawl_error": None})
     db.commit()

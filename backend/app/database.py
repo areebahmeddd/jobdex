@@ -6,10 +6,19 @@ from app.config import settings
 
 
 def _normalize_db_url(url: str) -> str:
-    """Rewrite asyncpg-style database URLs to their psycopg2 equivalents."""
+    """Rewrite a PostgreSQL URL to a psycopg2-compatible form.
+
+    - Injects +psycopg2 driver if absent
+    - Replaces +asyncpg with +psycopg2
+    - Rewrites ssl=require to sslmode=require
+    - Strips channel_binding=require (unsupported by psycopg2)
+    """
+    if "://" in url and "+" not in url.split("://")[0]:
+        url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
     url = url.replace("+asyncpg", "+psycopg2")
     if "sslmode" not in url:
         url = url.replace("ssl=require", "sslmode=require")
+    url = url.replace("&channel_binding=require", "").replace("channel_binding=require&", "")
     return url
 
 
@@ -17,10 +26,10 @@ engine = create_engine(
     _normalize_db_url(settings.DATABASE_URL),
     echo=settings.DB_ECHO,
     pool_pre_ping=True,
-    pool_size=2,
-    max_overflow=3,
-    pool_timeout=30,
-    pool_recycle=600,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT,
+    pool_recycle=settings.DB_POOL_RECYCLE,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -31,6 +40,7 @@ class Base(DeclarativeBase):
 
 
 def get_db():
+    """Yield a database session and ensure it is closed after each request."""
     db = SessionLocal()
     try:
         yield db

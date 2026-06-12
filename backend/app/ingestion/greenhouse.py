@@ -1,9 +1,3 @@
-"""Greenhouse ATS ingester.
-
-Public API, no auth required.
-Endpoint: https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true
-"""
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -11,7 +5,7 @@ from datetime import datetime
 import httpx
 
 from app.config import settings
-from app.ingestion.base import BaseIngester
+from app.ingestion.base import _DESCRIPTION_MAX_CHARS, _TECH_EXTRACT_CHARS, BaseIngester
 from app.ingestion.normalizer import (
     classify_role,
     classify_seniority,
@@ -29,16 +23,19 @@ class GreenhouseIngester(BaseIngester):
     ats_type = "greenhouse"
 
     async def fetch_raw(self, slug: str) -> list[dict]:
+        """Fetch raw job listings from the Greenhouse boards API for the given slug."""
         url = f"{_BASE}/{slug}/jobs?content=true"
         async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT) as client:
             r = await client.get(url)
             r.raise_for_status()
             return r.json().get("jobs", [])
 
-    def get_job_id(self, raw: dict) -> str:
+    def extract_job_id(self, raw: dict) -> str:
+        """Extract the Greenhouse job ID from a raw job dict."""
         return str(raw["id"])
 
     def build_job(self, raw: dict, company: Company, slug: str) -> Job:
+        """Parse a raw Greenhouse job dict into an unsaved Job ORM object."""
         title = raw.get("title", "")
 
         loc_raw = (raw.get("location") or {}).get("name", "")
@@ -60,14 +57,14 @@ class GreenhouseIngester(BaseIngester):
         )
         category, subcategory = classify_role(title, plain, department)
         seniority = classify_seniority(title)
-        tech = extract_tech_stack(title, plain[:2000])
+        tech = extract_tech_stack(title, plain[:_TECH_EXTRACT_CHARS])
         posted_at = _parse_dt(raw.get("updated_at", ""))
 
         return Job(
             company_id=company.id,
             title=title,
             title_normalized=title.lower().strip(),
-            description=plain[:20000],
+            description=plain[:_DESCRIPTION_MAX_CHARS],
             description_snippet=make_snippet(plain),
             location_raw=loc_raw,
             city=loc["city"],
@@ -93,6 +90,7 @@ class GreenhouseIngester(BaseIngester):
 
 
 def _parse_dt(raw: str) -> datetime | None:
+    """Parse an ISO 8601 datetime string to a datetime object, returning None on failure."""
     if not raw:
         return None
     try:

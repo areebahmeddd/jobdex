@@ -34,10 +34,6 @@ class JobResponse(BaseModel):
     tech_stack: list[str] = []
     department: str | None = None
 
-    salary_min: int | None = None
-    salary_max: int | None = None
-    salary_currency: str | None = None
-
     source_url: str
     ats_type: str | None = None
     posted_at: datetime | None = None
@@ -47,6 +43,7 @@ class JobResponse(BaseModel):
     @computed_field  # type: ignore[misc]
     @property
     def location_display(self) -> str:
+        """Build a human-readable location label for display in job listings."""
         if self.is_remote and not self.city:
             return "Remote"
         parts = [p for p in [self.city, self.country_code] if p]
@@ -81,7 +78,6 @@ class CompanyResponse(BaseModel):
 
     industry: list[str] = []
     stage: str | None = None
-    employee_count_range: str | None = None
     logo_url: str | None = None
     ats_type: str | None = None
 
@@ -129,23 +125,22 @@ class SearchResponse(BaseModel):
 # Ingestion
 
 
-class IngestResult(BaseModel):
+class IngestResponse(BaseModel):
     company_slug: str
     ats_type: str
     total_fetched: int = 0
     new_jobs: int = 0
     updated_jobs: int = 0
     deactivated_jobs: int = 0  # jobs on previous board no longer returned by ATS
-    skipped: int = 0
     errors: list[str] = []
 
 
-class DiscoverResult(BaseModel):
+class DiscoverResponse(BaseModel):
     company_slug: str
     ats_type: str | None = None
     discovered: bool = False
     message: str = ""
-    ingest_result: IngestResult | None = None
+    ingest_result: IngestResponse | None = None
 
 
 # Stats

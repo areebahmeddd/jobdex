@@ -1,9 +1,3 @@
-"""Ashby ATS ingester.
-
-Public REST API, no auth required.
-Endpoint: https://api.ashbyhq.com/posting-api/job-board/{slug}
-"""
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -11,7 +5,7 @@ from datetime import datetime
 import httpx
 
 from app.config import settings
-from app.ingestion.base import BaseIngester
+from app.ingestion.base import _DESCRIPTION_MAX_CHARS, _TECH_EXTRACT_CHARS, BaseIngester
 from app.ingestion.normalizer import (
     classify_role,
     classify_seniority,
@@ -30,6 +24,7 @@ class AshbyIngester(BaseIngester):
     ats_type = "ashby"
 
     async def fetch_raw(self, slug: str) -> list[dict]:
+        """Fetch raw job listings from the Ashby posting API for the given slug."""
         url = _REST_URL.format(slug=slug)
         async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT) as client:
             r = await client.get(url, headers={"Accept": "application/json"})
@@ -37,10 +32,12 @@ class AshbyIngester(BaseIngester):
             data = r.json()
         return data.get("jobs") or []
 
-    def get_job_id(self, raw: dict) -> str:
+    def extract_job_id(self, raw: dict) -> str:
+        """Extract the Ashby job ID from a raw job dict."""
         return str(raw["id"])
 
     def build_job(self, raw: dict, company: Company, slug: str) -> Job:
+        """Parse a raw Ashby job dict into an unsaved Job ORM object."""
         title = raw.get("title", "")
 
         # Location: Ashby REST uses 'location' or 'address'.
@@ -68,7 +65,7 @@ class AshbyIngester(BaseIngester):
         category, subcategory = classify_role(title, plain, full_dept)
         seniority = classify_seniority(title)
         job_type = normalize_job_type(commitment)
-        tech = extract_tech_stack(title, plain[:2000])
+        tech = extract_tech_stack(title, plain[:_TECH_EXTRACT_CHARS])
         posted_at = _parse_published(raw.get("publishedAt"))
 
         source_url = raw.get("applyUrl", "") or raw.get("jobUrl", "")
@@ -79,7 +76,7 @@ class AshbyIngester(BaseIngester):
             company_id=company.id,
             title=title,
             title_normalized=title.lower().strip(),
-            description=plain[:20000],
+            description=plain[:_DESCRIPTION_MAX_CHARS],
             description_snippet=make_snippet(plain),
             location_raw=loc_raw,
             city=loc["city"],
@@ -105,6 +102,7 @@ class AshbyIngester(BaseIngester):
 
 
 def _parse_published(raw: str | None) -> datetime | None:
+    """Parse an Ashby ISO 8601 publishedAt string to a datetime object, returning None on failure."""
     if not raw:
         return None
     try:

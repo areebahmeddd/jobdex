@@ -13,6 +13,7 @@ from app.routers import admin, cities, companies, jobs, map, search
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Initialize the database and seed cities on startup, then shut down cleanly."""
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}...")
     init_db()
     _seed_cities()
@@ -22,7 +23,7 @@ async def lifespan(app: FastAPI):
 
 
 def _seed_cities():
-    """Seed cities from data/cities.json; rows with an existing slug are skipped."""
+    """Seed the city table from data/cities.json, skipping cities that already exist."""
     city_data = get_city_data()
     featured = set(get_featured_cities())
     db = SessionLocal()
@@ -59,7 +60,7 @@ def _seed_cities():
                 )
                 added += 1
         db.commit()
-        logger.info(f"Seeded {added} cities")
+        logger.info(f"Seeded {added} new cities")
     finally:
         db.close()
 
@@ -88,11 +89,13 @@ app.include_router(admin.router)
 
 @app.get("/health", tags=["meta"])
 def health():
+    """Return service health status and current version."""
     return {"status": "ok", "version": settings.APP_VERSION}
 
 
 @app.get("/", tags=["meta"])
 def root():
+    """Return API metadata, supported ATS providers, and primary endpoints."""
     return {
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,

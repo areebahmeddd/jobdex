@@ -1,10 +1,3 @@
-"""Company listing and detail endpoints.
-
-GET /companies              paginated listing with filters
-GET /companies/{slug}       company detail (no embedded jobs)
-GET /companies/{slug}/jobs  paginated jobs for a single company
-"""
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -13,21 +6,14 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.ingestion.normalizer import canonicalize_city
 from app.models import Company, Job
-from app.schemas import CompanyDetailResponse, CompanyResponse, JobResponse
+from app.routers._builders import build_company_response, build_job_response
+from app.schemas import CompanyDetailResponse
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
 
-def _build_job_response(job: Job, company: Company) -> JobResponse:
-    data = JobResponse.model_validate(job)
-    data.company_name = company.name
-    data.company_slug = company.slug
-    data.company_logo_url = company.logo_url
-    return data
-
-
 def _bulk_categories(company_ids: list[str], db: Session) -> dict[str, list[str]]:
-    """Return {company_id: [role_category, ...]} for all given company IDs in one query."""
+    """Return open role categories grouped by company ID for a batch of companies."""
     rows = (
         db.query(Job.company_id, Job.role_category)
         .filter(
@@ -44,8 +30,8 @@ def _bulk_categories(company_ids: list[str], db: Session) -> dict[str, list[str]
     return result
 
 
-def _enriched_company_query(db: Session):
-    """Return a base query with active job_count joined via subquery."""
+def _company_query_with_counts(db: Session):
+    """Return a base query joining Company with active job counts via a subquery."""
     job_count_sq = (
         db.query(Job.company_id, func.count(Job.id).label("job_count"))
         .filter(Job.is_active.is_(True))
@@ -55,15 +41,6 @@ def _enriched_company_query(db: Session):
     return db.query(
         Company, func.coalesce(job_count_sq.c.job_count, 0).label("job_count")
     ).outerjoin(job_count_sq, job_count_sq.c.company_id == Company.id)
-
-
-def _build_company_response(
-    company: Company, job_count: int, categories: list[str]
-) -> CompanyResponse:
-    data = CompanyResponse.model_validate(company)
-    data.job_count = job_count
-    data.open_role_categories = sorted(categories)
-    return data
 
 
 @router.get("", response_model=dict)
@@ -79,7 +56,8 @@ def list_companies(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    base = _enriched_company_query(db).filter(Company.is_active.is_(True))
+    """Return a paginated list of active companies with optional filters."""
+    base = _company_query_with_counts(db).filter(Company.is_active.is_(True))
 
     if city:
         canonical = canonicalize_city(city) or city
@@ -103,7 +81,7 @@ def list_companies(
     company_ids = [company.id for company, _ in rows]
     categories_map = _bulk_categories(company_ids, db)
     results = [
-        _build_company_response(company, job_count, categories_map.get(company.id, []))
+        build_company_response(company, job_count, categories_map.get(company.id, []))
         for company, job_count in rows
     ]
 
@@ -117,6 +95,7 @@ def list_companies(
 
 @router.get("/{slug}", response_model=CompanyDetailResponse)
 def get_company(slug: str, db: Session = Depends(get_db)):
+    """Return detail for a single company by slug, including job count and open role categories."""
     company = db.query(Company).filter(Company.slug == slug).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
@@ -136,7 +115,7 @@ def get_company(slug: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{slug}/jobs", response_model=dict)
-def company_jobs(
+def list_company_jobs(
     slug: str,
     city: str | None = Query(None),
     country_code: str | None = Query(None),
@@ -147,6 +126,7 @@ def company_jobs(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
+    """Return paginated active jobs for a company, with optional city, role, and seniority filters."""
     company = db.query(Company).filter(Company.slug == slug).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
@@ -179,7 +159,7 @@ def company_jobs(
             "longitude": company.longitude,
             "logo_url": company.logo_url,
         },
-        "jobs": [_build_job_response(j, company).model_dump() for j in jobs],
+        "jobs": [build_job_response(j, company).model_dump() for j in jobs],
         "total": total,
         "limit": limit,
         "offset": offset,

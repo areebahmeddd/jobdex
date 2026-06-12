@@ -167,14 +167,18 @@ curl -X POST http://localhost:8000/admin/ingest/discover/notion \
 All settings are loaded from `.env`.
 
 | Variable                 | Default                         | Description                            |
-| ------------------------ | ------------------------------- | -------------------------------------- |
+|--------------------------|---------------------------------|----------------------------------------|
 | `DATABASE_URL`           | `postgresql://localhost/jobdex` | PostgreSQL connection string           |
 | `DB_ECHO`                | `false`                         | Enable SQL query logging               |
+| `DB_POOL_SIZE`           | `2`                             | SQLAlchemy connection pool size        |
+| `DB_MAX_OVERFLOW`        | `3`                             | Max connections above pool size        |
+| `DB_POOL_TIMEOUT`        | `30`                            | Seconds to wait for a connection       |
+| `DB_POOL_RECYCLE`        | `600`                           | Seconds before recycling a connection  |
 | `HTTP_TIMEOUT`           | `30.0`                          | ATS request timeout in seconds         |
 | `CRAWL_DELAY`            | `0.3`                           | Delay between ATS requests             |
 | `GEOCODE_UNKNOWN_CITIES` | `false`                         | Geocode unknown cities using Nominatim |
-| `GEOCODE_USER_AGENT`     | `jobdex-api/1.0`                | User-Agent sent to Nominatim           |
-| `ADMIN_API_KEY`          | Unset                           | Protect admin and ingestion routes     |
+| `GEOCODE_USER_AGENT`     | `JobDex API/1.0`                | User-Agent sent to Nominatim           |
+| `ADMIN_API_KEY`          | `Unset`                         | Protect admin and ingestion routes     |
 | `DEBUG`                  | `false`                         | FastAPI debug mode                     |
 
 ## Project Structure
@@ -189,6 +193,7 @@ backend/
 │   ├── schemas.py
 │   ├── ingestion/
 │   └── routers/
+│       └── _builders.py
 ├── data/
 │   ├── cities.json
 │   ├── role_patterns.json
@@ -196,7 +201,8 @@ backend/
 │   └── tech_keywords.json
 ├── scripts/
 │   ├── seed.py
-│   └── test_e2e.py
+│   ├── test_e2e.py
+│   └── validate.py
 ├── .env.example
 ├── Dockerfile
 ├── pyproject.toml

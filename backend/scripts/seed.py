@@ -51,6 +51,7 @@ warn_count = 0
 
 
 def ingest(ats: str, slug: str, name: str) -> None:
+    """Post an ingest request for the given ATS and slug, then print the result."""
     global ok_count, fail_count, warn_count
     try:
         r = httpx.post(f"{BASE}/admin/ingest/{ats}/{slug}", headers=HEADERS, timeout=90.0)
@@ -81,6 +82,7 @@ def ingest(ats: str, slug: str, name: str) -> None:
 
 
 def main() -> None:
+    """Parse CLI arguments and seed the database with all configured startup job boards."""
     global BASE, HEADERS
     parser = argparse.ArgumentParser(description="Seed JobDex with known startup job boards")
     parser.add_argument("--base-url", default=BASE)

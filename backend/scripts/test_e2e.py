@@ -24,17 +24,20 @@ RESET = "\033[0m"
 
 class Runner:
     def __init__(self, base: str) -> None:
+        """Initialize the test runner with the target API base URL."""
         self.base = base.rstrip("/")
         self.passed = 0
         self.failed = 0
         self.errors: list[str] = []
 
     def section(self, title: str) -> None:
+        """Print a formatted section header to the console."""
         print(f"\n{SECTION}{'=' * 60}{RESET}")
         print(f"{SECTION}  {title}{RESET}")
         print(f"{SECTION}{'=' * 60}{RESET}")
 
     def check(self, label: str, cond: bool, detail: str = "") -> None:
+        """Record a pass or fail for a single assertion and print the result."""
         if cond:
             self.passed += 1
             print(f"  {PASS}  {label}")
@@ -45,6 +48,7 @@ class Runner:
             print(f"  {FAIL}  {label}" + (f"\n         {detail}" if detail else ""))
 
     def get(self, path: str, params: dict | None = None) -> tuple[int, Any]:
+        """Send a GET request to the API and return (status_code, parsed_body)."""
         try:
             r = httpx.get(f"{self.base}{path}", params=params, timeout=20.0)
             try:
@@ -55,6 +59,7 @@ class Runner:
             return 0, str(exc)
 
     def post(self, path: str, headers: dict | None = None) -> tuple[int, Any]:
+        """Send a POST request to the API and return (status_code, parsed_body)."""
         try:
             r = httpx.post(f"{self.base}{path}", headers=headers or {}, timeout=30.0)
             try:
@@ -66,6 +71,7 @@ class Runner:
 
     # ------------------------------------------------------------------
     def test_health(self) -> None:
+        """Test the health and root metadata endpoints."""
         self.section("1. Health & Metadata")
         status, body = self.get("/health")
         self.check("GET /health returns 200", status == 200, str(body))
@@ -79,6 +85,7 @@ class Runner:
 
     # ------------------------------------------------------------------
     def test_admin_stats(self) -> None:
+        """Test the admin stats endpoint for required fields and non-zero counts."""
         self.section("2. Admin -- Stats")
         status, body = self.get("/admin/stats")
         self.check("GET /admin/stats returns 200", status == 200, str(body))
@@ -100,6 +107,7 @@ class Runner:
 
     # ------------------------------------------------------------------
     def test_cities(self) -> None:
+        """Test city listing, filtering, pagination, and detail endpoints."""
         self.section("3. Cities")
 
         status, body = self.get("/cities")
@@ -155,6 +163,7 @@ class Runner:
 
     # ------------------------------------------------------------------
     def test_map_companies(self) -> None:
+        """Test map company pins including bbox, role, and country filters."""
         self.section("4. Map -- Company Pins")
 
         status, body = self.get("/map/companies")
@@ -205,6 +214,7 @@ class Runner:
 
     # ------------------------------------------------------------------
     def test_map_cities(self) -> None:
+        """Test map city cluster pins including bbox and role filters."""
         self.section("5. Map -- City Clusters")
 
         status, body = self.get("/map/cities")
@@ -240,6 +250,7 @@ class Runner:
 
     # ------------------------------------------------------------------
     def test_jobs(self) -> None:
+        """Test job listing, filters, pagination, full-text search, and detail endpoints."""
         self.section("6. Jobs -- Listing & Filters")
 
         status, body = self.get("/jobs")
@@ -330,6 +341,7 @@ class Runner:
 
     # ------------------------------------------------------------------
     def test_companies(self) -> None:
+        """Test company listing, detail, per-company job listing, and filter endpoints."""
         self.section("7. Companies -- Listing, Detail, Jobs")
 
         status, body = self.get("/companies")
@@ -406,6 +418,7 @@ class Runner:
 
     # ------------------------------------------------------------------
     def test_search(self) -> None:
+        """Test the cross-entity search endpoint with single and combined filters."""
         self.section("8. Search -- Cross-Entity Discovery")
 
         status, body = self.get("/search")
@@ -470,6 +483,7 @@ class Runner:
 
     # ------------------------------------------------------------------
     def test_user_flow(self) -> None:
+        """Simulate the end-to-end user journey from globe view to job detail."""
         self.section("9. Simulated User Flow -- Globe to Job Detail")
 
         print("  Step 1: Load globe -- all company pins")
@@ -544,6 +558,7 @@ class Runner:
 
     # ------------------------------------------------------------------
     def test_coordinates(self) -> None:
+        """Verify that all company map pins have valid lat/lng coordinate ranges."""
         self.section("10. Coordinate Correctness")
         status, body = self.get("/map/companies")
         if status != 200:
@@ -563,6 +578,7 @@ class Runner:
 
     # ------------------------------------------------------------------
     def run_all(self) -> int:
+        """Run the full test suite and return 0 on success or 1 if any test failed."""
         print("\nJobDex E2E Test Suite")
         print(f"Target: {self.base}")
         print("=" * 60)
@@ -596,6 +612,7 @@ class Runner:
 
 
 def main() -> None:
+    """Parse CLI arguments and run the full E2E test suite against the target API."""
     parser = argparse.ArgumentParser(description="JobDex E2E test suite")
     parser.add_argument("--base-url", default="http://127.0.0.1:8000", help="API base URL")
     args = parser.parse_args()

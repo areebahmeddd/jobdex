@@ -37,7 +37,6 @@ class Company(Base):
     industry: Mapped[list | None] = mapped_column(JSONB, default=list)
     stage: Mapped[str | None] = mapped_column(String(50))
     founded_year: Mapped[int | None] = mapped_column(Integer)
-    employee_count_range: Mapped[str | None] = mapped_column(String(50))
 
     ats_type: Mapped[str | None] = mapped_column(String(50))  # greenhouse | lever | ashby
     ats_slug: Mapped[str | None] = mapped_column(String(255))
@@ -89,10 +88,6 @@ class Job(Base):
     role_subcategory: Mapped[str | None] = mapped_column(String(100))
     tech_stack: Mapped[list | None] = mapped_column(JSONB, default=list)
     department: Mapped[str | None] = mapped_column(String(255))
-
-    salary_min: Mapped[int | None] = mapped_column(Integer)
-    salary_max: Mapped[int | None] = mapped_column(Integer)
-    salary_currency: Mapped[str | None] = mapped_column(String(3))
 
     source_url: Mapped[str] = mapped_column(String(1000), nullable=False)
     ats_type: Mapped[str | None] = mapped_column(String(50))

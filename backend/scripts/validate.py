@@ -8,7 +8,7 @@ Tests:
   2.  Root endpoint structure
   3.  Cities endpoint (all, featured, India, Middle East)
   4.  Greenhouse ingest - Airbnb
-  5.  Lever ingest      - Vercel
+  5.  Lever ingest      - Netflix
   6.  Ashby ingest      - Linear (Ashby board)
   7.  Auto-discover     - Notion
   8.  GET /jobs basic
@@ -41,31 +41,39 @@ warnings: list[str] = []
 
 
 def ok(label: str, detail: str = ""):
+    """Print a passing result line to the console."""
     suffix = f"  {detail}" if detail else ""
     print(f"  {PASS} {label}{suffix}")
 
 
 def fail(label: str, detail: str = ""):
+    """Print a failing result line and record the error."""
     suffix = f"  {detail}" if detail else ""
     print(f"  {FAIL} {label}{suffix}")
     errors.append(f"{label}: {detail}")
 
 
 def warn(label: str, detail: str = ""):
+    """Print a warning result line and record the warning."""
     suffix = f"  {detail}" if detail else ""
     print(f"  {WARN} {label}{suffix}")
     warnings.append(f"{label}: {detail}")
 
 
-def get(path: str, params: dict | None = None, timeout: float = 15) -> httpx.Response:
-    return httpx.get(f"{BASE}{path}", params=params, timeout=timeout)
+def get(
+    path: str, params: dict | None = None, timeout: float = 15, headers: dict | None = None
+) -> httpx.Response:
+    """Send a GET request to the local API and return the response."""
+    return httpx.get(f"{BASE}{path}", params=params, timeout=timeout, headers=headers or {})
 
 
 def post(path: str, timeout: float = 60) -> httpx.Response:
+    """Send a POST request with admin headers to the local API and return the response."""
     return httpx.post(f"{BASE}{path}", headers=ADMIN_HEADERS, timeout=timeout)
 
 
 def section(title: str):
+    """Print a formatted section header to the console."""
     print(f"\n{'─' * 60}")
     print(f"  {title}")
     print(f"{'─' * 60}")
@@ -75,6 +83,7 @@ def section(title: str):
 
 
 def test_health():
+    """Verify the health endpoint returns status ok."""
     section("1. Health check")
     r = get("/health")
     if r.status_code == 200 and r.json().get("status") == "ok":
@@ -84,6 +93,7 @@ def test_health():
 
 
 def test_root():
+    """Verify the root endpoint returns expected metadata keys."""
     section("2. Root endpoint")
     r = get("/")
     d = r.json()
@@ -94,11 +104,13 @@ def test_root():
 
 
 def test_cities():
+    """Verify city listing with global, featured, India, and Middle East filters."""
     section("3. Cities endpoint")
 
     r = get("/cities")
-    cities = r.json()
-    ok("GET /cities total", f"{len(cities)} cities")
+    d = r.json()
+    total = d.get("total", 0)
+    ok("GET /cities total", f"{total} cities")
 
     r = get("/cities", {"featured_only": "true"})
     featured = r.json()
@@ -123,8 +135,9 @@ def test_cities():
 
 
 def test_ingest_greenhouse(slug: str = "airbnb"):
+    """Ingest a Greenhouse board and verify that jobs are returned without errors."""
     section(f"4. Greenhouse ingest: {slug}")
-    r = post(f"/ingest/greenhouse/{slug}")
+    r = post(f"/admin/ingest/greenhouse/{slug}")
     d = r.json()
     fetched = d.get("total_fetched", 0)
     has_data = fetched > 0 and not d.get("errors")
@@ -138,11 +151,12 @@ def test_ingest_greenhouse(slug: str = "airbnb"):
 
 
 def test_ingest_lever(slug: str = "netflix"):
+    """Ingest a Lever board and accept either populated results or an empty private board."""
     section(f"5. Lever ingest: {slug}")
     # Lever's public v0 API is locked down for many companies.
     # Accept: 200 with jobs, or 200 with 0 jobs and no errors (empty/private board).
     # Fail on HTTP error or non-empty errors list.
-    r = post(f"/ingest/lever/{slug}")
+    r = post(f"/admin/ingest/lever/{slug}")
     d = r.json()
     errs = d.get("errors", [])
     fetched = d.get("total_fetched", 0)
@@ -162,8 +176,9 @@ def test_ingest_lever(slug: str = "netflix"):
 
 
 def test_ingest_ashby(slug: str = "linear"):
+    """Ingest an Ashby board and verify that jobs are returned without errors."""
     section(f"6. Ashby ingest: {slug}")
-    r = post(f"/ingest/ashby/{slug}")
+    r = post(f"/admin/ingest/ashby/{slug}")
     d = r.json()
     fetched = d.get("total_fetched", 0)
     has_data = fetched > 0 and not d.get("errors")
@@ -177,8 +192,9 @@ def test_ingest_ashby(slug: str = "linear"):
 
 
 def test_discover(slug: str = "notion"):
+    """Auto-detect the ATS for the given slug and verify the discovery result."""
     section(f"7. Auto-discover: {slug}")
-    r = post(f"/ingest/discover/{slug}")
+    r = post(f"/admin/ingest/discover/{slug}")
     d = r.json()
     if r.status_code == 200:
         if d.get("discovered"):
@@ -193,6 +209,7 @@ def test_discover(slug: str = "notion"):
 
 
 def test_jobs_list():
+    """Verify the jobs listing endpoint returns results with required fields."""
     section("8. Jobs list")
     r = get("/jobs")
     d = r.json()
@@ -215,6 +232,7 @@ def test_jobs_list():
 
 
 def test_city_alias():
+    """Verify that city aliases resolve to the same job counts as canonical city names."""
     section("9. City alias canonicalization")
 
     def check(alias: str, canonical: str):
@@ -234,6 +252,7 @@ def test_city_alias():
 
 
 def test_search():
+    """Verify the search endpoint returns the expected envelope structure and fields."""
     section("10. Primary search endpoint")
     r = get("/search")
     d = r.json()
@@ -249,6 +268,7 @@ def test_search():
 
 
 def test_search_region(region: str, label: str):
+    """Verify the search endpoint returns results when filtered by a specific region."""
     r = get("/search", {"region": region})
     d = r.json()
     n = d.get("total_jobs", 0)
@@ -259,6 +279,7 @@ def test_search_region(region: str, label: str):
 
 
 def test_companies():
+    """Verify company listing and detail endpoints return required fields."""
     section("13. Companies endpoint")
     r = get("/companies")
     d = r.json()
@@ -281,8 +302,9 @@ def test_companies():
 
 
 def test_stats():
+    """Verify the stats endpoint returns non-zero counts and expected breakdown fields."""
     section("14. Stats endpoint")
-    r = get("/stats")
+    r = get("/admin/stats", headers=ADMIN_HEADERS)
     d = r.json()
     if r.status_code == 200:
         ok(
@@ -299,6 +321,7 @@ def test_stats():
 
 
 def test_data_quality():
+    """Audit a sample of jobs for coordinate coverage, source URLs, and role classification."""
     section("15. Data quality audit")
     r = get("/jobs", {"limit": 100})
     jobs: list[dict[str, Any]] = r.json().get("jobs", [])
@@ -345,6 +368,7 @@ def test_data_quality():
 
 
 def main():
+    """Parse CLI arguments and run the full integration validation suite."""
     global BASE, ADMIN_HEADERS
     parser = argparse.ArgumentParser(description="JobDex integration validator")
     parser.add_argument("--base-url", default=BASE)

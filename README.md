@@ -19,7 +19,7 @@ The platform aggregates live job postings directly from company career pages acr
 ```text
 ┌─────────────┐     ingest     ┌──────────────────────┐
 │  Greenhouse │ ─────────────► │                      │
-│  Lever      │ ─────────────► │   Backend (FastAPI)  │ ──► PostgreSQL (Neon)
+│  Lever      │ ─────────────► │   Backend (FastAPI)  │ ──► PostgreSQL
 │  Ashby      │ ─────────────► │                      │
 └─────────────┘                └──────────┬───────────┘
                                           │ REST API

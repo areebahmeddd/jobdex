@@ -1,9 +1,3 @@
-"""Map endpoints for the globe/map UI.
-
-GET /map/companies  company pins with coordinates and job count
-GET /map/cities     city clusters with aggregated job/company counts
-"""
-
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import distinct, func
 from sqlalchemy.orm import Session
@@ -26,6 +20,7 @@ def map_companies(
     is_remote: bool | None = Query(None),
     db: Session = Depends(get_db),
 ):
+    """Return company map pins with coordinates and filtered job counts for the globe UI."""
     # Group jobs by location; apply role/remote filters before aggregating job_count.
     loc_counts_q = db.query(
         Job.company_id,
@@ -154,6 +149,7 @@ def map_cities(
     featured_only: bool = Query(False, description="Return only featured cities"),
     db: Session = Depends(get_db),
 ):
+    """Return city cluster pins with aggregated job and company counts for the map UI."""
     # Aggregate job/company counts per city.
     job_agg_q = (
         db.query(

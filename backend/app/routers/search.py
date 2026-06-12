@@ -1,9 +1,3 @@
-"""Search endpoint.
-
-GET /search  all filters optional and combinable:
-  city, role, industry, country_code, region, is_remote
-"""
-
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -12,24 +6,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.ingestion.normalizer import canonicalize_city
 from app.models import Company, Job
-from app.schemas import CompanyResponse, JobResponse, SearchResponse
+from app.routers._builders import build_company_response, build_job_response
+from app.schemas import SearchResponse
 
 router = APIRouter(prefix="/search", tags=["search"])
-
-
-def _build_company_response(company: Company, jobs: list[Job]) -> CompanyResponse:
-    data = CompanyResponse.model_validate(company)
-    data.job_count = len(jobs)
-    data.open_role_categories = sorted({j.role_category for j in jobs if j.role_category})
-    return data
-
-
-def _build_job_response(job: Job, company: Company) -> JobResponse:
-    data = JobResponse.model_validate(job)
-    data.company_name = company.name
-    data.company_slug = company.slug
-    data.company_logo_url = company.logo_url
-    return data
 
 
 @router.get("", response_model=SearchResponse)
@@ -52,6 +32,7 @@ def search(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
+    """Search jobs and companies across all combinable filters and return a unified response."""
     q = (
         db.query(Job, Company)
         .join(Company, Job.company_id == Company.id)
@@ -112,8 +93,11 @@ def search(
             page_company_jobs[co.id] = (co, [])
         page_company_jobs[co.id][1].append(job)
 
-    companies_out = [_build_company_response(co, jobs) for co, jobs in page_company_jobs.values()]
-    jobs_out = [_build_job_response(job, co) for job, co in paged_rows]
+    companies_out = [
+        build_company_response(co, len(jobs), [j.role_category for j in jobs if j.role_category])
+        for co, jobs in page_company_jobs.values()
+    ]
+    jobs_out = [build_job_response(job, co) for job, co in paged_rows]
 
     return SearchResponse(
         companies=companies_out,

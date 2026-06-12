@@ -1,22 +1,17 @@
-"""City listing and detail endpoints.
-
-GET /cities        paginated city list with live job/company counts
-GET /cities/{slug} single city detail
-"""
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import City, Job
+from app.routers._builders import build_city_response
 from app.schemas import CityResponse
 
 router = APIRouter(prefix="/cities", tags=["cities"])
 
 
 def _counts_by_city(db: Session, city_names: list[str]) -> dict[str, tuple[int, int]]:
-    """Return {city_name: (job_count, company_count)} for the given city names."""
+    """Return job and company counts keyed by city name for the given list of cities."""
     if not city_names:
         return {}
     rows = (
@@ -32,23 +27,6 @@ def _counts_by_city(db: Session, city_names: list[str]) -> dict[str, tuple[int, 
     return {r.city: (r.job_count, r.company_count) for r in rows}
 
 
-def _build_city_response(city: City, job_count: int, company_count: int) -> CityResponse:
-    return CityResponse(
-        id=city.id,
-        name=city.name,
-        slug=city.slug,
-        country=city.country,
-        country_code=city.country_code,
-        region=city.region,
-        latitude=city.latitude,
-        longitude=city.longitude,
-        description=city.description,
-        is_featured=city.is_featured,
-        job_count=job_count,
-        company_count=company_count,
-    )
-
-
 @router.get("", response_model=dict)
 def list_cities(
     region: str | None = Query(None),
@@ -58,6 +36,7 @@ def list_cities(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
+    """Return a paginated list of cities with live job and company counts."""
     q = db.query(City)
     if featured_only:
         q = q.filter(City.is_featured.is_(True))
@@ -74,7 +53,7 @@ def list_cities(
 
     return {
         "cities": [
-            _build_city_response(c, *counts.get(c.name, (0, 0))).model_dump() for c in cities
+            build_city_response(c, *counts.get(c.name, (0, 0))).model_dump() for c in cities
         ],
         "total": total,
         "limit": limit,
@@ -84,9 +63,10 @@ def list_cities(
 
 @router.get("/{slug}", response_model=CityResponse)
 def get_city(slug: str, db: Session = Depends(get_db)):
+    """Return detail for a single city by slug, including live job and company counts."""
     city = db.query(City).filter(City.slug == slug).first()
     if not city:
         raise HTTPException(status_code=404, detail="City not found")
     counts = _counts_by_city(db, [city.name])
     job_count, company_count = counts.get(city.name, (0, 0))
-    return _build_city_response(city, job_count, company_count)
+    return build_city_response(city, job_count, company_count)

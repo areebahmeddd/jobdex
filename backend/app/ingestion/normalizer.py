@@ -1,8 +1,3 @@
-"""Location, role, seniority, and tech-stack normalization.
-
-All patterns and city coordinates are loaded from data/*.json at import time.
-"""
-
 from __future__ import annotations
 
 import json
@@ -15,6 +10,7 @@ from app.config import DATA_DIR, settings
 
 
 def _load(filename: str) -> dict:
+    """Load and return a JSON file from the data directory."""
     path = DATA_DIR / filename
     with open(path, encoding="utf-8") as f:
         return json.load(f)
@@ -52,17 +48,17 @@ _HYBRID_PATTERNS = [r"\bhybrid\b", r"\bflexible location\b", r"\bpartially remot
 
 
 def get_city_data() -> dict[str, dict]:
+    """Return the full city metadata dictionary keyed by canonical city name."""
     return _city_data
 
 
 def get_featured_cities() -> list[str]:
+    """Return the list of featured city names used for map highlights."""
     return _featured_cities
 
 
 def canonicalize_city(name: str) -> str | None:
-    """Return the canonical city name for an input string, including aliases.
-    Returns None if unrecognised.
-    """
+    """Return the canonical city name for the input string, or None if unrecognised."""
     lowered = name.lower().strip()
     if lowered in _city_aliases:
         return _city_aliases[lowered]
@@ -76,7 +72,8 @@ def canonicalize_city(name: str) -> str | None:
     return None
 
 
-def region_for_country(country_code: str) -> str | None:
+def get_region_for_country(country_code: str) -> str | None:
+    """Return the region identifier for the given ISO-2 country code, or None if not mapped."""
     for region, codes in _regions_map.items():
         if country_code.upper() in codes:
             return region
@@ -88,12 +85,7 @@ def normalize_location(
     fallback_city: str | None = None,
     fallback_country_code: str | None = None,
 ) -> dict:
-    """Resolve a raw location string to a normalized dict.
-
-    Returns: city, country, country_code, region, latitude, longitude,
-             is_remote, remote_type.
-    Falls back to company HQ when the city is unrecognised.
-    """
+    """Resolve a raw location string to a normalized dict with city, coordinates, and remote flags."""
     result: dict = {
         "city": None,
         "country": None,
@@ -156,7 +148,7 @@ def normalize_location(
         geo = _geocode(raw)
         if geo:
             lat, lng, cc, country = geo
-            region = region_for_country(cc)
+            region = get_region_for_country(cc)
             return {
                 **result,
                 "city": first_part or raw,
@@ -171,11 +163,12 @@ def normalize_location(
     _apply_city(result, fallback_city)
     if not result["country_code"] and fallback_country_code:
         result["country_code"] = fallback_country_code
-        result["region"] = region_for_country(fallback_country_code)
+        result["region"] = get_region_for_country(fallback_country_code)
     return result
 
 
 def classify_seniority(title: str) -> str:
+    """Return the seniority level for a job title based on pattern matching."""
     lowered = title.lower()
     for entry in _seniority_patterns:
         for pat in entry["patterns"]:
@@ -189,6 +182,7 @@ def classify_role(
     description: str = "",
     department: str = "",
 ) -> tuple[str, str]:
+    """Return a (category, subcategory) tuple for a job based on title, department, and description."""
     search_text = f"{title} {department}".lower()
     desc_text = description.lower()[:400]
     for entry in _role_patterns:
@@ -203,6 +197,7 @@ def classify_role(
 
 
 def extract_tech_stack(title: str, description: str = "") -> list[str]:
+    """Return a sorted list of tech keywords found in the title and description."""
     combined = f"{title} {description}".lower()
     found = set()
     for kw in _tech_keywords:
@@ -213,10 +208,12 @@ def extract_tech_stack(title: str, description: str = "") -> list[str]:
 
 
 def normalize_job_type(raw: str) -> str | None:
+    """Map a raw employment type string to a normalized job type, or None if not recognized."""
     return _job_type_map.get(raw.lower().strip()) if raw else None
 
 
 def strip_html(html: str) -> str:
+    """Strip HTML tags and decode common entities from a string, returning plain text."""
     if not html:
         return ""
     clean = re.sub(r"<(style|script)[^>]*>.*?</\1>", " ", html, flags=re.DOTALL | re.IGNORECASE)
@@ -235,6 +232,7 @@ def strip_html(html: str) -> str:
 
 
 def make_snippet(text: str, max_chars: int = 500) -> str:
+    """Truncate plain text to max_chars at a word boundary and append an ellipsis if needed."""
     plain = strip_html(text)
     if len(plain) <= max_chars:
         return plain
@@ -247,12 +245,14 @@ def make_snippet(text: str, max_chars: int = 500) -> str:
 
 
 def _normalize_region(region: str | None) -> str | None:
+    """Convert a region name to a lowercase underscore-separated identifier."""
     if not region:
         return None
     return region.lower().replace(" ", "_")
 
 
 def _city_fields(city_name: str) -> dict:
+    """Return the full location field dict for a known city name."""
     d = _city_data[city_name]
     return {
         "city": city_name,
@@ -267,6 +267,7 @@ def _city_fields(city_name: str) -> dict:
 
 
 def _has_known_city(text: str) -> bool:
+    """Return True if any known city name appears in the given text."""
     for city_name in _city_data:
         if city_name.lower() in text:
             return True
@@ -274,6 +275,7 @@ def _has_known_city(text: str) -> bool:
 
 
 def _apply_city(result: dict, city_name: str | None) -> None:
+    """Populate location fields in result from the city data store if the city is known."""
     if city_name and city_name in _city_data:
         d = _city_data[city_name]
         result.update(
@@ -287,7 +289,7 @@ def _apply_city(result: dict, city_name: str | None) -> None:
 
 
 def _geocode(location: str) -> tuple | None:
-    """Query Nominatim for a location string. Results are cached per-process."""
+    """Query Nominatim for coordinates of a location string, caching results per process."""
     key = location.lower().strip()
     if key in _geocode_cache:
         return _geocode_cache[key]

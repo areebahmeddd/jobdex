@@ -1,9 +1,3 @@
-"""Lever ATS ingester.
-
-Public API, no auth required.
-Endpoint: https://api.lever.co/v0/postings/{slug}?mode=json
-"""
-
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -11,7 +5,7 @@ from datetime import UTC, datetime
 import httpx
 
 from app.config import settings
-from app.ingestion.base import BaseIngester
+from app.ingestion.base import _DESCRIPTION_MAX_CHARS, _TECH_EXTRACT_CHARS, BaseIngester
 from app.ingestion.normalizer import (
     classify_role,
     classify_seniority,
@@ -30,6 +24,7 @@ class LeverIngester(BaseIngester):
     ats_type = "lever"
 
     async def fetch_raw(self, slug: str) -> list[dict]:
+        """Fetch raw job postings from the Lever public API for the given slug."""
         url = f"{_BASE}/{slug}?mode=json"
         async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT) as client:
             r = await client.get(url)
@@ -37,10 +32,12 @@ class LeverIngester(BaseIngester):
             data = r.json()
             return data if isinstance(data, list) else data.get("postings", [])
 
-    def get_job_id(self, raw: dict) -> str:
+    def extract_job_id(self, raw: dict) -> str:
+        """Extract the Lever posting ID from a raw job dict."""
         return str(raw["id"])
 
     def build_job(self, raw: dict, company: Company, slug: str) -> Job:
+        """Parse a raw Lever posting dict into an unsaved Job ORM object."""
         title = raw.get("text", "")
         cats = raw.get("categories") or {}
         loc_raw = cats.get("location", "") or ""
@@ -60,14 +57,14 @@ class LeverIngester(BaseIngester):
         category, subcategory = classify_role(title, plain, full_dept)
         seniority = classify_seniority(title)
         job_type = normalize_job_type(commitment)
-        tech = extract_tech_stack(title, plain[:2000])
+        tech = extract_tech_stack(title, plain[:_TECH_EXTRACT_CHARS])
         posted_at = _parse_ts(raw.get("createdAt"))
 
         return Job(
             company_id=company.id,
             title=title,
             title_normalized=title.lower().strip(),
-            description=plain[:20000],
+            description=plain[:_DESCRIPTION_MAX_CHARS],
             description_snippet=make_snippet(plain),
             location_raw=loc_raw,
             city=loc["city"],
@@ -93,6 +90,7 @@ class LeverIngester(BaseIngester):
 
 
 def _parse_ts(ts) -> datetime | None:
+    """Convert a Lever millisecond Unix timestamp to a datetime object, returning None on failure."""
     if not ts:
         return None
     try:
