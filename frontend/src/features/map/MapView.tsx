@@ -19,6 +19,7 @@ import {
   GITHUB_REPO,
   HOME_CENTER,
   HOME_ZOOM,
+  MAP_MAX_ZOOM,
 } from "./constants";
 import type {
   CityPin,
@@ -49,6 +50,8 @@ export function MapView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const locationMarkerRef = useRef<L.Marker | null>(null);
+  const hasRequestedLocationRef = useRef(false);
+  const permissionStatusRef = useRef<PermissionStatus | null>(null);
 
   const cityLayerRef = useRef<L.LayerGroup | null>(null);
   const companyLayerRef = useRef<L.LayerGroup | null>(null);
@@ -133,13 +136,14 @@ export function MapView() {
     const map = L.map(containerRef.current, {
       center: HOME_CENTER,
       zoom: HOME_ZOOM,
+      zoomSnap: 0.1,
       zoomControl: false,
     });
 
     L.tileLayer(
       "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
       {
-        maxZoom: 19,
+        maxZoom: MAP_MAX_ZOOM,
         subdomains: "abcd",
         attribution:
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
@@ -575,9 +579,10 @@ export function MapView() {
     setQuery("");
   }
 
-  function geolocate() {
+  const geolocate = useCallback((forceFresh = false) => {
     const map = mapRef.current;
     if (!map || !navigator.geolocation) return;
+
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         const { latitude: lat, longitude: lng } = coords;
@@ -592,16 +597,78 @@ export function MapView() {
         locationMarkerRef.current = L.marker([lat, lng], { icon }).addTo(map);
       },
       () => {},
-      { timeout: 8000 },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: forceFresh ? 0 : 5 * 60 * 1000,
+      },
     );
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !navigator.geolocation) return;
+
+    let disposed = false;
+
+    const requestLocation = async () => {
+      if (!navigator.permissions?.query) {
+        if (!hasRequestedLocationRef.current) {
+          hasRequestedLocationRef.current = true;
+          geolocate();
+        }
+        return;
+      }
+
+      try {
+        const status = await navigator.permissions.query({
+          name: "geolocation",
+        });
+        if (disposed) return;
+
+        permissionStatusRef.current = status;
+
+        if (status.state === "granted") {
+          geolocate();
+        } else if (
+          status.state === "prompt" &&
+          !hasRequestedLocationRef.current
+        ) {
+          hasRequestedLocationRef.current = true;
+          geolocate();
+        }
+
+        status.onchange = () => {
+          if (status.state === "granted") {
+            geolocate(true);
+          }
+        };
+      } catch {
+        if (!hasRequestedLocationRef.current) {
+          hasRequestedLocationRef.current = true;
+          geolocate();
+        }
+      }
+    };
+
+    void requestLocation();
+
+    return () => {
+      disposed = true;
+      if (permissionStatusRef.current) {
+        permissionStatusRef.current.onchange = null;
+      }
+    };
+  }, [geolocate, mapReady]);
 
   return (
     <div className="flex h-screen flex-col gap-3 bg-gray-50 p-5 font-sans antialiased">
       <header className="relative flex shrink-0 items-center">
-        <span className="shrink-0 text-4xl font-semibold tracking-tight text-gray-900">
+        <Link
+          to="/"
+          className="shrink-0 text-4xl font-semibold tracking-tight text-gray-900"
+        >
           jobdex
-        </span>
+        </Link>
 
         <div className="pointer-events-none absolute inset-0 hidden items-center justify-center md:flex">
           <div className="pointer-events-auto flex items-center gap-2">
@@ -779,7 +846,7 @@ export function MapView() {
             </button>
             <div className="h-px w-full bg-black/10" />
             <span className="flex h-7 w-9 items-center justify-center text-[10px] font-medium text-gray-600">
-              {Math.round((zoom / 19) * 100)}%
+              {Math.round((zoom / MAP_MAX_ZOOM) * 100)}%
             </span>
             <div className="h-px w-full bg-black/10" />
             <button
@@ -792,7 +859,7 @@ export function MapView() {
             <div className="h-px w-full bg-black/10" />
             <button
               aria-label="Go to my location"
-              onClick={geolocate}
+              onClick={() => geolocate(true)}
               className="flex h-9 w-9 items-center justify-center text-gray-700 transition-colors hover:bg-white/50"
             >
               <Home className="h-3.5 w-3.5" aria-hidden="true" />
