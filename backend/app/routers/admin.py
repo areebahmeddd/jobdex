@@ -9,7 +9,7 @@ from app.config import settings
 from app.database import get_db
 from app.ingestion import INGESTERS, ashby, greenhouse, lever
 from app.models import City, Company, Job
-from app.schemas import DiscoverResponse, IngestResponse, StatsResponse
+from app.schemas import DiscoverResponse, IngestResponse, ResetResponse, StatsResponse
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -151,7 +151,7 @@ def get_stats(
     )
 
 
-@router.post("/reset", response_model=dict)
+@router.post("/reset", response_model=ResetResponse)
 def reset(
     db: Session = Depends(get_db),
     _: None = Depends(_require_admin),
@@ -160,7 +160,7 @@ def reset(
     deleted = db.query(Job).delete()
     db.query(Company).update({"last_crawled_at": None, "crawl_error": None})
     db.commit()
-    return {
-        "deleted_jobs": deleted,
-        "message": "Jobs cleared. Companies and cities retained.",
-    }
+    return ResetResponse(
+        deleted_jobs=deleted,
+        message="Jobs cleared. Companies and cities retained.",
+    )

@@ -10,7 +10,7 @@ from app.database import get_db
 from app.ingestion.normalizer import canonicalize_city
 from app.models import Company, Job
 from app.routers._builders import build_job_detail_response, build_job_response
-from app.schemas import JobDetailResponse
+from app.schemas import JobDetailResponse, PaginatedJobsResponse
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -31,7 +31,7 @@ def _decode_cursor(cursor: str) -> tuple[datetime | None, str] | None:
         return None
 
 
-@router.get("", response_model=dict)
+@router.get("", response_model=PaginatedJobsResponse)
 def list_jobs(
     city: str | None = Query(None),
     country_code: str | None = Query(None),
@@ -111,13 +111,13 @@ def list_jobs(
         last = rows[-1][0]  # Job object
         next_cursor = _encode_cursor(last.posted_at, last.id)
 
-    return {
-        "jobs": [e.model_dump() for e in enriched],
-        "total": total,
-        "limit": limit,
-        "offset": offset if not cursor else None,
-        "next_cursor": next_cursor,
-    }
+    return PaginatedJobsResponse(
+        jobs=enriched,
+        total=total,
+        limit=limit,
+        offset=offset if not cursor else None,
+        next_cursor=next_cursor,
+    )
 
 
 @router.get("/{job_id}", response_model=JobDetailResponse)

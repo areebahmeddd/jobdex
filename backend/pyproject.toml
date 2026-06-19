@@ -2,7 +2,7 @@
 name = "jobdex"
 version = "1.0.0"
 description = "A global index of startup hiring by city"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.136.3",
     "httpx>=0.28.1",
@@ -24,8 +24,8 @@ target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
-ignore = ["E501"]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501", "B008"]
 
 [tool.ruff.format]
 quote-style = "double"

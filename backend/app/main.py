@@ -5,10 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from app.config import settings
-from app.database import SessionLocal, init_db
-from app.ingestion.normalizer import get_city_data, get_featured_cities
-from app.models import City
+from app.database import init_db
 from app.routers import admin, cities, companies, jobs, map, search
+from app.startup import seed_cities
 
 
 @asynccontextmanager
@@ -16,59 +15,17 @@ async def lifespan(app: FastAPI):
     """Initialize the database and seed cities on startup, then shut down cleanly."""
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}...")
     init_db()
-    _seed_cities()
+    seed_cities()
     logger.info("Ready.")
     yield
     logger.info("Shutting down.")
-
-
-def _seed_cities():
-    """Seed the city table from data/cities.json, skipping cities that already exist."""
-    city_data = get_city_data()
-    featured = set(get_featured_cities())
-    db = SessionLocal()
-    try:
-        added = 0
-        for name, info in city_data.items():
-            slug = (
-                name.lower()
-                .replace(" ", "-")
-                .replace("ã", "a")
-                .replace("á", "a")
-                .replace("â", "a")
-                .replace("é", "e")
-                .replace("ê", "e")
-                .replace("í", "i")
-                .replace("ó", "o")
-                .replace("ô", "o")
-                .replace("ú", "u")
-                .replace("ü", "u")
-                .replace("ç", "c")
-            )
-            if not db.query(City).filter(City.slug == slug).first():
-                db.add(
-                    City(
-                        name=name,
-                        slug=slug,
-                        country=info["country"],
-                        country_code=info["country_code"],
-                        region=info.get("region", "").lower().replace(" ", "_") or None,
-                        latitude=info["lat"],
-                        longitude=info["lng"],
-                        is_featured=name in featured,
-                    )
-                )
-                added += 1
-        db.commit()
-        logger.info(f"Seeded {added} new cities")
-    finally:
-        db.close()
 
 
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description=settings.APP_DESCRIPTION,
+    debug=settings.DEBUG,
     lifespan=lifespan,
 )
 

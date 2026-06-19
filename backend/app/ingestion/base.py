@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import hashlib
 from abc import ABC, abstractmethod
@@ -7,6 +5,7 @@ from datetime import UTC, datetime
 
 import httpx
 from loguru import logger
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.ingestion.normalizer import get_region_for_country, is_blocked_location
@@ -20,8 +19,6 @@ _DESCRIPTION_MAX_CHARS: int = 20000  # max chars stored in job.description
 
 def _backfill_company_hq(company: Company, db: Session) -> None:
     """Set company HQ fields from the most common city across its active jobs."""
-    from sqlalchemy import func
-
     top_city = (
         db.query(Job.city)
         .filter(Job.company_id == company.id, Job.city.isnot(None), Job.is_active.is_(True))

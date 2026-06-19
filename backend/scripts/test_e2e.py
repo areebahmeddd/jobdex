@@ -7,8 +7,6 @@ Run after seeding:
 Exit code 0 = all passed, 1 = one or more failures.
 """
 
-from __future__ import annotations
-
 import argparse
 import sys
 import time

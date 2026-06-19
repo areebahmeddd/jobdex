@@ -41,7 +41,6 @@ def build_city_response(city: City, job_count: int, company_count: int) -> CityR
         region=city.region,
         latitude=city.latitude,
         longitude=city.longitude,
-        description=city.description,
         is_featured=city.is_featured,
         job_count=job_count,
         company_count=company_count,

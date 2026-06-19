@@ -57,6 +57,14 @@ class JobDetailResponse(JobResponse):
     description: str | None = None
 
 
+class PaginatedJobsResponse(BaseModel):
+    jobs: list[JobResponse]
+    total: int | None = None
+    limit: int
+    offset: int | None = None
+    next_cursor: str | None = None
+
+
 # Companies
 
 
@@ -88,14 +96,41 @@ class CompanyResponse(BaseModel):
     last_crawled_at: datetime | None = None
 
 
-class CompanyDetailResponse(CompanyResponse):
-    founded_year: int | None = None
+class CompanyBriefResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    slug: str
+    city: str | None = None
+    country_code: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    logo_url: str | None = None
+
+
+class PaginatedCompaniesResponse(BaseModel):
+    companies: list[CompanyResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class CompanyJobsResponse(BaseModel):
+    company: CompanyBriefResponse
+    jobs: list[JobResponse]
+    total: int
+    has_more: bool
+    limit: int
+    offset: int
 
 
 # Cities
 
 
 class CityResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     name: str
     slug: str
@@ -104,10 +139,16 @@ class CityResponse(BaseModel):
     region: str | None = None
     latitude: float | None = None
     longitude: float | None = None
-    description: str | None = None
     is_featured: bool = False
     job_count: int = 0
     company_count: int = 0
+
+
+class PaginatedCitiesResponse(BaseModel):
+    cities: list[CityResponse]
+    total: int
+    limit: int
+    offset: int
 
 
 # Search
@@ -142,6 +183,11 @@ class DiscoverResponse(BaseModel):
     discovered: bool = False
     message: str = ""
     ingest_result: IngestResponse | None = None
+
+
+class ResetResponse(BaseModel):
+    deleted_jobs: int
+    message: str
 
 
 # Stats

@@ -67,7 +67,7 @@ def ingest(ats: str, slug: str, name: str) -> None:
                 print(f"  {WARN} {name:<22} [{ats}]  0 jobs (private or empty board)")
                 warn_count += 1
         elif r.status_code == 403:
-            print(f"  {FAIL} {name:<22}  403 Forbidden — pass --api-key")
+            print(f"  {FAIL} {name:<22}  403 Forbidden - pass --api-key")
             fail_count += 1
         else:
             print(f"  {FAIL} {name:<22}  HTTP {r.status_code}: {r.text[:100]}")

@@ -34,7 +34,7 @@ class Company(Base):
     longitude: Mapped[float | None] = mapped_column(Float)
     region: Mapped[str | None] = mapped_column(String(50))
 
-    industry: Mapped[list | None] = mapped_column(JSONB, default=list)
+    industry: Mapped[list[str] | None] = mapped_column(JSONB, default=list)
     stage: Mapped[str | None] = mapped_column(String(50))
     founded_year: Mapped[int | None] = mapped_column(Integer)
 
@@ -45,12 +45,6 @@ class Company(Base):
     last_crawled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     crawl_error: Mapped[str | None] = mapped_column(String(500))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(UTC)
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(UTC)
-    )
 
     jobs: Mapped[list["Job"]] = relationship("Job", back_populates="company", lazy="select")
 
@@ -86,7 +80,7 @@ class Job(Base):
     seniority: Mapped[str | None] = mapped_column(String(50), index=True)
     role_category: Mapped[str | None] = mapped_column(String(100), index=True)
     role_subcategory: Mapped[str | None] = mapped_column(String(100))
-    tech_stack: Mapped[list | None] = mapped_column(JSONB, default=list)
+    tech_stack: Mapped[list[str] | None] = mapped_column(JSONB, default=list)
     department: Mapped[str | None] = mapped_column(String(255))
 
     source_url: Mapped[str] = mapped_column(String(1000), nullable=False)
@@ -155,8 +149,4 @@ class City(Base):
     region: Mapped[str | None] = mapped_column(String(50))
     latitude: Mapped[float | None] = mapped_column(Float)
     longitude: Mapped[float | None] = mapped_column(Float)
-    description: Mapped[str | None] = mapped_column(Text)
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(UTC)
-    )
