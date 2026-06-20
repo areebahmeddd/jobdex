@@ -1,20 +1,23 @@
-﻿# Backend
+# Backend
 
-FastAPI backend for JobDex. Handles ATS ingestion, job normalization, PostgreSQL persistence, and the REST API powering search, companies, cities, and map-based job discovery.
+FastAPI backend for JobDex. ATS ingestion, job normalisation, and REST API for search, companies, cities, and map discovery.
 
 ## Tech Stack
 
-| Layer                 | Choice                            |
-| --------------------- | --------------------------------- |
-| API                   | FastAPI + Uvicorn                 |
-| ORM                   | SQLAlchemy 2.0 (`Mapped[]` style) |
-| Database              | Neon serverless PostgreSQL        |
-| Configuration         | pydantic-settings                 |
-| HTTP Client           | httpx                             |
-| Logging               | loguru                            |
-| Dependency Management | uv                                |
-| Linting / Formatting  | ruff                              |
-| Deployment            | Docker + Docker Compose           |
+| Layer      | Choice                            |
+| ---------- | --------------------------------- |
+| API        | FastAPI + Uvicorn                 |
+| ORM        | SQLAlchemy 2.0 (`Mapped[]` style) |
+| Database   | Neon serverless PostgreSQL        |
+| Migrations | Alembic                           |
+| Config     | pydantic-settings                 |
+| HTTP       | httpx                             |
+| Logging    | loguru                            |
+| Scheduler  | APScheduler                       |
+| Testing    | pytest                            |
+| Packaging  | uv                                |
+| Linting    | ruff                              |
+| Deployment | Docker + Docker Compose           |
 
 ## Getting Started
 
@@ -22,7 +25,7 @@ FastAPI backend for JobDex. Handles ATS ingestion, job normalization, PostgreSQL
 
 - Python 3.13+
 - uv
-- Neon PostgreSQL project (free tier is sufficient)
+- Neon PostgreSQL project
 
 ### Installation
 
@@ -38,75 +41,38 @@ uv sync
 cp .env.example .env
 ```
 
-Edit `.env` and set `DATABASE_URL` to your Neon connection string.
+Set `DATABASE_URL` to your Neon connection string.
 
-### Running Locally
+### Running
 
 ```bash
 uv run uvicorn app.main:app --port 8000 --reload
 ```
 
-- API: `http://localhost:8000`
-- Docs: `http://localhost:8000/docs`
-
-### Fresh Database Workflow
-
-Complete setup from a blank database:
-
-```bash
-# 1. Start the server - creates tables, seeds cities, and starts the scheduler
-uv run uvicorn app.main:app --port 8000 --reload
-
-# 2. In a second terminal: seed all configured companies (talks to DB directly, no HTTP)
-uv run python scripts/seed.py
-
-# 3. Optional: enrich all companies now rather than waiting for the scheduler
-uv run python scripts/enrich.py --all
-```
-
-After step 1 the scheduler is running. Once `seed.py` populates the companies, the scheduler re-crawls them automatically every 6 hours.
-
-## Docker
-
-### Docker Compose
-
-Run from the repository root:
-
-```bash
-docker compose up --build
-```
-
-The compose configuration automatically loads `backend/.env`.
-
-### Standalone Container
-
-```bash
-cd backend
-docker build -t jobdex-backend .
-docker run -p 8000:8000 -e DATABASE_URL="postgresql+psycopg2://..." jobdex-backend
-```
+API: `http://localhost:8000` | Docs: `http://localhost:8000/docs`
 
 ## API
 
 ### Endpoints
 
-| Method | Path                     | Description                        |
-| ------ | ------------------------ | ---------------------------------- |
-| `GET`  | `/health`                | Health check                       |
-| `GET`  | `/`                      | Supported ATS providers            |
-| `GET`  | `/search`                | Cross-entity job discovery         |
-| `GET`  | `/jobs`                  | Paginated job listing              |
-| `GET`  | `/jobs/{id}`             | Job detail                         |
-| `GET`  | `/companies`             | Company listing                    |
-| `GET`  | `/companies/{slug}`      | Company detail                     |
-| `GET`  | `/companies/{slug}/jobs` | Paginated jobs for a company       |
-| `GET`  | `/cities`                | Cities with job and company counts |
-| `GET`  | `/cities/{slug}`         | City detail                        |
-| `GET`  | `/map/companies`         | Company map pins                   |
-| `GET`  | `/map/cities`            | City cluster map pins              |
-| `GET`  | `/stats`                 | Aggregate platform statistics      |
+| Method | Path                            | Description                |
+| ------ | ------------------------------- | -------------------------- |
+| `GET`  | `/health`                       | Health check               |
+| `GET`  | `/`                             | Metadata and ATS providers |
+| `GET`  | `/stats`                        | Platform statistics        |
+| `GET`  | `/search`                       | Cross-entity search        |
+| `GET`  | `/jobs`                         | Paginated jobs             |
+| `GET`  | `/jobs/{id}`                    | Job detail                 |
+| `GET`  | `/companies`                    | Company listing            |
+| `GET`  | `/companies/{slug}`             | Company detail             |
+| `GET`  | `/companies/{slug}/jobs`        | Jobs for a company         |
+| `GET`  | `/cities`                       | Cities with counts         |
+| `GET`  | `/cities/{slug}`                | City detail                |
+| `GET`  | `/map/companies`                | Company pins               |
+| `GET`  | `/map/cities`                   | City cluster pins          |
+| `GET`  | `/map/companies/{slug}/offices` | Office locations           |
 
-No authentication is required for any endpoint.
+All endpoints are public.
 
 ### Search Filters
 
@@ -114,7 +80,7 @@ No authentication is required for any endpoint.
 GET /search?city=Bangalore&role=engineering&region=south_asia&is_remote=false
 ```
 
-| Parameter      | Example Values                                         |
+| Parameter      | Values                                                 |
 | -------------- | ------------------------------------------------------ |
 | `city`         | `Bangalore`, `New York`, `London`                      |
 | `role`         | `engineering`, `design`, `product`, `marketing`        |
@@ -122,75 +88,84 @@ GET /search?city=Bangalore&role=engineering&region=south_asia&is_remote=false
 | `country_code` | `IN`, `US`, `GB`                                       |
 | `region`       | `south_asia`, `north_america`, `europe`, `middle_east` |
 | `is_remote`    | `true`, `false`                                        |
-| `limit`        | `20`                                                   |
+| `limit`        | `20` (max `100`)                                       |
 | `offset`       | `0`                                                    |
 
-### Scheduler
+## Scheduler
 
-The scheduler runs inside the server process - no separate worker, queue, or terminal needed.
+Runs in-process. No separate worker needed.
 
-When `uvicorn` starts, the `lifespan` hook launches an `AsyncIOScheduler` that fires two background jobs:
+| Job              | Interval | Description                                |
+| ---------------- | -------- | ------------------------------------------ |
+| `ingest_all`     | 6 h      | Crawls active companies, oldest-first      |
+| `enrich_pending` | 2 h      | Enriches companies with null `enriched_at` |
 
-| Job              | Default interval | What it does                                                            |
-| ---------------- | ---------------- | ------------------------------------------------------------------------|
-| `ingest_all`     | Every 6 hours    | Crawls all active companies, ordered by oldest `last_crawled_at`        |
-| `enrich_pending` | Every 2 hours    | Enriches any company with a null `enriched_at` via Wikidata + Wikipedia |
+Configurable via `INGEST_INTERVAL_HOURS` and `ENRICH_INTERVAL_HOURS`.
 
-Both intervals are configurable via `INGEST_INTERVAL_HOURS` and `ENRICH_INTERVAL_HOURS` in `.env`.
+## Database
 
-### Management Scripts
-
-For one-off operations that run directly against the database - no server needed:
+### Fresh Setup
 
 ```bash
-# Ingest a single company board
-uv run python scripts/ingest.py greenhouse airbnb
-uv run python scripts/ingest.py lever netflix
-uv run python scripts/ingest.py ashby linear
+# start server (creates tables, seeds cities)
+uv run uvicorn app.main:app --port 8000 --reload
 
-# Auto-detect ATS provider and ingest
-uv run python scripts/discover.py notion
+# seed companies
+uv run python scripts/seed.py
 
-# Enrich a single company
-uv run python scripts/enrich.py stripe
-
-# Enrich all unenriched companies
+# enrich now (optional -- scheduler runs this on its interval)
 uv run python scripts/enrich.py --all
-
-# Wipe all jobs and reset crawl state (keeps companies and cities)
-uv run python scripts/reset.py
 ```
 
-## Configuration
+### Migrations
 
-All settings are loaded from `.env`.
-
-| Variable                 | Default                         | Description                           |
-| ------------------------ | ------------------------------- | ------------------------------------- |
-| `DATABASE_URL`           | `postgresql://localhost/jobdex` | PostgreSQL connection string          |
-| `DB_ECHO`                | `false`                         | Enable SQL query logging              |
-| `DB_POOL_SIZE`           | `2`                             | SQLAlchemy connection pool size       |
-| `DB_MAX_OVERFLOW`        | `3`                             | Max connections above pool size       |
-| `DB_POOL_TIMEOUT`        | `30`                            | Seconds to wait for a connection      |
-| `DB_POOL_RECYCLE`        | `600`                           | Seconds before recycling a connection |
-| `HTTP_TIMEOUT`           | `30.0`                          | ATS request timeout in seconds        |
-| `CRAWL_DELAY`            | `0.3`                           | Delay between ATS requests            |
-| `GEOCODE_UNKNOWN_CITIES` | `false`                         | Geocode unknown cities via Nominatim  |
-| `GEOCODE_USER_AGENT`     | `jobdex-api/1.0`                | User-Agent sent to Nominatim          |
-| `INGEST_INTERVAL_HOURS`  | `6`                             | Scheduler re-crawl interval (hours)   |
-| `ENRICH_INTERVAL_HOURS`  | `2`                             | Scheduler enrichment interval (hours) |
-| `DEBUG`                  | `false`                         | FastAPI debug mode                    |
-
-## Development
-
-Run the E2E test suite against a local instance:
+After modifying `app/models.py`:
 
 ```bash
-uv run python scripts/test_e2e.py
+# generate
+uv run alembic revision --autogenerate -m "describe the change"
+
+# apply
+uv run alembic upgrade head
+
+# rollback
+uv run alembic downgrade -1
 ```
 
-Against a remote deployment:
+## Testing
+
+Unit tests require no DB. Integration tests need `DATABASE_URL`.
 
 ```bash
-uv run python scripts/test_e2e.py --base-url https://your-server.example.com
+uv run pytest               # all tests
+uv run pytest tests/unit    # unit only
+```
+
+See `tests/README.md` for details.
+
+## Management Scripts
+
+| Script                    | Purpose                          |
+| ------------------------- | -------------------------------- |
+| `scripts/seed.py`         | Ingest all ATS sources           |
+| `scripts/enrich.py --all` | Enrich all companies             |
+| `scripts/validate.py`     | Validate data quality and schema |
+| `scripts/test_e2e.py`     | Smoke test against a live API    |
+
+## Docker
+
+### Docker Compose
+
+```bash
+docker compose up --build
+```
+
+Run from the repo root. Loads `backend/.env` automatically.
+
+### Standalone Container
+
+```bash
+cd backend
+docker build -t jobdex-backend .
+docker run -p 8000:8000 -e DATABASE_URL="postgresql+psycopg2://..." jobdex-backend
 ```

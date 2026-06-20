@@ -18,8 +18,15 @@ dependencies = [
 [dependency-groups]
 dev = [
     "alembic>=1.18.4",
+    "httpx2>=2.4.0",
     "pre-commit>=4.6.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["integration: requires a live database (deselect with -m 'not integration')"]
 
 [build-system]
 requires = ["hatchling"]
