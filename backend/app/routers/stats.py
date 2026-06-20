@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -10,8 +10,10 @@ router = APIRouter(prefix="/stats", tags=["stats"])
 
 
 @router.get("", response_model=StatsResponse)
-def get_stats(db: Session = Depends(get_db)):
+def get_stats(response: Response = None, db: Session = Depends(get_db)):
     """Return aggregate platform statistics across companies, jobs, cities, and ATS providers."""
+    if response is not None:
+        response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
     total_companies = db.query(func.count(Company.id)).scalar() or 0
     total_jobs = db.query(func.count(Job.id)).scalar() or 0
     active_jobs = db.query(func.count(Job.id)).filter(Job.is_active.is_(True)).scalar() or 0

@@ -59,29 +59,7 @@ def search(
         q = q.filter(Company.industry.cast(JSONB).contains([industry.lower()]))
 
     total_jobs = q.count()
-    total_companies = (
-        db.query(func.count(func.distinct(Job.company_id)))
-        .join(Company, Job.company_id == Company.id)
-        .filter(Job.is_active.is_(True), Company.is_active.is_(True))
-    )
-
-    if city:
-        canonical = canonicalize_city(city) or city
-        total_companies = total_companies.filter(Job.city == canonical)
-    if role:
-        total_companies = total_companies.filter(Job.role_category == role.lower())
-    if country_code:
-        total_companies = total_companies.filter(Job.country_code == country_code.upper())
-    if region:
-        total_companies = total_companies.filter(Job.region == region.lower())
-    if is_remote is not None:
-        total_companies = total_companies.filter(Job.is_remote.is_(is_remote))
-    if industry:
-        total_companies = total_companies.filter(
-            Company.industry.cast(JSONB).contains([industry.lower()])
-        )
-
-    total_companies_count = total_companies.scalar() or 0
+    total_companies_count = q.with_entities(func.count(func.distinct(Job.company_id))).scalar() or 0
 
     paged_rows = q.order_by(Job.posted_at.desc()).offset(offset).limit(limit).all()
 

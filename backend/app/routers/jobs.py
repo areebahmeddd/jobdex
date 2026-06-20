@@ -2,7 +2,7 @@ import base64
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import and_, or_, text
 from sqlalchemy.orm import Session
 
@@ -121,7 +121,7 @@ def list_jobs(
 
 
 @router.get("/{job_id}", response_model=JobDetailResponse)
-def get_job(job_id: str, db: Session = Depends(get_db)):
+def get_job(job_id: str, response: Response = None, db: Session = Depends(get_db)):
     """Return full details for a single job by its ID."""
     row = (
         db.query(Job, Company)
@@ -131,4 +131,6 @@ def get_job(job_id: str, db: Session = Depends(get_db)):
     )
     if not row:
         raise HTTPException(status_code=404, detail="Job not found")
+    if response is not None:
+        response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=30"
     return build_job_detail_response(row[0], row[1])

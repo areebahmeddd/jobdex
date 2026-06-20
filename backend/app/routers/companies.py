@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Query as OrmQuery
@@ -48,9 +48,10 @@ def _company_query_with_counts(db: Session, city: str | None = None) -> OrmQuery
     if city:
         job_count_q = job_count_q.filter(Job.city == city)
     job_count_sq = job_count_q.group_by(Job.company_id).subquery()
-    return db.query(
-        Company, func.coalesce(job_count_sq.c.job_count, 0).label("job_count")
-    ).outerjoin(job_count_sq, job_count_sq.c.company_id == Company.id)
+    q = db.query(Company, func.coalesce(job_count_sq.c.job_count, 0).label("job_count"))
+    if city:
+        return q.join(job_count_sq, job_count_sq.c.company_id == Company.id)
+    return q.outerjoin(job_count_sq, job_count_sq.c.company_id == Company.id)
 
 
 @router.get("", response_model=PaginatedCompaniesResponse)
@@ -72,14 +73,6 @@ def list_companies(
 
     base = _company_query_with_counts(db, city=effective_city).filter(Company.is_active.is_(True))
 
-    if effective_city:
-        city_company_ids = (
-            db.query(Job.company_id)
-            .filter(Job.city == effective_city, Job.is_active.is_(True))
-            .distinct()
-            .subquery()
-        )
-        base = base.filter(Company.id.in_(city_company_ids))
     if country_code:
         base = base.filter(Company.country_code == country_code.upper())
     if region:
@@ -112,7 +105,7 @@ def list_companies(
 
 
 @router.get("/{slug}", response_model=CompanyDetailResponse)
-def get_company(slug: str, db: Session = Depends(get_db)):
+def get_company(slug: str, response: Response = None, db: Session = Depends(get_db)):
     """Return the full company profile by slug, including enriched and derived fields."""
     company = db.query(Company).filter(Company.slug == slug).first()
     if not company:
@@ -152,6 +145,9 @@ def get_company(slug: str, db: Session = Depends(get_db)):
         .all()
     )
     departments = [r.role_category for r in dept_rows if r.role_category]
+
+    if response is not None:
+        response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=30"
 
     return build_company_detail_response(company, job_count, categories, work_modes, departments)
 
@@ -194,7 +190,6 @@ def list_company_jobs(
         company=CompanyBriefResponse.model_validate(company),
         jobs=[build_job_response(j, company) for j in jobs],
         total=total,
-        has_more=(offset + len(jobs)) < total,
         limit=limit,
         offset=offset,
     )

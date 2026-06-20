@@ -2,6 +2,7 @@ import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     Float,
@@ -49,7 +50,7 @@ class Company(Base):
     enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     founders: Mapped[list | None] = mapped_column(JSONB)
     key_investors: Mapped[list | None] = mapped_column(JSONB)
-    total_funding_usd: Mapped[int | None] = mapped_column(Integer)
+    total_funding_usd: Mapped[int | None] = mapped_column(BigInteger)
     funding_stage: Mapped[str | None] = mapped_column(String(50))
     business_model: Mapped[str | None] = mapped_column(String(50))
     headcount_range: Mapped[str | None] = mapped_column(String(50))

@@ -134,7 +134,6 @@ class CompanyJobsResponse(BaseModel):
     company: CompanyBriefResponse
     jobs: list[JobResponse]
     total: int
-    has_more: bool
     limit: int
     offset: int
 
@@ -222,3 +221,54 @@ class StatsResponse(BaseModel):
     top_cities: list[CityStatEntry]
     top_regions: list[RegionStatEntry]
     ats_breakdown: dict
+
+
+# Map
+
+
+class MapCompanyPin(BaseModel):
+    id: str
+    name: str
+    slug: str
+    city: str | None = None
+    country_code: str | None = None
+    region: str | None = None
+    latitude: float
+    longitude: float
+    industry: list[str] = []
+    logo_url: str | None = None
+    job_count: int = 0
+
+
+class MapCompaniesResponse(BaseModel):
+    companies: list[MapCompanyPin]
+    total: int
+
+
+class MapCityPin(BaseModel):
+    name: str
+    slug: str
+    latitude: float
+    longitude: float
+    country_code: str | None = None
+    region: str | None = None
+    is_featured: bool = False
+    job_count: int = 0
+    company_count: int = 0
+
+
+class MapCitiesResponse(BaseModel):
+    cities: list[MapCityPin]
+    total: int
+
+
+class OfficePin(BaseModel):
+    city: str
+    country_code: str | None = None
+    latitude: float
+    longitude: float
+    job_count: int = 0
+
+
+class CompanyOfficesResponse(BaseModel):
+    offices: list[OfficePin]

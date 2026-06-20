@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -34,6 +34,7 @@ def list_cities(
     featured_only: bool = Query(False),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    response: Response = None,
     db: Session = Depends(get_db),
 ):
     """Return a paginated list of cities with live job and company counts."""
@@ -51,6 +52,9 @@ def list_cities(
     names = [c.name for c in cities]
     counts = _counts_by_city(db, names)
 
+    if response is not None:
+        response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
+
     return PaginatedCitiesResponse(
         cities=[build_city_response(c, *counts.get(c.name, (0, 0))) for c in cities],
         total=total,
@@ -60,11 +64,13 @@ def list_cities(
 
 
 @router.get("/{slug}", response_model=CityResponse)
-def get_city(slug: str, db: Session = Depends(get_db)):
+def get_city(slug: str, response: Response = None, db: Session = Depends(get_db)):
     """Return detail for a single city by slug, including live job and company counts."""
     city = db.query(City).filter(City.slug == slug).first()
     if not city:
         raise HTTPException(status_code=404, detail="City not found")
     counts = _counts_by_city(db, [city.name])
     job_count, company_count = counts.get(city.name, (0, 0))
+    if response is not None:
+        response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
     return build_city_response(city, job_count, company_count)

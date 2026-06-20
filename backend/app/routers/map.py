@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import distinct, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import City, Company, Job
+from app.schemas import CompanyOfficesResponse, MapCitiesResponse, MapCompaniesResponse
 
 router = APIRouter(prefix="/map", tags=["map"])
 
 
-@router.get("/companies")
+@router.get("/companies", response_model=MapCompaniesResponse)
 def map_companies(
     lat_min: float | None = Query(None, description="South bound of viewport"),
     lat_max: float | None = Query(None, description="North bound of viewport"),
@@ -18,6 +19,7 @@ def map_companies(
     country_code: str | None = Query(None, description="ISO-2 country code: IN, AE, US..."),
     role: str | None = Query(None, description="Role category: engineering, design, product..."),
     is_remote: bool | None = Query(None),
+    response: Response = None,
     db: Session = Depends(get_db),
 ):
     """Return company map pins with coordinates and filtered job counts for the globe UI."""
@@ -112,6 +114,9 @@ def map_companies(
 
     rows = q.order_by(func.count(filtered_jobs.c.id).desc()).all()
 
+    if response is not None:
+        response.headers["Cache-Control"] = "public, max-age=120, stale-while-revalidate=30"
+
     return {
         "companies": [
             {
@@ -133,7 +138,7 @@ def map_companies(
     }
 
 
-@router.get("/cities")
+@router.get("/cities", response_model=MapCitiesResponse)
 def map_cities(
     lat_min: float | None = Query(None, description="South bound of viewport"),
     lat_max: float | None = Query(None, description="North bound of viewport"),
@@ -144,6 +149,7 @@ def map_cities(
     role: str | None = Query(None, description="Count only jobs with this role category"),
     is_remote: bool | None = Query(None),
     featured_only: bool = Query(False, description="Return only featured cities"),
+    response: Response = None,
     db: Session = Depends(get_db),
 ):
     """Return city cluster pins with aggregated job and company counts for the map UI."""
@@ -191,6 +197,9 @@ def map_cities(
 
     rows = city_q.order_by(City.name).all()
 
+    if response is not None:
+        response.headers["Cache-Control"] = "public, max-age=120, stale-while-revalidate=30"
+
     return {
         "cities": [
             {
@@ -210,8 +219,8 @@ def map_cities(
     }
 
 
-@router.get("/companies/{slug}/offices")
-def company_offices(slug: str, db: Session = Depends(get_db)):
+@router.get("/companies/{slug}/offices", response_model=CompanyOfficesResponse)
+def company_offices(slug: str, response: Response = None, db: Session = Depends(get_db)):
     """Return distinct office locations derived from active jobs for the given company slug."""
     company = db.query(Company).filter(Company.slug == slug, Company.is_active.is_(True)).first()
     if not company:
@@ -235,6 +244,9 @@ def company_offices(slug: str, db: Session = Depends(get_db)):
         .order_by(func.count(Job.id).desc())
         .all()
     )
+
+    if response is not None:
+        response.headers["Cache-Control"] = "public, max-age=120, stale-while-revalidate=30"
 
     return {
         "offices": [
