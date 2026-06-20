@@ -37,3 +37,10 @@ def test_search_totals_consistent(client):
     data = client.get("/search", params={"limit": 5}).json()
     assert data["total_jobs"] >= len(data["jobs"])
     assert data["total_companies"] >= len(data["companies"])
+
+
+@pytest.mark.integration
+def test_search_remote_filter(client):
+    data = client.get("/search", params={"is_remote": "true"}).json()
+    for job in data["jobs"]:
+        assert job["is_remote"] is True

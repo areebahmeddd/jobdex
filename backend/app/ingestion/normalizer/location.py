@@ -178,7 +178,7 @@ def normalize_location(
 # Private helpers
 
 
-def _fuzzy_match_city(text: str, score_cutoff: int = 85) -> str | None:
+def _fuzzy_match_city(text: str, score_cutoff: int = 90) -> str | None:
     """Return the closest city name for the input, or None if below score_cutoff."""
     if not text:
         return None
@@ -208,8 +208,6 @@ def _city_fields(city_name: str) -> dict:
         "region": _normalize_region(d.get("region")),
         "latitude": d["lat"],
         "longitude": d["lng"],
-        "is_remote": False,
-        "remote_type": "onsite",
     }
 
 

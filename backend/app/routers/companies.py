@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Query as OrmQuery
@@ -67,7 +67,6 @@ def list_companies(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    """Return a paginated list of active companies with optional filters."""
     canonical_city = canonicalize_city(city) if city else None
     effective_city = canonical_city or city if city else None
 
@@ -105,9 +104,9 @@ def list_companies(
 
 
 @router.get("/{slug}", response_model=CompanyDetailResponse)
-def get_company(slug: str, response: Response = None, db: Session = Depends(get_db)):
+def get_company(slug: str, db: Session = Depends(get_db)):
     """Return the full company profile by slug, including enriched and derived fields."""
-    company = db.query(Company).filter(Company.slug == slug).first()
+    company = db.query(Company).filter(Company.slug == slug, Company.is_active.is_(True)).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
@@ -118,6 +117,18 @@ def get_company(slug: str, response: Response = None, db: Session = Depends(get_
         or 0
     )
     categories = _bulk_categories([company.id], db).get(company.id, [])
+
+    dept_rows = (
+        db.query(Job.department)
+        .filter(
+            Job.company_id == company.id,
+            Job.is_active.is_(True),
+            Job.department.isnot(None),
+        )
+        .distinct()
+        .all()
+    )
+    departments = [r.department for r in dept_rows]
 
     remote_rows = (
         db.query(Job.is_remote, Job.remote_type)
@@ -134,10 +145,7 @@ def get_company(slug: str, response: Response = None, db: Session = Depends(get_
         elif not is_remote and "On-site" not in work_modes:
             work_modes.append("On-site")
 
-    if response is not None:
-        response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=30"
-
-    return build_company_detail_response(company, job_count, categories, work_modes, categories)
+    return build_company_detail_response(company, job_count, categories, work_modes, departments)
 
 
 @router.get("/{slug}/jobs", response_model=CompanyJobsResponse)
@@ -150,7 +158,6 @@ def list_company_jobs(
     is_remote: bool | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    response: Response = None,
     db: Session = Depends(get_db),
 ):
     """Return paginated active jobs for a company, with optional city, role, and seniority filters."""
@@ -174,9 +181,6 @@ def list_company_jobs(
 
     total = query.count()
     jobs = query.order_by(Job.posted_at.desc()).offset(offset).limit(limit).all()
-
-    if response is not None:
-        response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=30"
 
     return CompanyJobsResponse(
         company=CompanyBriefResponse.model_validate(company),

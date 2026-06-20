@@ -58,7 +58,6 @@ def upgrade() -> None:
         sa.UniqueConstraint("slug"),
     )
     op.create_index("ix_companies_slug", "companies", ["slug"], unique=True)
-    op.create_index("ix_companies_city", "companies", ["city"])
     op.create_index("ix_companies_country_code", "companies", ["country_code"])
     op.create_index("ix_companies_city_country", "companies", ["city", "country_code"])
     op.create_index("ix_companies_region", "companies", ["region"])
@@ -113,9 +112,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("dedup_hash"),
     )
-    op.create_index("ix_jobs_city", "jobs", ["city"])
-    op.create_index("ix_jobs_country_code", "jobs", ["country_code"])
-    op.create_index("ix_jobs_role_category", "jobs", ["role_category"])
     op.create_index("ix_jobs_seniority", "jobs", ["seniority"])
     op.create_index("ix_jobs_dedup_hash", "jobs", ["dedup_hash"], unique=True)
     op.create_index("ix_jobs_is_active", "jobs", ["is_active"])
@@ -156,6 +152,12 @@ def upgrade() -> None:
         "ix_jobs_active_posted",
         "jobs",
         ["posted_at"],
+        postgresql_where=sa.text("is_active = TRUE"),
+    )
+    op.create_index(
+        "ix_jobs_active_remote",
+        "jobs",
+        ["is_remote"],
         postgresql_where=sa.text("is_active = TRUE"),
     )
 

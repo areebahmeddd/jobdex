@@ -29,7 +29,7 @@ class Company(Base):
     description: Mapped[str | None] = mapped_column(Text)
     website: Mapped[str | None] = mapped_column(String(500))
 
-    city: Mapped[str | None] = mapped_column(String(255), index=True)
+    city: Mapped[str | None] = mapped_column(String(255))
     country: Mapped[str | None] = mapped_column(String(255))
     country_code: Mapped[str | None] = mapped_column(String(2), index=True)
     region: Mapped[str | None] = mapped_column(String(50))
@@ -78,16 +78,16 @@ class Job(Base):
     description_snippet: Mapped[str | None] = mapped_column(String(600))
 
     location_raw: Mapped[str | None] = mapped_column(String(500))
-    city: Mapped[str | None] = mapped_column(String(255), index=True)
+    city: Mapped[str | None] = mapped_column(String(255))
     country: Mapped[str | None] = mapped_column(String(255))
-    country_code: Mapped[str | None] = mapped_column(String(2), index=True)
+    country_code: Mapped[str | None] = mapped_column(String(2))
     region: Mapped[str | None] = mapped_column(String(50))
     latitude: Mapped[float | None] = mapped_column(Float)
     longitude: Mapped[float | None] = mapped_column(Float)
     is_remote: Mapped[bool] = mapped_column(Boolean, default=False)
     remote_type: Mapped[str | None] = mapped_column(String(50))
 
-    role_category: Mapped[str | None] = mapped_column(String(100), index=True)
+    role_category: Mapped[str | None] = mapped_column(String(100))
     role_subcategory: Mapped[str | None] = mapped_column(String(100))
     seniority: Mapped[str | None] = mapped_column(String(50), index=True)
     job_type: Mapped[str | None] = mapped_column(String(50))
@@ -144,6 +144,11 @@ class Job(Base):
         Index(
             "ix_jobs_active_posted",
             "posted_at",
+            postgresql_where=text("is_active = TRUE"),
+        ),
+        Index(
+            "ix_jobs_active_remote",
+            "is_remote",
             postgresql_where=text("is_active = TRUE"),
         ),
     )

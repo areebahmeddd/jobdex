@@ -57,7 +57,7 @@ def get_stats(response: Response = None, db: Session = Depends(get_db)):
 
     ats_rows = (
         db.query(Company.ats_type, func.count(Company.id))
-        .filter(Company.ats_type.isnot(None))
+        .filter(Company.is_active.is_(True), Company.ats_type.isnot(None))
         .group_by(Company.ats_type)
         .all()
     )

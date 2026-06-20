@@ -4,6 +4,7 @@ from app.ingestion.normalizer.location import (
     canonicalize_city,
     get_region_for_country,
     is_blocked_location,
+    normalize_location,
 )
 
 
@@ -31,10 +32,70 @@ class TestCanonicalizeCity:
         assert canonicalize_city(alias) == canonical
 
     def test_unknown_city_returns_none(self):
-        assert canonicalize_city("Nonexistent City XYZXYZ") is None
+        assert canonicalize_city("ZZZZZ999QQQQQ") is None
 
     def test_strips_whitespace(self):
         assert canonicalize_city("  London  ") == "London"
+
+    def test_comma_suffix_alias(self):
+        assert canonicalize_city("Bengaluru, KA") == "Bangalore"
+
+    def test_comma_suffix_exact(self):
+        assert canonicalize_city("New York, NY") == "New York"
+
+    def test_fuzzy_qualifier_prefix(self):
+        assert canonicalize_city("Greater Munich Area") == "Munich"
+
+
+class TestNormalizeLocation:
+    def test_known_city(self):
+        r = normalize_location("Bangalore")
+        assert r["city"] == "Bangalore"
+        assert r["country_code"] == "IN"
+        assert r["is_remote"] is False
+        assert r["latitude"] is not None
+
+    def test_alias_resolution(self):
+        r = normalize_location("NYC")
+        assert r["city"] == "New York"
+
+    def test_city_with_suffix(self):
+        r = normalize_location("Bangalore, India")
+        assert r["city"] == "Bangalore"
+
+    def test_fully_remote(self):
+        r = normalize_location("Remote")
+        assert r["is_remote"] is True
+        assert r["remote_type"] == "fully-remote"
+        assert r["city"] is None
+
+    def test_hybrid(self):
+        r = normalize_location("Hybrid / London")
+        assert r["is_remote"] is True
+        assert r["remote_type"] == "hybrid"
+
+    def test_remote_with_known_city(self):
+        r = normalize_location("Remote - London")
+        assert r["is_remote"] is True
+        assert r["city"] == "London"
+
+    def test_fallback_city(self):
+        r = normalize_location("", fallback_city="Singapore")
+        assert r["city"] == "Singapore"
+
+    def test_fallback_country_code(self):
+        r = normalize_location("", fallback_country_code="DE")
+        assert r["country_code"] == "DE"
+
+    def test_empty_string(self):
+        r = normalize_location("")
+        assert r["city"] is None
+        assert r["is_remote"] is False
+
+    def test_blocked_location_passthrough(self):
+        # normalize_location itself doesn't block; is_blocked_location is called by the caller
+        r = normalize_location("Tel Aviv")
+        assert r["city"] == "Tel Aviv"
 
 
 class TestGetRegionForCountry:

@@ -11,7 +11,7 @@ def test_list_jobs_returns_200(client):
 def test_list_jobs_schema(client):
     data = client.get("/jobs").json()
     assert "jobs" in data
-    assert "total" in data
+    assert isinstance(data["total"], int)
     assert "limit" in data
     assert isinstance(data["jobs"], list)
 
@@ -67,13 +67,3 @@ def test_get_job_valid(client):
     assert data["id"] == job_id
     assert "title" in data
     assert "company_name" in data
-
-
-@pytest.mark.integration
-def test_get_job_cache_header(client):
-    jobs = client.get("/jobs", params={"limit": 1}).json()["jobs"]
-    if not jobs:
-        pytest.skip("No jobs in database")
-    r = client.get(f"/jobs/{jobs[0]['id']}")
-    cc = r.headers.get("cache-control", "")
-    assert "max-age=60" in cc

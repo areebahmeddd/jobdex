@@ -27,6 +27,12 @@ def test_stats_active_lte_total(client):
 
 
 @pytest.mark.integration
+def test_stats_cities_with_jobs_lte_total_cities(client):
+    data = client.get("/stats").json()
+    assert data["cities_with_jobs"] <= data["total_cities"]
+
+
+@pytest.mark.integration
 def test_stats_cache_header(client):
     r = client.get("/stats")
     cc = r.headers.get("cache-control", "")

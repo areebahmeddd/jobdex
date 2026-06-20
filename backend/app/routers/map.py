@@ -11,10 +11,10 @@ router = APIRouter(prefix="/map", tags=["map"])
 
 @router.get("/companies", response_model=MapCompaniesResponse)
 def map_companies(
-    lat_min: float | None = Query(None, description="South bound of viewport"),
-    lat_max: float | None = Query(None, description="North bound of viewport"),
-    lng_min: float | None = Query(None, description="West bound of viewport"),
-    lng_max: float | None = Query(None, description="East bound of viewport"),
+    lat_min: float | None = Query(None, ge=-90, le=90, description="South bound of viewport"),
+    lat_max: float | None = Query(None, ge=-90, le=90, description="North bound of viewport"),
+    lng_min: float | None = Query(None, ge=-180, le=180, description="West bound of viewport"),
+    lng_max: float | None = Query(None, ge=-180, le=180, description="East bound of viewport"),
     region: str | None = Query(None, description="e.g. south_asia, north_america, europe"),
     country_code: str | None = Query(None, description="ISO-2 country code: IN, AE, US..."),
     role: str | None = Query(None, description="Role category: engineering, design, product..."),
@@ -136,10 +136,10 @@ def map_companies(
 
 @router.get("/cities", response_model=MapCitiesResponse)
 def map_cities(
-    lat_min: float | None = Query(None, description="South bound of viewport"),
-    lat_max: float | None = Query(None, description="North bound of viewport"),
-    lng_min: float | None = Query(None, description="West bound of viewport"),
-    lng_max: float | None = Query(None, description="East bound of viewport"),
+    lat_min: float | None = Query(None, ge=-90, le=90, description="South bound of viewport"),
+    lat_max: float | None = Query(None, ge=-90, le=90, description="North bound of viewport"),
+    lng_min: float | None = Query(None, ge=-180, le=180, description="West bound of viewport"),
+    lng_max: float | None = Query(None, ge=-180, le=180, description="East bound of viewport"),
     region: str | None = Query(None),
     country_code: str | None = Query(None),
     role: str | None = Query(None, description="Count only jobs with this role category"),

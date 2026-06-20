@@ -56,16 +56,6 @@ def test_get_company_valid(client):
 
 
 @pytest.mark.integration
-def test_get_company_cache_header(client):
-    companies = client.get("/companies", params={"limit": 1}).json()["companies"]
-    if not companies:
-        pytest.skip("No companies in database")
-    r = client.get(f"/companies/{companies[0]['slug']}")
-    cc = r.headers.get("cache-control", "")
-    assert "max-age=60" in cc
-
-
-@pytest.mark.integration
 def test_list_company_jobs(client):
     companies = client.get("/companies", params={"limit": 1}).json()["companies"]
     if not companies:

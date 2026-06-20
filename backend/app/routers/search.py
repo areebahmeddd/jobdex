@@ -82,12 +82,4 @@ def search(
         total_jobs=total_jobs,
         offset=offset,
         limit=limit,
-        filters={
-            "city": city,
-            "role": role,
-            "industry": industry,
-            "country_code": country_code,
-            "region": region,
-            "is_remote": is_remote,
-        },
     )
