@@ -65,7 +65,6 @@ def search(
         .filter(Job.is_active.is_(True), Company.is_active.is_(True))
     )
 
-    # Mirror filters for distinct company count.
     if city:
         canonical = canonicalize_city(city) or city
         total_companies = total_companies.filter(Job.city == canonical)
@@ -86,7 +85,6 @@ def search(
 
     paged_rows = q.order_by(Job.posted_at.desc()).offset(offset).limit(limit).all()
 
-    # Per-company aggregation for this page.
     page_company_jobs: dict[str, tuple[Company, list[Job]]] = {}
     for job, co in paged_rows:
         if co.id not in page_company_jobs:

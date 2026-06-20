@@ -1,5 +1,11 @@
 from app.models import City, Company, Job
-from app.schemas import CityResponse, CompanyResponse, JobDetailResponse, JobResponse
+from app.schemas import (
+    CityResponse,
+    CompanyDetailResponse,
+    CompanyResponse,
+    JobDetailResponse,
+    JobResponse,
+)
 
 
 def build_job_response(job: Job, company: Company) -> JobResponse:
@@ -27,6 +33,22 @@ def build_company_response(
     data = CompanyResponse.model_validate(company)
     data.job_count = job_count
     data.open_role_categories = sorted(categories)
+    return data
+
+
+def build_company_detail_response(
+    company: Company,
+    job_count: int,
+    categories: list[str],
+    work_modes: list[str],
+    departments: list[str],
+) -> CompanyDetailResponse:
+    """Build a CompanyDetailResponse with all enriched and derived fields."""
+    data = CompanyDetailResponse.model_validate(company)
+    data.job_count = job_count
+    data.open_role_categories = sorted(categories)
+    data.work_modes = work_modes
+    data.departments = sorted(departments)
     return data
 
 

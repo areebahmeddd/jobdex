@@ -67,7 +67,6 @@ class Runner:
         except Exception as exc:
             return 0, str(exc)
 
-    # ------------------------------------------------------------------
     def test_health(self) -> None:
         """Test the health and root metadata endpoints."""
         self.section("1. Health & Metadata")
@@ -81,7 +80,6 @@ class Runner:
         self.check("GET / returns 200", status == 200, str(body))
         self.check("root has name field", isinstance(body, dict) and "name" in body, str(body))
 
-    # ------------------------------------------------------------------
     def test_admin_stats(self) -> None:
         """Test the admin stats endpoint for required fields and non-zero counts."""
         self.section("2. Admin -- Stats")
@@ -103,7 +101,6 @@ class Runner:
             self.check("stats.top_regions is list", isinstance(body.get("top_regions"), list))
             self.check("stats.ats_breakdown is dict", isinstance(body.get("ats_breakdown"), dict))
 
-    # ------------------------------------------------------------------
     def test_cities(self) -> None:
         """Test city listing, filtering, pagination, and detail endpoints."""
         self.section("3. Cities")
@@ -159,7 +156,6 @@ class Runner:
             len(p1) > 0 and len(p2) > 0 and p1[0]["slug"] != p2[0]["slug"],
         )
 
-    # ------------------------------------------------------------------
     def test_map_companies(self) -> None:
         """Test map company pins including bbox, role, and country filters."""
         self.section("4. Map -- Company Pins")
@@ -210,7 +206,6 @@ class Runner:
         if status == 200:
             self.check("map/companies US has results", len(body.get("companies", [])) >= 1)
 
-    # ------------------------------------------------------------------
     def test_map_cities(self) -> None:
         """Test map city cluster pins including bbox and role filters."""
         self.section("5. Map -- City Clusters")
@@ -246,7 +241,6 @@ class Runner:
         status, _ = self.get("/map/cities", params={"role": "engineering"})
         self.check("map/cities role=engineering returns 200", status == 200)
 
-    # ------------------------------------------------------------------
     def test_jobs(self) -> None:
         """Test job listing, filters, pagination, full-text search, and detail endpoints."""
         self.section("6. Jobs -- Listing & Filters")
@@ -337,7 +331,6 @@ class Runner:
         status, _ = self.get("/jobs/nonexistent-id-xyz")
         self.check("GET /jobs/nonexistent returns 404", status == 404)
 
-    # ------------------------------------------------------------------
     def test_companies(self) -> None:
         """Test company listing, detail, per-company job listing, and filter endpoints."""
         self.section("7. Companies -- Listing, Detail, Jobs")
@@ -414,7 +407,6 @@ class Runner:
             len(c1) > 0 and (not c2 or c1[0]["slug"] != c2[0]["slug"]),
         )
 
-    # ------------------------------------------------------------------
     def test_search(self) -> None:
         """Test the cross-entity search endpoint with single and combined filters."""
         self.section("8. Search -- Cross-Entity Discovery")
@@ -479,7 +471,6 @@ class Runner:
         status, _ = self.get("/search", params={"industry": "saas"})
         self.check("GET /search?industry=saas returns 200", status == 200)
 
-    # ------------------------------------------------------------------
     def test_user_flow(self) -> None:
         """Simulate the end-to-end user journey from globe view to job detail."""
         self.section("9. Simulated User Flow -- Globe to Job Detail")
@@ -554,7 +545,6 @@ class Runner:
             status, _ = self.get("/search", params={"city": city_name, "role": "engineering"})
             self.check(f"search city={city_name} role=engineering", status == 200)
 
-    # ------------------------------------------------------------------
     def test_coordinates(self) -> None:
         """Verify that all company map pins have valid lat/lng coordinate ranges."""
         self.section("10. Coordinate Correctness")
@@ -574,7 +564,6 @@ class Runner:
                     str(c["longitude"]),
                 )
 
-    # ------------------------------------------------------------------
     def run_all(self) -> int:
         """Run the full test suite and return 0 on success or 1 if any test failed."""
         print("\nJobDex E2E Test Suite")

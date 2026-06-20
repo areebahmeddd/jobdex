@@ -17,7 +17,6 @@ class JobResponse(BaseModel):
     title: str
     description_snippet: str | None = None
 
-    location_raw: str | None = None
     city: str | None = None
     country: str | None = None
     country_code: str | None = None
@@ -27,18 +26,16 @@ class JobResponse(BaseModel):
     is_remote: bool = False
     remote_type: str | None = None
 
-    job_type: str | None = None
-    seniority: str | None = None
     role_category: str | None = None
     role_subcategory: str | None = None
-    tech_stack: list[str] = []
+    seniority: str | None = None
+    job_type: str | None = None
     department: str | None = None
+    tech_stack: list[str] = []
 
     source_url: str
     ats_type: str | None = None
     posted_at: datetime | None = None
-    is_active: bool = True
-    first_seen_at: datetime | None = None
 
     @computed_field  # type: ignore[misc]
     @property
@@ -54,6 +51,7 @@ class JobResponse(BaseModel):
 
 
 class JobDetailResponse(JobResponse):
+    location_raw: str | None = None
     description: str | None = None
 
 
@@ -74,6 +72,7 @@ class CompanyResponse(BaseModel):
     id: str
     name: str
     slug: str
+    logo_url: str | None = None
     description: str | None = None
     website: str | None = None
 
@@ -87,13 +86,28 @@ class CompanyResponse(BaseModel):
     industry: list[str] = []
     stage: str | None = None
     founded_year: int | None = None
-    logo_url: str | None = None
     ats_type: str | None = None
+    last_crawled_at: datetime | None = None
 
     job_count: int = 0
     open_role_categories: list[str] = []
 
-    last_crawled_at: datetime | None = None
+
+class CompanyDetailResponse(CompanyResponse):
+    wikidata_id: str | None = None
+    enriched_at: datetime | None = None
+    founders: list[dict] | None = None
+    key_investors: list[dict] | None = None
+    total_funding_usd: int | None = None
+    funding_stage: str | None = None
+    business_model: str | None = None
+    headcount_range: str | None = None
+    benefits: list[dict] | None = None
+    office_address: str | None = None
+    social_links: dict | None = None
+
+    work_modes: list[str] = []
+    departments: list[str] = []
 
 
 class CompanyBriefResponse(BaseModel):
@@ -102,11 +116,11 @@ class CompanyBriefResponse(BaseModel):
     id: str
     name: str
     slug: str
+    logo_url: str | None = None
     city: str | None = None
     country_code: str | None = None
     latitude: float | None = None
     longitude: float | None = None
-    logo_url: str | None = None
 
 
 class PaginatedCompaniesResponse(BaseModel):
@@ -173,8 +187,16 @@ class IngestResponse(BaseModel):
     total_fetched: int = 0
     new_jobs: int = 0
     updated_jobs: int = 0
-    deactivated_jobs: int = 0  # jobs on previous board no longer returned by ATS
+    deactivated_jobs: int = 0
     errors: list[str] = []
+
+
+class EnrichResponse(BaseModel):
+    slug: str
+    name: str
+    wikidata_id: str | None = None
+    updated_fields: list[str] = []
+    enriched_at: datetime | None = None
 
 
 class DiscoverResponse(BaseModel):
@@ -193,6 +215,16 @@ class ResetResponse(BaseModel):
 # Stats
 
 
+class CityStatEntry(BaseModel):
+    city: str
+    job_count: int
+
+
+class RegionStatEntry(BaseModel):
+    region: str
+    job_count: int
+
+
 class StatsResponse(BaseModel):
     total_companies: int
     total_jobs: int
@@ -200,6 +232,6 @@ class StatsResponse(BaseModel):
     total_cities: int
     cities_with_jobs: int
     role_categories: dict
-    top_cities: list[dict]
-    top_regions: list[dict]
+    top_cities: list[CityStatEntry]
+    top_regions: list[RegionStatEntry]
     ats_breakdown: dict

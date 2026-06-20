@@ -13,8 +13,8 @@ from app.models import Company, Job
 from app.schemas import IngestResponse
 
 # Shared limits used by all ingester build_job() implementations.
-_TECH_EXTRACT_CHARS: int = 2000  # description chars passed to extract_tech_stack
-_DESCRIPTION_MAX_CHARS: int = 20000  # max chars stored in job.description
+_TECH_EXTRACT_CHARS: int = 2000
+_DESCRIPTION_MAX_CHARS: int = 20000
 
 
 def _backfill_company_hq(company: Company, db: Session) -> None:
@@ -159,7 +159,6 @@ class BaseIngester(ABC):
         result.total_fetched = len(raw_jobs)
         logger.info(f"[{self.ats_type}] '{slug}' -> {len(raw_jobs)} raw jobs")
 
-        # All dedup hashes for this company.
         existing_rows = (
             db.query(Job.dedup_hash, Job.id, Job.is_active)
             .filter(Job.company_id == company.id, Job.dedup_hash.isnot(None))
@@ -216,8 +215,8 @@ class BaseIngester(ABC):
         company.ats_slug = slug
         company.crawl_error = None
 
-        # Backfill company HQ if it was a stub.
         if company.city is None:
+            db.flush()
             _backfill_company_hq(company, db)
 
         db.commit()

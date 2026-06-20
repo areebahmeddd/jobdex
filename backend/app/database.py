@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+
 from loguru import logger
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
@@ -39,13 +41,20 @@ class Base(DeclarativeBase):
     pass
 
 
-def get_db():
-    """Yield a database session and ensure it is closed after each request."""
+@contextmanager
+def get_session():
+    """Provide a database session as a context manager for non-request contexts."""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+def get_db():
+    """Yield a database session and ensure it is closed after each request."""
+    with get_session() as db:
+        yield db
 
 
 def init_db():

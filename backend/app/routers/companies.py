@@ -7,11 +7,15 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.ingestion.normalizer import canonicalize_city
 from app.models import Company, Job
-from app.routers._builders import build_company_response, build_job_response
+from app.routers._builders import (
+    build_company_detail_response,
+    build_company_response,
+    build_job_response,
+)
 from app.schemas import (
     CompanyBriefResponse,
+    CompanyDetailResponse,
     CompanyJobsResponse,
-    CompanyResponse,
     PaginatedCompaniesResponse,
 )
 
@@ -107,9 +111,9 @@ def list_companies(
     )
 
 
-@router.get("/{slug}", response_model=CompanyResponse)
+@router.get("/{slug}", response_model=CompanyDetailResponse)
 def get_company(slug: str, db: Session = Depends(get_db)):
-    """Return detail for a single company by slug, including job count and open role categories."""
+    """Return the full company profile by slug, including enriched and derived fields."""
     company = db.query(Company).filter(Company.slug == slug).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
@@ -122,10 +126,34 @@ def get_company(slug: str, db: Session = Depends(get_db)):
     )
     categories = _bulk_categories([company.id], db).get(company.id, [])
 
-    data = CompanyResponse.model_validate(company)
-    data.job_count = job_count
-    data.open_role_categories = sorted(categories)
-    return data
+    remote_rows = (
+        db.query(Job.is_remote, Job.remote_type)
+        .filter(Job.company_id == company.id, Job.is_active.is_(True))
+        .distinct()
+        .all()
+    )
+    work_modes: list[str] = []
+    for is_remote, remote_type in remote_rows:
+        if is_remote and remote_type == "hybrid" and "Hybrid" not in work_modes:
+            work_modes.append("Hybrid")
+        elif is_remote and "Remote" not in work_modes:
+            work_modes.append("Remote")
+        elif not is_remote and "On-site" not in work_modes:
+            work_modes.append("On-site")
+
+    dept_rows = (
+        db.query(Job.role_category)
+        .filter(
+            Job.company_id == company.id,
+            Job.is_active.is_(True),
+            Job.role_category.isnot(None),
+        )
+        .distinct()
+        .all()
+    )
+    departments = [r.role_category for r in dept_rows if r.role_category]
+
+    return build_company_detail_response(company, job_count, categories, work_modes, departments)
 
 
 @router.get("/{slug}/jobs", response_model=CompanyJobsResponse)

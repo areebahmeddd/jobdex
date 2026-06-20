@@ -7,9 +7,16 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.enrichment import enrich_company
 from app.ingestion import INGESTERS, ashby, greenhouse, lever
 from app.models import City, Company, Job
-from app.schemas import DiscoverResponse, IngestResponse, ResetResponse, StatsResponse
+from app.schemas import (
+    DiscoverResponse,
+    EnrichResponse,
+    IngestResponse,
+    ResetResponse,
+    StatsResponse,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -83,6 +90,42 @@ async def discover_and_ingest(
         discovered=False,
         message="Not found on Greenhouse, Lever, or Ashby. Check the slug or try a different ATS.",
     )
+
+
+@router.post("/enrich/{slug}", response_model=EnrichResponse)
+async def enrich(
+    slug: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(_require_admin),
+):
+    """Enrich a company profile with data from Wikidata and Wikipedia."""
+    company = db.query(Company).filter(Company.slug == slug).first()
+    if not company:
+        raise HTTPException(status_code=404, detail=f"Company '{slug}' not found")
+
+    return await enrich_company(slug, db)
+
+
+@router.post("/enrich/batch/all", response_model=list[EnrichResponse])
+async def enrich_batch(
+    limit: int = 20,
+    skip_enriched: bool = True,
+    db: Session = Depends(get_db),
+    _: None = Depends(_require_admin),
+):
+    """Enrich up to *limit* companies; set skip_enriched=false to re-enrich."""
+    query = db.query(Company).filter(Company.is_active.is_(True))
+    if skip_enriched:
+        query = query.filter(Company.enriched_at.is_(None))
+    companies = query.order_by(Company.name).limit(limit).all()
+
+    results = []
+    for company in companies:
+        result = await enrich_company(company.slug, db)
+        results.append(result)
+        await asyncio.sleep(1.0)
+
+    return results
 
 
 @router.get("/stats", response_model=StatsResponse)

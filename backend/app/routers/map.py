@@ -21,7 +21,6 @@ def map_companies(
     db: Session = Depends(get_db),
 ):
     """Return company map pins with coordinates and filtered job counts for the globe UI."""
-    # Group jobs by location; apply role/remote filters before aggregating job_count.
     loc_counts_q = db.query(
         Job.company_id,
         Job.latitude,
@@ -40,7 +39,6 @@ def map_companies(
         Job.company_id, Job.latitude, Job.longitude, Job.city, Job.country_code, Job.region
     ).subquery("loc_counts")
 
-    # Most common location per company.
     best_loc = (
         db.query(
             loc_counts.c.company_id,
@@ -61,7 +59,6 @@ def map_companies(
     resolved_cc = func.coalesce(Company.country_code, best_loc.c.country_code)
     resolved_region = func.coalesce(Company.region, best_loc.c.region)
 
-    # Filtered job subquery for job_count.
     filtered_jobs_q = db.query(Job.id, Job.company_id).filter(Job.is_active.is_(True))
     if role:
         filtered_jobs_q = filtered_jobs_q.filter(Job.role_category == role.lower())
@@ -150,7 +147,6 @@ def map_cities(
     db: Session = Depends(get_db),
 ):
     """Return city cluster pins with aggregated job and company counts for the map UI."""
-    # Aggregate job/company counts per city.
     job_agg_q = (
         db.query(
             City.id.label("city_id"),

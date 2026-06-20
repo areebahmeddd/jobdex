@@ -38,7 +38,6 @@ class AshbyIngester(BaseIngester):
         """Parse a raw Ashby job dict into an unsaved Job ORM object."""
         title = raw.get("title", "")
 
-        # Location: Ashby REST uses 'location' or 'address'.
         loc_raw = raw.get("location", "") or ""
         is_remote_flag: bool = raw.get("isRemote", False) or False
 
@@ -73,7 +72,6 @@ class AshbyIngester(BaseIngester):
         return Job(
             company_id=company.id,
             title=title,
-            title_normalized=title.lower().strip(),
             description=plain[:_DESCRIPTION_MAX_CHARS],
             description_snippet=make_snippet(plain),
             location_raw=loc_raw,

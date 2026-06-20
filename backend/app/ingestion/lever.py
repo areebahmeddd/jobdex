@@ -61,7 +61,6 @@ class LeverIngester(BaseIngester):
         return Job(
             company_id=company.id,
             title=title,
-            title_normalized=title.lower().strip(),
             description=plain[:_DESCRIPTION_MAX_CHARS],
             description_snippet=make_snippet(plain),
             location_raw=loc_raw,

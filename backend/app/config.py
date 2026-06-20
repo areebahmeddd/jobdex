@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     GEOCODE_UNKNOWN_CITIES: bool = False
     GEOCODE_USER_AGENT: str = "JobDex/1.0 (+https://github.com/areebahmeddd/jobdex)"
 
+    ENRICHMENT_BOT_AGENT: str = "JobDex/1.0 (+https://github.com/areebahmeddd/jobdex)"
+    ENRICHMENT_REQUEST_TIMEOUT: float = 15.0
+    ENRICHMENT_STEP_DELAY: float = 0.5
+
     ADMIN_API_KEY: str | None = None
 
 

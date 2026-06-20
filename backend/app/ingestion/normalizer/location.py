@@ -111,7 +111,6 @@ def normalize_location(
     elif is_remote and not _has_known_city(lowered):
         result["is_remote"] = True
         result["remote_type"] = "fully-remote"
-        # Anchor to company HQ for map coordinates.
         _apply_city(result, fallback_city)
         if not result["country_code"] and fallback_country_code:
             result["country_code"] = fallback_country_code
@@ -120,22 +119,18 @@ def normalize_location(
         result["is_remote"] = True
         result["remote_type"] = "hybrid"
 
-    # 1. Alias lookup.
     canonical = _CITY_ALIASES.get(lowered)
     if canonical and canonical in _CITY_DATA:
         return {**result, **_city_fields(canonical)}
 
-    # 2. Exact full-string match.
     for city_name in _CITY_DATA:
         if city_name.lower() == lowered:
             return {**result, **_city_fields(city_name)}
 
-    # 3. City name contained anywhere in string.
     for city_name in _CITY_DATA:
         if city_name.lower() in lowered:
             return {**result, **_city_fields(city_name)}
 
-    # 4. First comma-part match.
     first_part = raw.split(",")[0].strip()
     first_lower = first_part.lower()
     canonical = _CITY_ALIASES.get(first_lower)
@@ -145,7 +140,6 @@ def normalize_location(
         if city_name.lower() == first_lower:
             return {**result, **_city_fields(city_name)}
 
-    # 5. Optional geocoding via Nominatim.
     if settings.GEOCODE_UNKNOWN_CITIES and raw:
         geo = _geocode(raw)
         if geo:
@@ -161,7 +155,6 @@ def normalize_location(
                 "longitude": lng,
             }
 
-    # 6. Fall back to company HQ.
     _apply_city(result, fallback_city)
     if not result["country_code"] and fallback_country_code:
         result["country_code"] = fallback_country_code
@@ -243,9 +236,9 @@ def _geocode(location: str) -> tuple | None:
             country = address.get("country", "")
             result = (lat, lng, cc, country)
             _geocode_cache[key] = result
-            logger.debug(f"Geocoded '{location}' -> {result}")
+            logger.debug(f"[geocode] '{location}' -> {result}")
             return result
     except Exception as exc:
-        logger.debug(f"Geocode failed for '{location}': {exc}")
+        logger.debug(f"[geocode] failed for '{location}': {exc}")
     _geocode_cache[key] = None
     return None
