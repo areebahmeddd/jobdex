@@ -107,7 +107,7 @@ Configurable via `INGEST_INTERVAL_HOURS` and `ENRICH_INTERVAL_HOURS`.
 ### Fresh Setup
 
 ```bash
-# start server (creates tables, seeds cities)
+# start server (runs migrations, seeds cities, starts scheduler)
 uv run uvicorn app.main:app --port 8000 --reload
 
 # seed companies

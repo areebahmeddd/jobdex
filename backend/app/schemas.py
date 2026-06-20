@@ -173,7 +173,6 @@ class SearchResponse(BaseModel):
     total_jobs: int = 0
     offset: int = 0
     limit: int = 20
-    filters: dict = {}
 
 
 # Ingestion

@@ -12,9 +12,9 @@ BOT_AGENT = "JobdexEnrichmentBot/1.0 (+https://github.com/areebahmeddd/jobdex)"
 REQUEST_TIMEOUT = 15.0
 STEP_DELAY = 0.6
 
-_WIKIDATA_SEARCH = "https://www.wikidata.org/w/api.php"
+_WIKIDATA_SEARCH = "https://wikidata.org/w/api.php"
 _WIKIDATA_SPARQL = "https://query.wikidata.org/sparql"
-_WIKIDATA_ENTITY = "https://www.wikidata.org/wiki/Special:EntityData/{qid}.json"
+_WIKIDATA_ENTITY = "https://wikidata.org/wiki/Special:EntityData/{qid}.json"
 _WIKIPEDIA_SUMMARY = "https://en.wikipedia.org/api/rest_v1/page/summary"
 _CLEARBIT_AC = "https://autocomplete.clearbit.com/v1/companies/suggest"
 

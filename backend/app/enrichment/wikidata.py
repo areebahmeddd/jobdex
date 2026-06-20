@@ -3,7 +3,7 @@ from loguru import logger
 
 from app.config import settings
 
-_SEARCH_URL = "https://www.wikidata.org/w/api.php"
+_SEARCH_URL = "https://wikidata.org/w/api.php"
 _SPARQL_URL = "https://query.wikidata.org/sparql"
 
 # Description hints for disambiguating company search results.

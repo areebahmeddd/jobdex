@@ -6,7 +6,7 @@ from loguru import logger
 
 from app import scheduler as _scheduler
 from app.config import settings
-from app.database import init_db
+from app.database import migrate_db
 from app.routers import cities, companies, jobs, map, search, stats
 from app.startup import seed_cities
 
@@ -15,7 +15,7 @@ from app.startup import seed_cities
 async def lifespan(app: FastAPI):
     """Initialize the database, seed cities, and start the scheduler on startup."""
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}...")
-    init_db()
+    migrate_db()
     seed_cities()
     _scheduler.start()
     logger.info("Ready.")

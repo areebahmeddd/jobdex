@@ -4,7 +4,7 @@ from loguru import logger
 from app.config import settings
 
 _WIKI_SUMMARY = "https://en.wikipedia.org/api/rest_v1/page/summary"
-_WIKIDATA_ENTITY = "https://www.wikidata.org/wiki/Special:EntityData/{qid}.json"
+_WIKIDATA_ENTITY = "https://wikidata.org/wiki/Special:EntityData/{qid}.json"
 
 
 async def _fetch(client: httpx.AsyncClient, title: str) -> str | None:

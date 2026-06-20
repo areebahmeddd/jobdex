@@ -47,6 +47,9 @@ def get_session():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
 
@@ -57,9 +60,13 @@ def get_db():
         yield db
 
 
-def init_db():
-    """Create all tables and indexes."""
-    from app.models import City, Company, Job  # noqa: F401
+def migrate_db() -> None:
+    """Apply all pending Alembic migrations to head."""
+    from alembic.config import Config
 
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database ready")
+    from alembic import command
+    from app.config import BASE_DIR
+
+    cfg = Config(str(BASE_DIR / "alembic.ini"))
+    command.upgrade(cfg, "head")
+    logger.info("Database migrations applied")

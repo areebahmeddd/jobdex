@@ -3,7 +3,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import City, Job
+from app.models import City, Company, Job
 from app.routers._builders import build_city_response
 from app.schemas import CityResponse, PaginatedCitiesResponse
 
@@ -20,7 +20,8 @@ def _counts_by_city(db: Session, city_names: list[str]) -> dict[str, tuple[int, 
             func.count(Job.id).label("job_count"),
             func.count(func.distinct(Job.company_id)).label("company_count"),
         )
-        .filter(Job.is_active.is_(True), Job.city.in_(city_names))
+        .join(Company, Job.company_id == Company.id)
+        .filter(Job.is_active.is_(True), Company.is_active.is_(True), Job.city.in_(city_names))
         .group_by(Job.city)
         .all()
     )

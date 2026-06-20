@@ -32,10 +32,6 @@ def map_companies(
         Job.region,
         func.count(Job.id).label("loc_cnt"),
     ).filter(Job.is_active.is_(True), Job.latitude.isnot(None))
-    if role:
-        loc_counts_q = loc_counts_q.filter(Job.role_category == role.lower())
-    if is_remote is not None:
-        loc_counts_q = loc_counts_q.filter(Job.is_remote.is_(is_remote))
 
     loc_counts = loc_counts_q.group_by(
         Job.company_id, Job.latitude, Job.longitude, Job.city, Job.country_code, Job.region
