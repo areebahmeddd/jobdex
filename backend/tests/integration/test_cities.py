@@ -27,13 +27,6 @@ def test_list_cities_has_required_fields(client):
 
 
 @pytest.mark.integration
-def test_list_cities_featured_filter(client):
-    data = client.get("/cities", params={"featured_only": "true"}).json()
-    for city in data["cities"]:
-        assert city["is_featured"] is True
-
-
-@pytest.mark.integration
 def test_list_cities_cache_header(client):
     r = client.get("/cities")
     cc = r.headers.get("cache-control", "")

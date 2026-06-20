@@ -31,7 +31,6 @@ def _counts_by_city(db: Session, city_names: list[str]) -> dict[str, tuple[int, 
 def list_cities(
     region: str | None = Query(None),
     country_code: str | None = Query(None),
-    featured_only: bool = Query(False),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     response: Response = None,
@@ -39,8 +38,6 @@ def list_cities(
 ):
     """Return a paginated list of cities with live job and company counts."""
     q = db.query(City)
-    if featured_only:
-        q = q.filter(City.is_featured.is_(True))
     if region:
         q = q.filter(City.region == region.lower())
     if country_code:

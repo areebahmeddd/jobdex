@@ -148,7 +148,6 @@ def map_cities(
     country_code: str | None = Query(None),
     role: str | None = Query(None, description="Count only jobs with this role category"),
     is_remote: bool | None = Query(None),
-    featured_only: bool = Query(False, description="Return only featured cities"),
     response: Response = None,
     db: Session = Depends(get_db),
 ):
@@ -183,8 +182,6 @@ def map_cities(
         city_q = city_q.filter(City.region == region.lower())
     if country_code:
         city_q = city_q.filter(City.country_code == country_code.upper())
-    if featured_only:
-        city_q = city_q.filter(City.is_featured.is_(True))
 
     if lat_min is not None:
         city_q = city_q.filter(City.latitude >= lat_min)
@@ -209,7 +206,6 @@ def map_cities(
                 "longitude": r.City.longitude,
                 "country_code": r.City.country_code,
                 "region": r.City.region,
-                "is_featured": r.City.is_featured,
                 "job_count": r.job_count,
                 "company_count": r.company_count,
             }

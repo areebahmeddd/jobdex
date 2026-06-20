@@ -160,4 +160,3 @@ class City(Base):
     region: Mapped[str | None] = mapped_column(String(50))
     latitude: Mapped[float | None] = mapped_column(Float)
     longitude: Mapped[float | None] = mapped_column(Float)
-    is_featured: Mapped[bool] = mapped_column(Boolean, default=False)

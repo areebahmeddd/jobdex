@@ -260,12 +260,5 @@
     "asia_pacific": ["SG", "JP", "KR", "AU", "NZ", "CN", "HK", "TW", "TH", "MY", "ID", "VN", "PH"],
     "latin_america": ["BR", "AR", "CO", "CL", "PE", "UY"],
     "africa": ["NG", "KE", "ZA", "GH", "MA"]
-  },
-  "featured": [
-    "San Francisco", "New York", "London", "Berlin", "Amsterdam",
-    "Bangalore", "Mumbai", "Delhi", "Hyderabad", "Pune",
-    "Dubai", "Abu Dhabi", "Riyadh", "Doha",
-    "Singapore", "Tokyo", "Seoul", "Sydney", "Toronto",
-    "São Paulo", "Cairo", "Nairobi"
-  ]
+  }
 }

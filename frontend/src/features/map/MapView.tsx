@@ -205,10 +205,10 @@ export function MapView() {
       const r = markerRadius(pin.job_count);
       const marker = L.circleMarker([pin.latitude, pin.longitude], {
         radius: r,
-        fillColor: pin.is_featured ? "#4ADE80" : "#86EFAC",
+        fillColor: "#4ADE80",
         color: "#ffffff",
         weight: 1.5,
-        fillOpacity: pin.is_featured ? 0.9 : 0.75,
+        fillOpacity: 0.9,
         interactive: true,
         className: "city-circle-marker",
       });

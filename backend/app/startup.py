@@ -4,7 +4,7 @@ import unicodedata
 from loguru import logger
 
 from app.database import get_session
-from app.ingestion.normalizer import get_city_data, get_featured_cities
+from app.ingestion.normalizer import get_city_data
 from app.models import City
 
 
@@ -18,7 +18,6 @@ def _slugify(name: str) -> str:
 def seed_cities() -> None:
     """Seed the city table from data/cities.json, skipping cities that already exist."""
     city_data = get_city_data()
-    featured = set(get_featured_cities())
     with get_session() as db:
         added = 0
         for name, info in city_data.items():
@@ -33,7 +32,6 @@ def seed_cities() -> None:
                         region=info.get("region", "").lower().replace(" ", "_") or None,
                         latitude=info["lat"],
                         longitude=info["lng"],
-                        is_featured=name in featured,
                     )
                 )
                 added += 1

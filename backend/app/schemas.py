@@ -152,7 +152,6 @@ class CityResponse(BaseModel):
     region: str | None = None
     latitude: float | None = None
     longitude: float | None = None
-    is_featured: bool = False
     job_count: int = 0
     company_count: int = 0
 
@@ -252,7 +251,6 @@ class MapCityPin(BaseModel):
     longitude: float
     country_code: str | None = None
     region: str | None = None
-    is_featured: bool = False
     job_count: int = 0
     company_count: int = 0
 

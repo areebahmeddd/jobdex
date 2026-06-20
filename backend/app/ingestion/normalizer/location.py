@@ -2,6 +2,8 @@ import re
 
 import httpx2 as httpx
 from loguru import logger
+from rapidfuzz import fuzz
+from rapidfuzz import process as fuzz_process
 
 from app.config import settings
 from app.ingestion.normalizer._loader import _load
@@ -11,7 +13,9 @@ _cities_cfg = _load("cities.json")
 _CITY_DATA: dict[str, dict] = _cities_cfg["cities"]
 _CITY_ALIASES: dict[str, str] = {k.lower(): v for k, v in _cities_cfg["aliases"].items()}
 _REGIONS_MAP: dict[str, list] = _cities_cfg["regions"]
-_FEATURED_CITIES: list[str] = _cities_cfg["featured"]
+
+# City names for fuzzy matching.
+_CITY_NAMES: list[str] = list(_CITY_DATA.keys())
 
 # Per-process geocode cache.
 _geocode_cache: dict[str, tuple | None] = {}
@@ -44,11 +48,6 @@ def get_city_data() -> dict[str, dict]:
     return _CITY_DATA
 
 
-def get_featured_cities() -> list[str]:
-    """Return the list of featured city names used for map highlights."""
-    return _FEATURED_CITIES
-
-
 def canonicalize_city(name: str) -> str | None:
     """Return the canonical city name for the input string, or None if unrecognised."""
     lowered = name.lower().strip()
@@ -61,7 +60,16 @@ def canonicalize_city(name: str) -> str | None:
     for city_name in _CITY_DATA:
         if lowered in city_name.lower() or city_name.lower() in lowered:
             return city_name
-    return None
+    # First segment: alias and exact-name checks.
+    first_part = name.split(",")[0].strip()
+    first_lower = first_part.lower()
+    if first_lower != lowered:
+        if first_lower in _CITY_ALIASES:
+            return _CITY_ALIASES[first_lower]
+        for city_name in _CITY_DATA:
+            if city_name.lower() == first_lower:
+                return city_name
+    return _fuzzy_match_city(first_part)
 
 
 def get_region_for_country(country_code: str) -> str | None:
@@ -140,6 +148,11 @@ def normalize_location(
         if city_name.lower() == first_lower:
             return {**result, **_city_fields(city_name)}
 
+    # Fuzzy: first segment before geocoding.
+    matched = _fuzzy_match_city(first_part)
+    if matched:
+        return {**result, **_city_fields(matched)}
+
     if settings.GEOCODE_UNKNOWN_CITIES and raw:
         geo = _geocode(raw)
         if geo:
@@ -163,6 +176,19 @@ def normalize_location(
 
 
 # Private helpers
+
+
+def _fuzzy_match_city(text: str, score_cutoff: int = 85) -> str | None:
+    """Return the closest city name for the input, or None if below score_cutoff."""
+    if not text:
+        return None
+    result = fuzz_process.extractOne(
+        text,
+        _CITY_NAMES,
+        scorer=fuzz.WRatio,
+        score_cutoff=score_cutoff,
+    )
+    return result[0] if result else None
 
 
 def _normalize_region(region: str | None) -> str | None:

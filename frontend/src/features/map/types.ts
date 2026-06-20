@@ -7,7 +7,6 @@ export type CityPin = {
   region: string;
   job_count: number;
   company_count: number;
-  is_featured: boolean;
 };
 
 export type CompanyPin = {
