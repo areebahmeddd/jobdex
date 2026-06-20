@@ -1,17 +1,17 @@
 {
   "patterns": [
-    {"category": "engineering", "subcategory": "backend",   "patterns": ["\\bbackend\\b","\\bback-?end\\b","\\bserver[- ]?side\\b","\\bapi engineer\\b","\\bplatform engineer\\b","\\binfrastructure engineer\\b","\\bdistributed systems\\b"]},
+    {"category": "engineering", "subcategory": "backend",   "patterns": ["\\bbackend\\b","\\bback-?end\\b","\\bserver[- ]?side\\b","\\bapi engineer\\b","\\bdistributed systems\\b"]},
     {"category": "engineering", "subcategory": "frontend",  "patterns": ["\\bfrontend\\b","\\bfront-?end\\b","\\bui engineer\\b","\\breact engineer\\b","\\bvue engineer\\b","\\bangular engineer\\b","\\bweb engineer\\b","\\bclient[- ]?side\\b"]},
     {"category": "engineering", "subcategory": "fullstack", "patterns": ["\\bfull.?stack\\b","\\bfullstack\\b"]},
     {"category": "engineering", "subcategory": "mobile",    "patterns": ["\\bmobile engineer\\b","\\bios engineer\\b","\\bandroid engineer\\b","\\breact native\\b","\\bflutter\\b","\\bswift developer\\b","\\bkotlin developer\\b"]},
     {"category": "engineering", "subcategory": "data",      "patterns": ["\\bdata engineer\\b","\\bdataengineer\\b","\\betl\\b","\\bdata pipeline\\b","\\banalytics engineer\\b","\\bdata platform\\b"]},
     {"category": "engineering", "subcategory": "ml",        "patterns": ["\\bmachine learning engineer\\b","\\bml engineer\\b","\\bai engineer\\b","\\bdeep learning\\b","\\bnlp engineer\\b","\\bcomputer vision\\b","\\bgenai\\b","\\bllm engineer\\b"]},
-    {"category": "engineering", "subcategory": "devops",    "patterns": ["\\bdevops\\b","\\bsre\\b","\\bsite reliability\\b","\\bcloud engineer\\b","\\bdevsecops\\b","\\bplatform engineer\\b","\\binfrastructure engineer\\b","\\brelease engineer\\b"]},
+    {"category": "engineering", "subcategory": "devops",    "patterns": ["\\bdevops\\b","\\bsre\\b","\\bsite reliability\\b","\\bcloud engineer\\b","\\bplatform engineer\\b","\\binfrastructure engineer\\b","\\brelease engineer\\b"]},
     {"category": "engineering", "subcategory": "security",  "patterns": ["\\bsecurity engineer\\b","\\bappsec\\b","\\binfosec\\b","\\bcybersecurity\\b","\\bpenetration test\\b","\\bdevsecops\\b"]},
     {"category": "engineering", "subcategory": "qa",        "patterns": ["\\bqa engineer\\b","\\bquality assurance\\b","\\btest engineer\\b","\\bsdet\\b","\\bautomat.* test\\b","\\bsoftware test\\b"]},
     {"category": "engineering", "subcategory": "embedded",  "patterns": ["\\bembedded\\b","\\bfirmware\\b","\\bhardware engineer\\b","\\brtos\\b","\\bfpga\\b"]},
     {"category": "engineering", "subcategory": "general",   "patterns": ["\\bsoftware engineer\\b","\\bsoftware developer\\b","\\bdeveloper\\b","\\bengineer\\b","\\bprogrammer\\b","\\bcoder\\b"]},
-    {"category": "data",        "subcategory": "scientist", "patterns": ["\\bdata scientist\\b","\\bquantitative analyst\\b","\\bstatistician\\b","\\bapplied scientist\\b","\\bresearch scientist\\b"]},
+    {"category": "data",        "subcategory": "scientist", "patterns": ["\\bdata scientist\\b","\\bquantitative analyst\\b","\\bstatistician\\b"]},
     {"category": "data",        "subcategory": "analyst",   "patterns": ["\\bdata analyst\\b","\\bbusiness analyst\\b","\\banalytics manager\\b"]},
     {"category": "data",        "subcategory": "bi",        "patterns": ["\\bbusiness intelligence\\b","\\blooker\\b","\\btableau developer\\b","\\bpower bi\\b"]},
     {"category": "design",      "subcategory": "ux",        "patterns": ["\\bux designer\\b","\\buser experience\\b","\\bux researcher\\b","\\bux writer\\b","\\bux lead\\b"]},
@@ -36,6 +36,6 @@
     {"category": "hr",          "subcategory": "recruiting","patterns": ["\\brecruiter\\b","\\brecruiting\\b","\\btalent acquisition\\b","\\btalent partner\\b"]},
     {"category": "hr",          "subcategory": "general",   "patterns": ["\\bhuman resources\\b","\\bpeople ops\\b","\\bpeople partner\\b","\\bhrbp\\b","\\bhr manager\\b"]},
     {"category": "support",     "subcategory": "general",   "patterns": ["\\bcustomer support\\b","\\bcustomer service\\b","\\bhelp desk\\b","\\btechnical support\\b","\\bsupport engineer\\b"]},
-    {"category": "research",    "subcategory": "general",   "patterns": ["\\bresearch scientist\\b","\\bquantitative researcher\\b","\\bapplied researcher\\b"]}
+    {"category": "research",    "subcategory": "general",   "patterns": ["\\bresearch scientist\\b","\\bapplied scientist\\b","\\bquantitative researcher\\b","\\bapplied researcher\\b"]}
   ]
 }

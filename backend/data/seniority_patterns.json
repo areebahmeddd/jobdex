@@ -2,9 +2,11 @@
   "patterns": [
     {"level": "intern",    "patterns": ["\\bintern\\b","\\binternship\\b","\\bco-?op\\b","\\bstudent\\b","\\bapprentice\\b","\\btrainee\\b"]},
     {"level": "executive", "patterns": ["\\bceo\\b","\\bcto\\b","\\bcoo\\b","\\bcpo\\b","\\bcfo\\b","\\bchief\\b","\\bpresident\\b","\\bvice president\\b","\\bvp of\\b","\\bevp\\b","\\bsvp\\b"]},
+    {"level": "director",  "patterns": ["\\bdirector\\b","\\bhead of\\b"]},
     {"level": "principal", "patterns": ["\\bprincipal\\b","\\bdistinguished\\b","\\bfellow\\b"]},
     {"level": "staff",     "patterns": ["\\bstaff\\b"]},
-    {"level": "lead",      "patterns": ["\\btech lead\\b","\\bengineering lead\\b","\\blead engineer\\b","\\btechnical lead\\b"]},
+    {"level": "lead",      "patterns": ["\\btech lead\\b","\\bengineering lead\\b","\\blead engineer\\b","\\btechnical lead\\b","\\blead [a-z]+\\b"]},
+    {"level": "manager",   "patterns": ["\\bmanager\\b","\\bpeople manager\\b"]},
     {"level": "senior",    "patterns": ["\\bsenior\\b","\\bsr\\.?\\b","\\blevel iii\\b","\\bl5\\b","\\bl6\\b"]},
     {"level": "mid",       "patterns": ["\\bmid-?level\\b","\\blevel ii\\b","\\bl4\\b"]},
     {"level": "junior",    "patterns": ["\\bjunior\\b","\\bjr\\.?\\b","\\bentry.?level\\b","\\bassociate\\b","\\bnew grad\\b","\\brecent grad\\b","\\bgraduate\\b","\\bl3\\b"]}

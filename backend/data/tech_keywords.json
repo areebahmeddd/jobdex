@@ -19,7 +19,13 @@
     "datadog", "prometheus", "grafana", "sentry", "splunk", "new relic",
     "stripe", "twilio", "sendgrid", "segment", "mixpanel", "amplitude",
     "node.js", "nodejs", "deno", "bun",
-    "microservices", "event-driven", "cqrs", "websockets", "rest api"
+    "microservices", "event-driven", "cqrs", "websockets", "rest api",
+    "tailwind", "sass", "webpack", "vite", "storybook",
+    "jest", "cypress", "playwright", "pytest", "selenium",
+    "nginx", "istio", "vault",
+    "oracle", "sql server", "mariadb", "influxdb",
+    "looker", "power bi", "airbyte", "fivetran",
+    "xcode", "solidity", "web3"
   ],
   "job_type_map": {
     "full-time": "fulltime",
