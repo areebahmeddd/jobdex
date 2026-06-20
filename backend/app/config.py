@@ -32,7 +32,8 @@ class Settings(BaseSettings):
     ENRICHMENT_REQUEST_TIMEOUT: float = 15.0
     ENRICHMENT_STEP_DELAY: float = 0.5
 
-    ADMIN_API_KEY: str | None = None
+    INGEST_INTERVAL_HOURS: int = 6
+    ENRICH_INTERVAL_HOURS: int = 2
 
 
 settings = Settings()

@@ -4,20 +4,23 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
+from app import scheduler as _scheduler
 from app.config import settings
 from app.database import init_db
-from app.routers import admin, cities, companies, jobs, map, search
+from app.routers import cities, companies, jobs, map, search, stats
 from app.startup import seed_cities
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize the database and seed cities on startup, then shut down cleanly."""
+    """Initialize the database, seed cities, and start the scheduler on startup."""
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}...")
     init_db()
     seed_cities()
+    _scheduler.start()
     logger.info("Ready.")
     yield
+    _scheduler.stop()
     logger.info("Shutting down.")
 
 
@@ -41,7 +44,7 @@ app.include_router(companies.router)
 app.include_router(search.router)
 app.include_router(cities.router)
 app.include_router(map.router)
-app.include_router(admin.router)
+app.include_router(stats.router)
 
 
 @app.get("/health", tags=["meta"])
@@ -69,11 +72,5 @@ def root():
             "companies": "GET  /companies?city=&industry=&country_code=&region=",
             "cities": "GET  /cities?region=&featured_only=true",
             "stats": "GET  /stats",
-            "ingest": {
-                "greenhouse": "POST /ingest/greenhouse/{slug}",
-                "lever": "POST /ingest/lever/{slug}",
-                "ashby": "POST /ingest/ashby/{slug}",
-                "discover": "POST /ingest/discover/{slug}  (auto-detect ATS)",
-            },
         },
     }

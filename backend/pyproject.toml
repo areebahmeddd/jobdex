@@ -4,20 +4,28 @@ version = "1.0.0"
 description = "A global index of startup hiring by city"
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi>=0.136.3",
+    "apscheduler>=3.11.2",
+    "fastapi>=0.138.0",
     "httpx>=0.28.1",
     "loguru>=0.7.3",
     "psycopg2-binary>=2.9.12",
     "pydantic>=2.13.4",
-    "pydantic-settings>=2.14.1",
-    "sqlalchemy>=2.0.50",
-    "uvicorn[standard]>=0.48.0",
+    "pydantic-settings>=2.14.2",
+    "sqlalchemy>=2.0.51",
+    "uvicorn[standard]>=0.49.0",
 ]
 
 [dependency-groups]
 dev = [
     "pre-commit>=4.0.0",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
 
 [tool.ruff]
 target-version = "py311"

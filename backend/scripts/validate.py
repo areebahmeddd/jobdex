@@ -7,30 +7,24 @@ Tests:
   1.  Health check
   2.  Root endpoint structure
   3.  Cities endpoint (all, featured, India, Middle East)
-  4.  Greenhouse ingest - Airbnb
-  5.  Lever ingest      - Netflix
-  6.  Ashby ingest      - Linear (Ashby board)
-  7.  Auto-discover     - Notion
-  8.  GET /jobs basic
-  9.  City alias canonicalization (Bengaluru -> Bangalore, NYC -> New York)
-  10. GET /search - primary map endpoint
-  11. GET /search region=south_asia
-  12. GET /search region=middle_east
-  13. GET /search role=engineering
-  14. GET /companies + /companies/{slug}
-  15. GET /stats
-  16. Data quality - lat/lng, source_url, role_category coverage
+  4.  GET /jobs basic
+  5.  City alias canonicalization (Bengaluru -> Bangalore, NYC -> New York)
+  6.  GET /search - primary map endpoint
+  7.  GET /search region=south_asia
+  8.  GET /search region=middle_east
+  9.  GET /search role=engineering
+  10. GET /companies + /companies/{slug}
+  11. GET /stats
+  12. Data quality - lat/lng, source_url, role_category coverage
 """
 
 import argparse
 import sys
-import time
 from typing import Any
 
 import httpx
 
 BASE = "http://127.0.0.1:8000"
-ADMIN_HEADERS: dict[str, str] = {}
 
 PASS = "\033[92m\u2713\033[0m"
 FAIL = "\033[91m\u2717\033[0m"
@@ -65,11 +59,6 @@ def get(
 ) -> httpx.Response:
     """Send a GET request to the local API and return the response."""
     return httpx.get(f"{BASE}{path}", params=params, timeout=timeout, headers=headers or {})
-
-
-def post(path: str, timeout: float = 60) -> httpx.Response:
-    """Send a POST request with admin headers to the local API and return the response."""
-    return httpx.post(f"{BASE}{path}", headers=ADMIN_HEADERS, timeout=timeout)
 
 
 def section(title: str):
@@ -134,83 +123,9 @@ def test_cities():
         warn("GET /cities?region=middle_east", f"only {len(me)} - expected >= 5")
 
 
-def test_ingest_greenhouse(slug: str = "airbnb"):
-    """Ingest a Greenhouse board and verify that jobs are returned without errors."""
-    section(f"4. Greenhouse ingest: {slug}")
-    r = post(f"/admin/ingest/greenhouse/{slug}")
-    d = r.json()
-    fetched = d.get("total_fetched", 0)
-    has_data = fetched > 0 and not d.get("errors")
-    if r.status_code == 200 and has_data:
-        ok(
-            f"POST /ingest/greenhouse/{slug}",
-            f"fetched={fetched} new={d.get('new_jobs')} updated={d.get('updated_jobs')}",
-        )
-    else:
-        fail(f"POST /ingest/greenhouse/{slug}", f"status={r.status_code} resp={d}")
-
-
-def test_ingest_lever(slug: str = "netflix"):
-    """Ingest a Lever board and accept either populated results or an empty private board."""
-    section(f"5. Lever ingest: {slug}")
-    # Lever's public v0 API is locked down for many companies.
-    # Accept: 200 with jobs, or 200 with 0 jobs and no errors (empty/private board).
-    # Fail on HTTP error or non-empty errors list.
-    r = post(f"/admin/ingest/lever/{slug}")
-    d = r.json()
-    errs = d.get("errors", [])
-    fetched = d.get("total_fetched", 0)
-    if r.status_code == 200 and not errs:
-        if fetched > 0:
-            ok(
-                f"POST /ingest/lever/{slug}",
-                f"fetched={fetched} new={d.get('new_jobs')} updated={d.get('updated_jobs')}",
-            )
-        else:
-            warn(
-                f"POST /ingest/lever/{slug}",
-                "0 jobs returned (board may be empty or private)",
-            )
-    else:
-        fail(f"POST /ingest/lever/{slug}", f"status={r.status_code} resp={d}")
-
-
-def test_ingest_ashby(slug: str = "linear"):
-    """Ingest an Ashby board and verify that jobs are returned without errors."""
-    section(f"6. Ashby ingest: {slug}")
-    r = post(f"/admin/ingest/ashby/{slug}")
-    d = r.json()
-    fetched = d.get("total_fetched", 0)
-    has_data = fetched > 0 and not d.get("errors")
-    if r.status_code == 200 and has_data:
-        ok(
-            f"POST /ingest/ashby/{slug}",
-            f"fetched={fetched} new={d.get('new_jobs')} updated={d.get('updated_jobs')}",
-        )
-    else:
-        fail(f"POST /ingest/ashby/{slug}", f"status={r.status_code} resp={d}")
-
-
-def test_discover(slug: str = "notion"):
-    """Auto-detect the ATS for the given slug and verify the discovery result."""
-    section(f"7. Auto-discover: {slug}")
-    r = post(f"/admin/ingest/discover/{slug}")
-    d = r.json()
-    if r.status_code == 200:
-        if d.get("discovered"):
-            ok(
-                f"POST /ingest/discover/{slug}",
-                f"ats={d.get('ats_type')} {d.get('message')}",
-            )
-        else:
-            warn(f"POST /ingest/discover/{slug}", "not found on any ATS")
-    else:
-        fail(f"POST /ingest/discover/{slug}", f"status={r.status_code}")
-
-
 def test_jobs_list():
     """Verify the jobs listing endpoint returns results with required fields."""
-    section("8. Jobs list")
+    section("4. Jobs list")
     r = get("/jobs")
     d = r.json()
     total = d.get("total", 0)
@@ -233,7 +148,7 @@ def test_jobs_list():
 
 def test_city_alias():
     """Verify that city aliases resolve to the same job counts as canonical city names."""
-    section("9. City alias canonicalization")
+    section("5. City alias canonicalization")
 
     def check(alias: str, canonical: str):
         r_alias = get("/jobs", {"city": alias})
@@ -253,7 +168,7 @@ def test_city_alias():
 
 def test_search():
     """Verify the search endpoint returns the expected envelope structure and fields."""
-    section("10. Primary search endpoint")
+    section("6. Primary search endpoint")
     r = get("/search")
     d = r.json()
     if "jobs" in d and "companies" in d:
@@ -280,7 +195,7 @@ def test_search_region(region: str, label: str):
 
 def test_companies():
     """Verify company listing and detail endpoints return required fields."""
-    section("13. Companies endpoint")
+    section("10. Companies endpoint")
     r = get("/companies")
     d = r.json()
     total = d.get("total", 0)
@@ -303,8 +218,8 @@ def test_companies():
 
 def test_stats():
     """Verify the stats endpoint returns non-zero counts and expected breakdown fields."""
-    section("14. Stats endpoint")
-    r = get("/admin/stats", headers=ADMIN_HEADERS)
+    section("11. Stats endpoint")
+    r = get("/stats")
     d = r.json()
     if r.status_code == 200:
         ok(
@@ -322,7 +237,7 @@ def test_stats():
 
 def test_data_quality():
     """Audit a sample of jobs for coordinate coverage, source URLs, and role classification."""
-    section("15. Data quality audit")
+    section("12. Data quality audit")
     r = get("/jobs", {"limit": 100})
     jobs: list[dict[str, Any]] = r.json().get("jobs", [])
     if not jobs:
@@ -369,14 +284,11 @@ def test_data_quality():
 
 def main():
     """Parse CLI arguments and run the full integration validation suite."""
-    global BASE, ADMIN_HEADERS
+    global BASE
     parser = argparse.ArgumentParser(description="JobDex integration validator")
     parser.add_argument("--base-url", default=BASE)
-    parser.add_argument("--api-key", default="", help="X-API-Key for protected routes")
     args = parser.parse_args()
     BASE = args.base_url.rstrip("/")
-    if args.api_key:
-        ADMIN_HEADERS["X-API-Key"] = args.api_key
 
     print("\nJobDex Integration Validator")
     print(f"Target: {BASE}")
@@ -386,25 +298,17 @@ def main():
     test_root()
     test_cities()
 
-    test_ingest_greenhouse("airbnb")
-    time.sleep(0.5)
-    test_ingest_lever("netflix")  # Netflix uses Lever
-    time.sleep(0.5)
-    test_ingest_ashby("linear")
-    time.sleep(0.5)
-    test_discover("notion")
-
     test_jobs_list()
     test_city_alias()
     test_search()
 
-    section("11. Region filter: South Asia")
+    section("7. Region filter: South Asia")
     test_search_region("south_asia", "Indian")
 
-    section("12. Region filter: Middle East")
+    section("8. Region filter: Middle East")
     test_search_region("middle_east", "Middle Eastern")
 
-    section("13. Search role=engineering")
+    section("9. Search role=engineering")
     r = get("/search", {"role": "engineering"})
     d = r.json()
     ok("GET /search?role=engineering", f"jobs={d.get('total_jobs', 0)}")

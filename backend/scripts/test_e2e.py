@@ -80,11 +80,11 @@ class Runner:
         self.check("GET / returns 200", status == 200, str(body))
         self.check("root has name field", isinstance(body, dict) and "name" in body, str(body))
 
-    def test_admin_stats(self) -> None:
-        """Test the admin stats endpoint for required fields and non-zero counts."""
-        self.section("2. Admin -- Stats")
-        status, body = self.get("/admin/stats")
-        self.check("GET /admin/stats returns 200", status == 200, str(body))
+    def test_stats(self) -> None:
+        """Test the stats endpoint for required fields and non-zero counts."""
+        self.section("2. Stats")
+        status, body = self.get("/stats")
+        self.check("GET /stats returns 200", status == 200, str(body))
         if status == 200:
             self.check(
                 "stats.total_jobs > 0", body.get("total_jobs", 0) > 0, str(body.get("total_jobs"))
@@ -571,7 +571,7 @@ class Runner:
         print("=" * 60)
 
         self.test_health()
-        self.test_admin_stats()
+        self.test_stats()
         self.test_cities()
         self.test_map_companies()
         self.test_map_cities()

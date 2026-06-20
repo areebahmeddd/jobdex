@@ -1,7 +1,7 @@
 """Test every endpoint and write full responses to test_api_output.json.
 
 Usage:
-  python scripts/test_api.py [--base-url http://127.0.0.1:8000] [--api-key KEY]
+  python scripts/test_api.py [--base-url http://127.0.0.1:8000]
 """
 
 import argparse
@@ -25,8 +25,7 @@ def post(client: httpx.Client, url: str, headers: dict) -> dict:
     return {"status": r.status_code, "body": r.json()}
 
 
-def run(base: str, api_key: str) -> dict:
-    admin_headers = {"X-API-Key": api_key} if api_key else {}
+def run(base: str) -> dict:
     results: dict = {
         "generated_at": datetime.now(UTC).isoformat(),
         "base_url": base,
@@ -36,8 +35,8 @@ def run(base: str, api_key: str) -> dict:
         print("  GET /health")
         results["health"] = get(c, "/health")
 
-        print("  GET /admin/stats")
-        results["stats"] = get(c, "/admin/stats", **admin_headers)
+        print("  GET /stats")
+        results["stats"] = get(c, "/stats")
 
         print("  GET /companies")
         comp_list = get(c, "/companies", limit=50)
@@ -70,39 +69,12 @@ def run(base: str, api_key: str) -> dict:
             print(f"  GET /search?q={query}")
             results[f"search_{query}"] = get(c, "/search", q=query, limit=3)
 
-        print("  GET /map/companies (global)")
-        results["map_global"] = get(c, "/map/companies")
-
-        for region in ["north_america", "europe", "south_asia"]:
-            print(f"  GET /map/companies?region={region}")
-            results[f"map_{region}"] = get(c, "/map/companies", region=region)
-
-        print("  GET /cities")
-        results["cities"] = get(c, "/cities", limit=10)
-
-        results["enrichment"] = {}
-        enrich_slugs = [
-            s
-            for s in slugs
-            if s in ("airbnb", "figma", "coinbase", "brex", "spotify", "linear", "notion")
-        ]
-        for slug in enrich_slugs:
-            print(f"  POST /admin/enrich/{slug}")
-            results["enrichment"][slug] = post(c, f"/admin/enrich/{slug}", admin_headers)
-
-        # Re-fetch details after enrichment so the JSON shows enriched data
-        print("  Re-fetching company details after enrichment...")
-        results["company_details_enriched"] = {}
-        for slug in enrich_slugs:
-            results["company_details_enriched"][slug] = get(c, f"/companies/{slug}")
-
     return results
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
-    parser.add_argument("--api-key", default="")
     args = parser.parse_args()
 
     print("\nJobDex API Test")
@@ -111,7 +83,7 @@ def main():
     print("=" * 50)
 
     try:
-        data = run(args.base_url, args.api_key)
+        data = run(args.base_url)
     except httpx.ConnectError:
         print("\nERROR: could not connect. Is the backend running?")
         sys.exit(1)

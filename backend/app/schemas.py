@@ -199,19 +199,6 @@ class EnrichResponse(BaseModel):
     enriched_at: datetime | None = None
 
 
-class DiscoverResponse(BaseModel):
-    company_slug: str
-    ats_type: str | None = None
-    discovered: bool = False
-    message: str = ""
-    ingest_result: IngestResponse | None = None
-
-
-class ResetResponse(BaseModel):
-    deleted_jobs: int
-    message: str
-
-
 # Stats
 
 
