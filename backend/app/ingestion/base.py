@@ -3,7 +3,7 @@ import hashlib
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 
-import httpx
+import httpx2 as httpx
 from loguru import logger
 from sqlalchemy import func
 from sqlalchemy.orm import Session

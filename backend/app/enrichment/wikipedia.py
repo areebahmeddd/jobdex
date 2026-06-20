@@ -1,4 +1,4 @@
-import httpx
+import httpx2 as httpx
 from loguru import logger
 
 from app.config import settings

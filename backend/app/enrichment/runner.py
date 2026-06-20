@@ -1,7 +1,7 @@
 import asyncio
 from datetime import UTC, datetime
 
-import httpx
+import httpx2 as httpx
 from loguru import logger
 from sqlalchemy.orm import Session
 

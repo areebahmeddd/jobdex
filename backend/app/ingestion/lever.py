@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-import httpx
+import httpx2 as httpx
 
 from app.config import settings
 from app.ingestion.base import _DESCRIPTION_MAX_CHARS, _TECH_EXTRACT_CHARS, BaseIngester

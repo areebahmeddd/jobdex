@@ -11,7 +11,7 @@ FastAPI backend for JobDex. ATS ingestion, job normalisation, and REST API for s
 | Database   | Neon serverless PostgreSQL        |
 | Migrations | Alembic                           |
 | Config     | pydantic-settings                 |
-| HTTP       | httpx                             |
+| HTTP       | httpx2                            |
 | Logging    | loguru                            |
 | Scheduler  | APScheduler                       |
 | Testing    | pytest                            |
