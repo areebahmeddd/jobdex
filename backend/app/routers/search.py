@@ -33,7 +33,7 @@ def search(
     db: Session = Depends(get_db),
 ):
     """Search jobs and companies across all combinable filters and return a unified response."""
-    q = (
+    query = (
         db.query(Job, Company)
         .join(Company, Job.company_id == Company.id)
         .filter(Job.is_active.is_(True), Company.is_active.is_(True))
@@ -41,27 +41,29 @@ def search(
 
     if city:
         canonical = canonicalize_city(city) or city
-        q = q.filter(Job.city == canonical)
+        query = query.filter(Job.city == canonical)
 
     if role:
-        q = q.filter(Job.role_category == role.lower())
+        query = query.filter(Job.role_category == role.lower())
 
     if country_code:
-        q = q.filter(Job.country_code == country_code.upper())
+        query = query.filter(Job.country_code == country_code.upper())
 
     if region:
-        q = q.filter(Job.region == region.lower())
+        query = query.filter(Job.region == region.lower())
 
     if is_remote is not None:
-        q = q.filter(Job.is_remote.is_(is_remote))
+        query = query.filter(Job.is_remote.is_(is_remote))
 
     if industry:
-        q = q.filter(Company.industry.cast(JSONB).contains([industry.lower()]))
+        query = query.filter(Company.industry.cast(JSONB).contains([industry.lower()]))
 
-    total_jobs = q.count()
-    total_companies_count = q.with_entities(func.count(func.distinct(Job.company_id))).scalar() or 0
+    total_jobs = query.count()
+    total_companies_count = (
+        query.with_entities(func.count(func.distinct(Job.company_id))).scalar() or 0
+    )
 
-    paged_rows = q.order_by(Job.posted_at.desc()).offset(offset).limit(limit).all()
+    paged_rows = query.order_by(Job.posted_at.desc()).offset(offset).limit(limit).all()
 
     page_company_jobs: dict[str, tuple[Company, list[Job]]] = {}
     for job, co in paged_rows:

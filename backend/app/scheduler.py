@@ -21,8 +21,8 @@ async def run_ingestion() -> None:
 
     with get_session() as db:
         targets = [
-            (c.ats_type, c.ats_slug, c.slug)
-            for c in db.query(Company)
+            (company.ats_type, company.ats_slug, company.slug)
+            for company in db.query(Company)
             .filter(Company.is_active.is_(True), Company.ats_type.isnot(None))
             .order_by(Company.last_crawled_at.asc().nullsfirst())
             .all()
@@ -55,8 +55,8 @@ async def run_enrichment() -> None:
 
     with get_session() as db:
         slugs = [
-            c.slug
-            for c in db.query(Company)
+            company.slug
+            for company in db.query(Company)
             .filter(Company.is_active.is_(True), Company.enriched_at.is_(None))
             .order_by(Company.name)
             .all()

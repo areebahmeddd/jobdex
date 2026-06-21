@@ -34,7 +34,7 @@ def get_stats(response: Response = None, db: Session = Depends(get_db)):
         .order_by(func.count(Job.id).desc())
         .all()
     )
-    role_categories = {r[0]: r[1] for r in role_rows}
+    role_categories = {row[0]: row[1] for row in role_rows}
 
     city_rows = (
         db.query(Job.city, func.count(Job.id))
@@ -44,7 +44,7 @@ def get_stats(response: Response = None, db: Session = Depends(get_db)):
         .limit(10)
         .all()
     )
-    top_cities = [{"city": r[0], "job_count": r[1]} for r in city_rows]
+    top_cities = [{"city": row[0], "job_count": row[1]} for row in city_rows]
 
     region_rows = (
         db.query(Job.region, func.count(Job.id))
@@ -53,7 +53,7 @@ def get_stats(response: Response = None, db: Session = Depends(get_db)):
         .order_by(func.count(Job.id).desc())
         .all()
     )
-    top_regions = [{"region": r[0], "job_count": r[1]} for r in region_rows]
+    top_regions = [{"region": row[0], "job_count": row[1]} for row in region_rows]
 
     ats_rows = (
         db.query(Company.ats_type, func.count(Company.id))
@@ -61,7 +61,7 @@ def get_stats(response: Response = None, db: Session = Depends(get_db)):
         .group_by(Company.ats_type)
         .all()
     )
-    ats_breakdown = {r[0]: r[1] for r in ats_rows}
+    ats_breakdown = {row[0]: row[1] for row in ats_rows}
 
     return StatsResponse(
         total_companies=total_companies,

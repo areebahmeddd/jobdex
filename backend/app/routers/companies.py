@@ -35,8 +35,8 @@ def _bulk_categories(company_ids: list[str], db: Session) -> dict[str, list[str]
         .all()
     )
     result: dict[str, list[str]] = {}
-    for r in rows:
-        result.setdefault(r.company_id, []).append(r.role_category)
+    for row in rows:
+        result.setdefault(row.company_id, []).append(row.role_category)
     return result
 
 
@@ -48,10 +48,10 @@ def _company_query_with_counts(db: Session, city: str | None = None) -> OrmQuery
     if city:
         job_count_q = job_count_q.filter(Job.city == city)
     job_count_sq = job_count_q.group_by(Job.company_id).subquery()
-    q = db.query(Company, func.coalesce(job_count_sq.c.job_count, 0).label("job_count"))
+    query = db.query(Company, func.coalesce(job_count_sq.c.job_count, 0).label("job_count"))
     if city:
-        return q.join(job_count_sq, job_count_sq.c.company_id == Company.id)
-    return q.outerjoin(job_count_sq, job_count_sq.c.company_id == Company.id)
+        return query.join(job_count_sq, job_count_sq.c.company_id == Company.id)
+    return query.outerjoin(job_count_sq, job_count_sq.c.company_id == Company.id)
 
 
 @router.get("", response_model=PaginatedCompaniesResponse)

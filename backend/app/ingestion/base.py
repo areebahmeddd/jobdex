@@ -47,13 +47,13 @@ async def _fetch_company_geo(name: str) -> dict:
     """Query Clearbit autocomplete for company HQ city, country, coordinates, and logo URL."""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.get(
+            response = await client.get(
                 "https://autocomplete.clearbit.com/v1/companies/suggest",
                 params={"query": name},
             )
-            if r.status_code != 200:
+            if response.status_code != 200:
                 return {}
-            results = r.json()
+            results = response.json()
             if not results:
                 return {}
             top = results[0]
@@ -164,8 +164,8 @@ class BaseIngester(ABC):
             .filter(Job.company_id == company.id, Job.dedup_hash.isnot(None))
             .all()
         )
-        existing_hash_to_id: dict[str, str] = {r.dedup_hash: r.id for r in existing_rows}
-        active_hashes: set[str] = {r.dedup_hash for r in existing_rows if r.is_active}
+        existing_hash_to_id: dict[str, str] = {row.dedup_hash: row.id for row in existing_rows}
+        active_hashes: set[str] = {row.dedup_hash for row in existing_rows if row.is_active}
         seen_hashes: set[str] = set()
 
         now = datetime.now(tz=UTC)

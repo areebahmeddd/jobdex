@@ -43,7 +43,7 @@ class JobResponse(BaseModel):
         """Build a human-readable location label for display in job listings."""
         if self.is_remote and not self.city:
             return "Remote"
-        parts = [p for p in [self.city, self.country_code] if p]
+        parts = [part for part in [self.city, self.country_code] if part]
         label = ", ".join(parts)
         if self.is_remote and label:
             return f"{label} (Remote OK)"

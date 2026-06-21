@@ -24,9 +24,9 @@ class GreenhouseIngester(BaseIngester):
         """Fetch raw job listings from the Greenhouse boards API for the given slug."""
         url = f"{_BASE}/{slug}/jobs?content=true"
         async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT) as client:
-            r = await client.get(url)
-            r.raise_for_status()
-            return r.json().get("jobs", [])
+            response = await client.get(url)
+            response.raise_for_status()
+            return response.json().get("jobs", [])
 
     def extract_job_id(self, raw: dict) -> str:
         """Extract the Greenhouse job ID from a raw job dict."""

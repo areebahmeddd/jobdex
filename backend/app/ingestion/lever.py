@@ -25,9 +25,9 @@ class LeverIngester(BaseIngester):
         """Fetch raw job postings from the Lever public API for the given slug."""
         url = f"{_BASE}/{slug}?mode=json"
         async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT) as client:
-            r = await client.get(url)
-            r.raise_for_status()
-            data = r.json()
+            response = await client.get(url)
+            response.raise_for_status()
+            data = response.json()
             return data if isinstance(data, list) else data.get("postings", [])
 
     def extract_job_id(self, raw: dict) -> str:

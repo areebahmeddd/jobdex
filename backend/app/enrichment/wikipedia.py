@@ -11,14 +11,14 @@ async def _fetch(client: httpx.AsyncClient, title: str) -> str | None:
     """Return the plain-text extract for a Wikipedia page title, or None on failure."""
     url = f"{_WIKI_SUMMARY}/{title.replace(' ', '_')}"
     try:
-        r = await client.get(
+        response = await client.get(
             url,
             headers={"User-Agent": settings.ENRICHMENT_BOT_AGENT},
             timeout=settings.ENRICHMENT_REQUEST_TIMEOUT,
         )
-        if r.status_code != 200:
+        if response.status_code != 200:
             return None
-        data = r.json()
+        data = response.json()
         if data.get("type") in ("disambiguation", "mainpage"):
             return None
         return data.get("extract") or None
@@ -31,14 +31,14 @@ async def title_from_wikidata(client: httpx.AsyncClient, qid: str) -> str | None
     """Resolve the English Wikipedia title for a Wikidata entity via sitelinks."""
     url = _WIKIDATA_ENTITY.format(qid=qid)
     try:
-        r = await client.get(
+        response = await client.get(
             url,
             headers={"User-Agent": settings.ENRICHMENT_BOT_AGENT},
             timeout=settings.ENRICHMENT_REQUEST_TIMEOUT,
         )
-        if r.status_code != 200:
+        if response.status_code != 200:
             return None
-        entities = r.json().get("entities", {})
+        entities = response.json().get("entities", {})
         entity = entities.get(qid, {})
         enwiki = entity.get("sitelinks", {}).get("enwiki", {})
         return enwiki.get("title") or None

@@ -118,14 +118,14 @@ async def _search(client: httpx.AsyncClient, query: str) -> list[dict]:
         "format": "json",
     }
     try:
-        r = await client.get(
+        response = await client.get(
             _SEARCH_URL,
             params=params,
             headers={"User-Agent": settings.ENRICHMENT_BOT_AGENT},
             timeout=settings.ENRICHMENT_REQUEST_TIMEOUT,
         )
-        r.raise_for_status()
-        return r.json().get("search", [])
+        response.raise_for_status()
+        return response.json().get("search", [])
     except Exception as exc:
         logger.warning(f"[wikidata] search failed for '{query}': {exc}")
         return []
@@ -153,7 +153,7 @@ async def search_company(client: httpx.AsyncClient, name: str) -> str | None:
 async def fetch_company_data(client: httpx.AsyncClient, qid: str) -> dict:
     """Run the SPARQL query for *qid* and return a structured company dict."""
     try:
-        r = await client.post(
+        response = await client.post(
             _SPARQL_URL,
             data={"query": _SPARQL_QUERY.format(qid=qid)},
             headers={
@@ -162,8 +162,8 @@ async def fetch_company_data(client: httpx.AsyncClient, qid: str) -> dict:
             },
             timeout=settings.ENRICHMENT_REQUEST_TIMEOUT,
         )
-        r.raise_for_status()
-        bindings = r.json()["results"]["bindings"]
+        response.raise_for_status()
+        bindings = response.json()["results"]["bindings"]
     except Exception as exc:
         logger.warning(f"[wikidata] SPARQL query failed for {qid}: {exc}")
         return {}
@@ -200,7 +200,7 @@ async def fetch_company_data(client: httpx.AsyncClient, qid: str) -> dict:
             industries.append(industry)
 
         founder_name = _val(row, "founderLabel")
-        if founder_name and not any(f["name"] == founder_name for f in founders):
+        if founder_name and not any(founder["name"] == founder_name for founder in founders):
             tw = _val(row, "founderTwitter")
             li = _val(row, "founderLinkedin")
             founders.append(

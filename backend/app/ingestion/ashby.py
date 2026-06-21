@@ -25,9 +25,9 @@ class AshbyIngester(BaseIngester):
         """Fetch raw job listings from the Ashby posting API for the given slug."""
         url = _REST_URL.format(slug=slug)
         async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT) as client:
-            r = await client.get(url, headers={"Accept": "application/json"})
-            r.raise_for_status()
-            data = r.json()
+            response = await client.get(url, headers={"Accept": "application/json"})
+            response.raise_for_status()
+            data = response.json()
         return data.get("jobs") or []
 
     def extract_job_id(self, raw: dict) -> str:
