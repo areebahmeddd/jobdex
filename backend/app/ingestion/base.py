@@ -235,3 +235,7 @@ class BaseIngester(ABC):
             return isinstance(jobs, list)
         except Exception:
             return False
+
+    async def discover(self) -> list[Company]:
+        """Return unsaved Company stubs for bulk registration. Returns empty list by default."""
+        return []

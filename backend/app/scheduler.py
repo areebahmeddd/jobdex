@@ -75,6 +75,35 @@ async def run_enrichment() -> None:
     logger.info(f"[scheduler] enrichment complete — enriched={enriched} errors={errors}")
 
 
+async def run_discovery() -> None:
+    """Register new companies from ingesters that support bulk discovery."""
+    logger.info("[scheduler] discovery run started")
+    added = 0
+    skipped = 0
+
+    for ats_name, ingester in INGESTERS.items():
+        try:
+            stubs = await ingester.discover()
+        except Exception as exc:
+            logger.error(f"[scheduler] discovery failed for {ats_name}: {exc}")
+            continue
+
+        for stub in stubs:
+            with get_session() as db:
+                existing = db.query(Company).filter(Company.slug == stub.slug).first()
+
+            if existing:
+                skipped += 1
+                continue
+
+            with get_session() as db:
+                db.add(stub)
+                db.commit()
+            added += 1
+
+    logger.info(f"[scheduler] discovery complete — added={added} skipped={skipped}")
+
+
 def start() -> None:
     """Register scheduled jobs and start the background scheduler."""
     scheduler.add_job(
@@ -91,10 +120,18 @@ def start() -> None:
         id="enrich_pending",
         max_instances=1,
     )
+    scheduler.add_job(
+        run_discovery,
+        "interval",
+        hours=settings.DISCOVER_INTERVAL_HOURS,
+        id="discover_companies",
+        max_instances=1,
+    )
     scheduler.start()
     logger.info(
         f"[scheduler] started — ingest every {settings.INGEST_INTERVAL_HOURS}h, "
-        f"enrich every {settings.ENRICH_INTERVAL_HOURS}h"
+        f"enrich every {settings.ENRICH_INTERVAL_HOURS}h, "
+        f"discover every {settings.DISCOVER_INTERVAL_HOURS}h"
     )
 
 

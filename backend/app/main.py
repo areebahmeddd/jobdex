@@ -60,7 +60,7 @@ def root():
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "docs": "/docs",
-        "supported_ats": ["greenhouse", "lever", "ashby"],
+        "supported_ats": ["ashy", "greenhouse", "lever", "ycombinator"],
         "endpoints": {
             "jobs": "GET /jobs?city=&role_category=&seniority=&is_remote=&q=&cursor=",
             "companies": "GET /companies?city=&industry=&country_code=&region=",

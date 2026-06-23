@@ -13,7 +13,7 @@ uv run pytest --tb=short -q                              # quiet
 
 ## Coverage
 
-**130 tests -- 83 unit, 47 integration | 63% line coverage**
+**133 tests -- 89 unit, 44 integration | 64% line coverage**
 
 ## Files
 
@@ -22,7 +22,7 @@ uv run pytest --tb=short -q                              # quiet
 | File                       | Tests | Covers                                                                            |
 | -------------------------- | ----- | --------------------------------------------------------------------------------- |
 | `unit/test_classifiers.py` | 42    | `classify_seniority`, `classify_role`, `extract_tech_stack`, `normalize_job_type` |
-| `unit/test_location.py`    | 29    | `canonicalize_city`, `get_region_for_country`, `is_blocked_location`              |
+| `unit/test_location.py`    | 35    | `canonicalize_city`, `get_region_for_country`                                     |
 | `unit/test_text.py`        | 12    | `strip_html`, `make_snippet`                                                      |
 
 ### Integration

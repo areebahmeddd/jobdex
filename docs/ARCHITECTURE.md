@@ -7,7 +7,7 @@ On every process start, the lifespan runs three steps in order:
 ```
 1. migrate_db()      apply all pending Alembic migrations to head
 2. seed_cities()     upsert cities from data/cities.json into the cities table
-3. scheduler.start() register and start background ingestion and enrichment jobs
+3. scheduler.start() register and start all background jobs
 ```
 
 `seed_cities` is idempotent. It checks for an existing slug before inserting, so it is safe to run on every restart.
@@ -56,8 +56,6 @@ Response fields: `companies[]`, `jobs[]`, `total_companies`, `total_jobs`.
 
 Filters: `region`, `country_code`, `limit`, `offset`
 
-Cache: `public, max-age=300, stale-while-revalidate=60`
-
 ### Map `/map`
 
 | Method | Path                            | Description                                                |
@@ -72,8 +70,6 @@ Additional filters: `region`, `country_code`, `role`, `is_remote`
 
 `map_companies` resolves display coordinates from the company HQ if set, otherwise falls back to the most common job location by count.
 
-Cache: `public, max-age=120, stale-while-revalidate=30`
-
 ### Stats `/stats`
 
 | Method | Path     | Description                   |
@@ -82,8 +78,6 @@ Cache: `public, max-age=120, stale-while-revalidate=30`
 
 Response fields: `total_companies` (active), `total_jobs` (all-time), `active_jobs`, `total_cities`, `cities_with_jobs`, `role_categories`, `top_cities`, `top_regions`, `ats_breakdown`.
 
-Cache: `public, max-age=300, stale-while-revalidate=60`
-
 ### Meta
 
 | Method | Path      | Description                         |
@@ -91,13 +85,23 @@ Cache: `public, max-age=300, stale-while-revalidate=60`
 | `GET`  | `/health` | Health check                        |
 | `GET`  | `/`       | API metadata and endpoint reference |
 
+## Background Jobs
+
+All jobs run in-process via APScheduler. No separate worker is needed.
+
+| Job ID               | Interval | Function         | Description                                                    |
+| -------------------- | -------- | ---------------- | -------------------------------------------------------------- |
+| `ingest_all`         | 6 h      | `run_ingestion`  | Crawls all active companies, oldest-first                      |
+| `enrich_pending`     | 12 h     | `run_enrichment` | Enriches companies where `enriched_at IS NULL`                 |
+| `discover_companies` | 24 h     | `run_discovery`  | Seeds new companies from ingesters that implement `discover()` |
+
+Intervals are configurable via `INGEST_INTERVAL_HOURS`, `ENRICH_INTERVAL_HOURS`, and `DISCOVER_INTERVAL_HOURS`.
+
 ## Ingestion Pipeline
 
-Runs every **6 hours** via APScheduler. Processes all active companies ordered by `last_crawled_at ASC NULLS FIRST` so the least recently crawled company is always next.
+Each ATS subclass implements `fetch_raw`, `extract_job_id`, and `build_job`. `BaseIngester` handles dedup, deactivation, geo-lookup, error recording, and the scheduler integration.
 
-Each ATS exposes a different API shape. Greenhouse uses a public REST board endpoint, Lever returns a flat JSON array, and Ashby requires a POST with the board identifier. The `BaseIngester` class handles all shared logic; each ATS subclass only implements `fetch_raw`, `extract_job_id`, and `build_job`.
-
-Jobs are never hard-deleted. A SHA-256 hash of `ats_type:slug:job_id` is stored as `dedup_hash` on insert. On each crawl, any job whose hash was not seen in the latest response is marked `is_active=False`. This preserves the full job history while keeping active listings accurate.
+Jobs are never hard-deleted. A SHA-256 hash of `ats_type:slug:job_id` is stored as `dedup_hash` on insert. On each crawl, any job whose hash was not seen in the latest response is marked `is_active=False`.
 
 ### Flow per company
 
@@ -111,9 +115,7 @@ Jobs are never hard-deleted. A SHA-256 hash of `ats_type:slug:job_id` is stored 
    Only runs if company.latitude is not already set.
 
 3. fetch_raw()  [ATS API]
-   Greenhouse:  GET /boards/{slug}/jobs?content=true
-   Lever:       GET /postings/{slug}?mode=json
-   Ashby:       POST /job-board/jobPostings  {jobBoardIdentifier}
+   Call the provider-specific endpoint to get raw job dicts.
 
 4. For each raw job:
    a. extract_job_id()   stable ATS-side ID
@@ -130,17 +132,17 @@ Jobs are never hard-deleted. A SHA-256 hash of `ats_type:slug:job_id` is stored 
    city across its active jobs.
 ```
 
-### Normalisation (step 4d)
+### Normalisation
 
-Raw job data from ATS APIs is inconsistent: location strings like `"Bengaluru, KA"`, `"New York, NY (Hybrid)"`, or `"Remote / London"` all need to resolve to a canonical city. The normaliser runs each new job through the following steps in order.
+Raw location strings like `"Bengaluru, KA"`, `"New York, NY (Hybrid)"`, or `"Remote / London"` are resolved to canonical fields by the normaliser.
 
-**Location** is processed first. `canonicalize_city` tries an alias lookup, then exact match, then substring match, then fuzzy match via rapidfuzz WRatio with a score cutoff of 90. If none of those resolve the city and `GEOCODE_UNKNOWN_CITIES` is enabled, it falls back to the Nominatim geocoder. Remote and hybrid detection runs separately via regex patterns on the raw location string and is never overwritten by city resolution.
+**Location**: `canonicalize_city` tries alias lookup, exact match, substring match, then fuzzy match via rapidfuzz WRatio (cutoff 90). Falls back to Nominatim if `GEOCODE_UNKNOWN_CITIES` is enabled. Remote and hybrid detection runs via regex on the raw string and is never overwritten by city resolution.
 
-**Role classification** matches the job title and department string against `role_patterns.json` to produce a `role_category` (e.g. `engineering`) and `role_subcategory` (e.g. `backend`). If no pattern matches in the title, it retries against the first 400 characters of the description.
+**Role**: title and department matched against `role_patterns.json` to produce `role_category` and `role_subcategory`. Retries against the first 400 chars of description if the title yields no match.
 
-**Seniority** is classified from the title alone using `seniority_patterns.json`. Defaults to `mid` if no pattern matches.
+**Seniority**: title matched against `seniority_patterns.json`. Defaults to `mid`.
 
-**Tech stack** is extracted by scanning the title and description for keywords defined in `tech_keywords.json` using whole-word regex matching.
+**Tech stack**: title and description scanned for whole-word matches against `tech_keywords.json`.
 
 ```
 normalize_location(location_raw)
@@ -164,17 +166,27 @@ strip_html() + make_snippet()
     description_snippet                plain text, max 500 chars
 ```
 
+### ATS providers
+
+**Ashby**: `POST /job-board/jobPostings` with `{jobBoardIdentifier: slug}`. Returns a paginated list. Job ID is the Ashby UUID. Location is sourced from the `locationName` field.
+
+**Greenhouse**: `GET /boards/{slug}/jobs?content=true`. Returns a flat list of job objects with HTML content, location, and department. Job ID is the Greenhouse numeric `id`.
+
+**Lever**: `GET /postings/{slug}?mode=json`. Returns a flat JSON array of postings. Job ID is the Lever UUID. Job type is derived from the `commitment` category field.
+
+**Y Combinator**: `GET /v0.1/companies?q={slug}` on `api.ycombinator.com` (no auth). Since `workatastartup.com` does not expose job listings via a public API, the ingester creates one representative job per hiring company. The job title comes from `oneLiner`, the description from`longDescription`, and the source URL points to the company's Work at a Startup page.`build_job` backfills missing company metadata, and `fetch_raw` returns `[]` when `isHiring` is false to deactivate the job automatically. `is_remote` is set when `regions` contains `"Fully Remote"`.
+
 ### Location blocking
 
 Jobs with `country_code = IL` or a city matching `israel`, `tel aviv`, `haifa`, `beer sheva`, or `jerusalem` are skipped at insertion time and never written to the database.
 
 ## Enrichment Pipeline
 
-Runs every **2 hours**. Processes companies where `enriched_at IS NULL`, ordered alphabetically. Once a company is enriched, `enriched_at` is set and it is skipped on all future runs.
+Processes companies where `enriched_at IS NULL`, ordered alphabetically. Once enriched, `enriched_at` is set and the company is skipped on all future runs.
 
-Enrichment pulls two types of data. Wikidata provides structured facts: founders, key investors, total funding, funding stage, business model, headcount range, and social profile handles. Wikipedia provides the long-form company description. Social links from Wikidata are merged with any existing `social_links` on the company record rather than overwriting them.
+Wikidata provides structured facts: founders, key investors, total funding, funding stage, business model, headcount range, and social profile handles. Wikipedia provides the long-form company description. Social links from Wikidata are merged with any existing `social_links` rather than overwriting them.
 
-All external calls use a shared `httpx.AsyncClient` with `ENRICHMENT_BOT_AGENT` as the User-Agent. A `ENRICHMENT_STEP_DELAY` pause runs between each API call to avoid hitting rate limits on Wikidata and Wikipedia.
+All external calls use a shared `httpx.AsyncClient` with `ENRICHMENT_BOT_AGENT` as the User-Agent. `ENRICHMENT_STEP_DELAY` runs between each API call to avoid rate limits.
 
 ### Flow per company
 
@@ -200,45 +212,45 @@ Three tables: `companies`, `jobs`, `cities`. Companies are the root entity. Jobs
 
 ### Table: `companies`
 
-Stores one record per company. The `ats_type` and `ats_slug` fields identify which ATS board to crawl. Location fields (`city`, `country_code`, `region`, `lat`, `lng`) are populated by Clearbit geo lookup on first ingest or backfilled from the most common job city. Enrichment fields (`founders`, `key_investors`, `total_funding_usd`, etc.) are populated separately by the enrichment pipeline.
+One record per company. `ats_type` and `ats_slug` identify which ATS board to crawl. Location fields are populated by Clearbit geo lookup on first ingest or backfilled from the most common job city. Enrichment fields are populated by the enrichment pipeline.
 
-| Column              | Type           | Notes                                       |
-| ------------------- | -------------- | ------------------------------------------- |
-| `id`                | `String` PK    | UUID v4                                     |
-| `name`              | `String(255)`  | Required                                    |
-| `slug`              | `String(255)`  | Unique, indexed                             |
-| `logo_url`          | `String(500)`  |                                             |
-| `description`       | `Text`         |                                             |
-| `website`           | `String(500)`  |                                             |
-| `city`              | `String(255)`  | HQ city                                     |
-| `country`           | `String(255)`  |                                             |
-| `country_code`      | `String(2)`    | ISO-2, indexed                              |
-| `region`            | `String(50)`   | e.g. `south_asia`                           |
-| `latitude`          | `Float`        |                                             |
-| `longitude`         | `Float`        |                                             |
-| `industry`          | `JSONB`        | Array of industry tags                      |
-| `stage`             | `String(50)`   | e.g. `series_a`                             |
-| `founded_year`      | `Integer`      |                                             |
-| `ats_type`          | `String(50)`   | `greenhouse`, `lever`, `ashby`              |
-| `ats_slug`          | `String(255)`  | ATS board identifier                        |
-| `last_crawled_at`   | `DateTime(tz)` |                                             |
-| `crawl_error`       | `String(500)`  | Last error message                          |
-| `is_active`         | `Boolean`      |                                             |
-| `wikidata_id`       | `String(20)`   | Wikidata QID                                |
-| `enriched_at`       | `DateTime(tz)` | Null if not yet enriched                    |
-| `founders`          | `JSONB`        |                                             |
-| `key_investors`     | `JSONB`        |                                             |
-| `total_funding_usd` | `BigInteger`   |                                             |
-| `funding_stage`     | `String(50)`   |                                             |
-| `business_model`    | `String(50)`   |                                             |
-| `headcount_range`   | `String(50)`   |                                             |
-| `benefits`          | `JSONB`        |                                             |
-| `office_address`    | `String(500)`  |                                             |
-| `social_links`      | `JSONB`        | Keys: `twitter`, `linkedin`, `github`, etc. |
+| Column              | Type           | Notes                             |
+| ------------------- | -------------- | --------------------------------- |
+| `id`                | `String` PK    | UUID v4                           |
+| `name`              | `String(255)`  | Required                          |
+| `slug`              | `String(255)`  | Unique, indexed                   |
+| `logo_url`          | `String(500)`  |                                   |
+| `description`       | `Text`         |                                   |
+| `website`           | `String(500)`  |                                   |
+| `city`              | `String(255)`  | HQ city                           |
+| `country`           | `String(255)`  |                                   |
+| `country_code`      | `String(2)`    | ISO-2, indexed                    |
+| `region`            | `String(50)`   | e.g. `south_asia`                 |
+| `latitude`          | `Float`        |                                   |
+| `longitude`         | `Float`        |                                   |
+| `industry`          | `JSONB`        | Array of industry tags            |
+| `stage`             | `String(50)`   | e.g. `series_a`                   |
+| `founded_year`      | `Integer`      |                                   |
+| `ats_type`          | `String(50)`   | e.g. `ycombinator`                |
+| `ats_slug`          | `String(255)`  | ATS board identifier              |
+| `last_crawled_at`   | `DateTime(tz)` |                                   |
+| `crawl_error`       | `String(500)`  | Last error message                |
+| `is_active`         | `Boolean`      |                                   |
+| `wikidata_id`       | `String(20)`   | Wikidata QID                      |
+| `enriched_at`       | `DateTime(tz)` | Null if not yet enriched          |
+| `founders`          | `JSONB`        |                                   |
+| `key_investors`     | `JSONB`        |                                   |
+| `total_funding_usd` | `BigInteger`   |                                   |
+| `funding_stage`     | `String(50)`   |                                   |
+| `business_model`    | `String(50)`   |                                   |
+| `headcount_range`   | `String(50)`   |                                   |
+| `benefits`          | `JSONB`        |                                   |
+| `office_address`    | `String(500)`  |                                   |
+| `social_links`      | `JSONB`        | Keys: `twitter`, `linkedin`, etc. |
 
 ### Table: `jobs`
 
-One record per job posting. `location_raw` preserves the original ATS string for debugging. All structured location, role, seniority, and tech fields are produced by the normalisation pipeline. `dedup_hash` is the upsert key: a SHA-256 of `ats_type:slug:job_id`. Jobs are soft-deleted by setting `is_active=False` when they no longer appear in the ATS response.
+One record per job posting. `location_raw` preserves the original ATS string. All structured location, role, seniority, and tech fields are produced by the normalisation pipeline. `dedup_hash` is the upsert key. Jobs are soft-deleted by setting `is_active=False`.
 
 | Column                | Type           | Notes                                               |
 | --------------------- | -------------- | --------------------------------------------------- |
@@ -273,7 +285,7 @@ One record per job posting. `location_raw` preserves the original ATS string for
 
 ### Table: `cities`
 
-Reference data only. Loaded from `data/cities.json` at startup via `seed_cities`. Used by the cities and map endpoints to serve pin coordinates and counts. The normaliser reads city metadata from the same JSON file directly (not from this table).
+Reference data loaded from `data/cities.json` at startup. Used by the cities and map endpoints. The normaliser reads city metadata from the same JSON file directly, not from this table.
 
 | Column         | Type          | Notes                       |
 | -------------- | ------------- | --------------------------- |
@@ -323,15 +335,15 @@ Every user-facing job query filters `is_active = TRUE`, so the three composite p
 
 ## Caching
 
-Cache headers are set on endpoints called repeatedly with identical parameters during a session, such as map pan/zoom, page-load stats, and city reference data. Endpoints driven by user-supplied filter combinations are not cached.
+Cache headers are set on read-heavy endpoints called repeatedly with identical parameters, such as map pan/zoom, page-load stats, and city reference data. Endpoints driven by user-supplied filter combinations are not cached.
 
 | Endpoint                            | max-age | stale-while-revalidate |
 | ----------------------------------- | ------- | ---------------------- |
 | `GET /stats`                        | 300s    | 60s                    |
 | `GET /cities`                       | 300s    | 60s                    |
 | `GET /cities/{slug}`                | 300s    | 60s                    |
-| `GET /map/companies`                | 120s    | 30s                    |
 | `GET /map/cities`                   | 120s    | 30s                    |
+| `GET /map/companies`                | 120s    | 30s                    |
 | `GET /map/companies/{slug}/offices` | 120s    | 30s                    |
 
 No CDN is deployed. These headers apply browser-level HTTP caching only.
@@ -356,5 +368,6 @@ Settings are loaded from `.env` via `pydantic-settings`. All values have default
 | `ENRICHMENT_REQUEST_TIMEOUT` | `15.0`                          | Timeout for enrichment HTTP requests                  |
 | `ENRICHMENT_STEP_DELAY`      | `0.5`                           | Delay between enrichment API calls in seconds         |
 | `INGEST_INTERVAL_HOURS`      | `6`                             | Ingestion run interval                                |
-| `ENRICH_INTERVAL_HOURS`      | `2`                             | Enrichment run interval                               |
+| `ENRICH_INTERVAL_HOURS`      | `12`                            | Enrichment job interval                               |
+| `DISCOVER_INTERVAL_HOURS`    | `24`                            | Discovery job interval                                |
 | `DEBUG`                      | `false`                         | FastAPI debug mode                                    |

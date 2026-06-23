@@ -3,7 +3,6 @@ import pytest
 from app.ingestion.normalizer.location import (
     canonicalize_city,
     get_region_for_country,
-    is_blocked_location,
     normalize_location,
 )
 
@@ -92,11 +91,6 @@ class TestNormalizeLocation:
         assert r["city"] is None
         assert r["is_remote"] is False
 
-    def test_blocked_location_passthrough(self):
-        # normalize_location itself doesn't block; is_blocked_location is called by the caller
-        r = normalize_location("Tel Aviv")
-        assert r["city"] == "Tel Aviv"
-
 
 class TestGetRegionForCountry:
     @pytest.mark.parametrize(
@@ -122,24 +116,3 @@ class TestGetRegionForCountry:
 
     def test_unknown_returns_none(self):
         assert get_region_for_country("ZZ") is None
-
-
-class TestIsBlockedLocation:
-    def test_blocked_country_code(self):
-        assert is_blocked_location("IL", None) is True
-
-    def test_blocked_city_tel_aviv(self):
-        assert is_blocked_location(None, "Tel Aviv") is True
-
-    def test_blocked_city_case_insensitive(self):
-        assert is_blocked_location(None, "tel aviv") is True
-
-    def test_allowed_location(self):
-        assert is_blocked_location("US", "San Francisco") is False
-
-    def test_none_both_allowed(self):
-        assert is_blocked_location(None, None) is False
-
-    def test_allowed_country_blocked_city_substring(self):
-        # City "Israel City" contains "israel"
-        assert is_blocked_location("US", "Israel City") is True

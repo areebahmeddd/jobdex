@@ -25,15 +25,16 @@ class Settings(BaseSettings):
     HTTP_TIMEOUT: float = 30.0
     CRAWL_DELAY: float = 0.3
 
+    INGEST_INTERVAL_HOURS: int = 6
+    ENRICH_INTERVAL_HOURS: int = 12
+    DISCOVER_INTERVAL_HOURS: int = 24
+
     GEOCODE_UNKNOWN_CITIES: bool = False
     GEOCODE_USER_AGENT: str = "JobDex/1.0 (+https://github.com/areebahmeddd/jobdex)"
 
     ENRICHMENT_BOT_AGENT: str = "JobDex/1.0 (+https://github.com/areebahmeddd/jobdex)"
     ENRICHMENT_REQUEST_TIMEOUT: float = 15.0
     ENRICHMENT_STEP_DELAY: float = 0.5
-
-    INGEST_INTERVAL_HOURS: int = 6
-    ENRICH_INTERVAL_HOURS: int = 2
 
 
 settings = Settings()

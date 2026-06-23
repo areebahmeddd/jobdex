@@ -18,27 +18,25 @@ JobDex is a startup-focused job board built around map-first discovery. Instead 
 
 ## Architecture
 
-```text
-┌─────────────┐     ingest     ┌──────────────────────┐
-│  Greenhouse │ ─────────────► │                      │
-│  Lever      │ ─────────────► │   Backend (FastAPI)  │ ──► PostgreSQL
-│  Ashby      │ ─────────────► │                      │
-└─────────────┘                └──────────┬───────────┘
-                                          │ REST API
-                                          ▼
-                               ┌──────────────────────┐
-                               │   Frontend (React)   │
-                               │   Map + Discovery    │
-                               └──────────────────────┘
-```
+<p align="center">
+  <img src="docs/architecture.png" alt="JobDex Architecture" />
+</p>
 
 ## Data Sources
 
-| ATS        | Endpoint                                              |
-| ---------- | ----------------------------------------------------- |
-| Greenhouse | `boards-api.greenhouse.io/v1/boards/{slug}/jobs`      |
-| Lever      | `api.lever.co/v0/postings/{slug}`                     |
-| Ashby      | `api.ashbyhq.com/posting-api/job-board/{slug}`        |
+| ATS          | Endpoint                                                       |
+| ------------ | -------------------------------------------------------------- |
+| Ashby        | `api.ashbyhq.com/posting-api/job-board/{slug}`                 |
+| Greenhouse   | `boards-api.greenhouse.io/v1/boards/{slug}/jobs`               |
+| Lever        | `api.lever.co/v0/postings/{slug}`                              |
+| YCombinator  | `api.ycombinator.com/v0.1/companies?q={slug}`                  |
+
+## Production
+
+| Service      | URL                                  |
+| ------------ | ------------------------------------ |
+| Frontend UI  | <https://jobdex.1mindlabs.org>       |
+| Backend API  | <https://jobdex-api.1mindlabs.org>   |
 
 ## Getting Started
 
@@ -48,7 +46,7 @@ cd jobdex
 docker compose up
 ```
 
-- Frontend: `http://localhost:3000`
+- Frontend UI: `http://localhost:3000`
 - Backend API: `http://localhost:8000`
 - API docs: `http://localhost:8000/docs`
 

@@ -95,26 +95,27 @@ GET /search?city=Bangalore&role=engineering&region=south_asia&is_remote=false
 
 Runs in-process. No separate worker needed.
 
-| Job              | Interval | Description                                |
-| ---------------- | -------- | ------------------------------------------ |
-| `ingest_all`     | 6 h      | Crawls active companies, oldest-first      |
-| `enrich_pending` | 2 h      | Enriches companies with null `enriched_at` |
+| Job                 | Interval | Description                                            |
+| ------------------- | -------- | ------------------------------------------------------ |
+| `ingest_all`        | 6 h      | Crawls active companies, oldest-first                  |
+| `enrich_pending`    | 12 h     | Enriches companies with null `enriched_at`             |
+| `discover_companies`| 24 h     | Seeds new companies from ingesters with bulk discovery |
 
-Configurable via `INGEST_INTERVAL_HOURS` and `ENRICH_INTERVAL_HOURS`.
+Configurable via `INGEST_INTERVAL_HOURS`, `ENRICH_INTERVAL_HOURS`, and `DISCOVER_INTERVAL_HOURS`.
 
 ## Database
 
 ### Fresh Setup
 
 ```bash
-# start server (runs migrations, seeds cities, starts scheduler)
+# terminal 1 — start server (runs migrations, seeds cities, starts scheduler)
 uv run uvicorn app.main:app --port 8000 --reload
 
-# seed companies
-uv run python scripts/seed.py
-
-# enrich now (optional -- scheduler runs this on its interval)
-uv run python scripts/enrich.py --all
+# terminal 2 — populate the database
+uv run python scripts/discover.py        # register companies from all ingesters
+uv run python scripts/probe.py           # upgrade YC companies found on Greenhouse/Ashby/Lever
+uv run python scripts/ingest.py --all    # ingest jobs for all registered companies
+uv run python scripts/enrich.py --all    # enrich all companies with Wikidata/Wikipedia
 ```
 
 ### Migrations
@@ -145,12 +146,16 @@ See `tests/README.md` for details.
 
 ## Management Scripts
 
-| Script                    | Purpose                          |
-| ------------------------- | -------------------------------- |
-| `scripts/seed.py`         | Ingest all ATS sources           |
-| `scripts/enrich.py --all` | Enrich all companies             |
-| `scripts/validate.py`     | Validate data quality and schema |
-| `scripts/test_e2e.py`     | Smoke test against a live API    |
+| Script                           | Purpose                                                              |
+| -------------------------------- | -------------------------------------------------------------------- |
+| `scripts/discover.py`            | Register companies from all ingesters (YC bulk discovery)           |
+| `scripts/probe.py`               | Probe YC companies against Greenhouse, Ashby, Lever; upgrade matches |
+| `scripts/ingest.py --all`        | Ingest jobs for all active companies                                 |
+| `scripts/ingest.py <ats> <slug>` | Ingest jobs for a single company                                     |
+| `scripts/enrich.py <slug>`       | Enrich a single company with Wikidata/Wikipedia                      |
+| `scripts/enrich.py --all`        | Enrich all unenriched companies                                      |
+| `scripts/reset.py`               | Delete all jobs and reset company crawl state                        |
+| `scripts/nuke.py`                | Drop all tables (full database wipe)                                 |
 
 ## Docker
 

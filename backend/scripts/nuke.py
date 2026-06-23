@@ -1,7 +1,7 @@
 """Drop all tables and reset the database to a clean state.
 
 Usage:
-  python scripts/drop.py
+  python scripts/nuke.py
 """
 
 import sys

@@ -1,15 +1,18 @@
 from app.ingestion.ashby import AshbyIngester
 from app.ingestion.greenhouse import GreenhouseIngester
 from app.ingestion.lever import LeverIngester
+from app.ingestion.ycombinator import YCombinatorIngester
 
+ashby = AshbyIngester()
 greenhouse = GreenhouseIngester()
 lever = LeverIngester()
-ashby = AshbyIngester()
+ycombinator = YCombinatorIngester()
 
 INGESTERS = {
+    "ashby": ashby,
     "greenhouse": greenhouse,
     "lever": lever,
-    "ashby": ashby,
+    "ycombinator": ycombinator,
 }
 
-__all__ = ["greenhouse", "lever", "ashby", "INGESTERS"]
+__all__ = ["ashby", "greenhouse", "lever", "ycombinator", "INGESTERS"]
