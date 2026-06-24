@@ -1,9 +1,10 @@
+export { GITHUB_REPO } from "@/lib/constants";
+
 export const HOME_CENTER: [number, number] = [20, 0];
 export const MAP_MAX_ZOOM = 19;
 export const HOME_ZOOM_PERCENT = 20;
 export const HOME_ZOOM = (MAP_MAX_ZOOM * HOME_ZOOM_PERCENT) / 100;
 export const COMPANY_ZOOM_THRESHOLD = 9;
-export const GITHUB_REPO = "areebahmeddd/jobdex";
 export const API_BASE =
   (import.meta.env.VITE_API_URL as string | undefined) ??
   "http://localhost:8000";

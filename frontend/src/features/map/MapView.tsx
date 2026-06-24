@@ -1,4 +1,5 @@
-﻿import L from "leaflet";
+﻿import { GitHubIcon } from "@/components/ui/social-icons";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
   ArrowLeft,
@@ -15,7 +16,6 @@ import { FilterDropdown } from "./components/FilterDropdown";
 import { ResultsPanel } from "./components/ResultsPanel";
 import {
   API_BASE,
-  COMPANY_ZOOM_THRESHOLD,
   GITHUB_REPO,
   HOME_CENTER,
   HOME_ZOOM,
@@ -25,48 +25,54 @@ import type {
   CityPin,
   CompanyDetail,
   CompanyListItem,
-  CompanyOffice,
   CompanyPin,
   Job,
   JobDetail,
   PanelView,
 } from "./types";
-import { escapeHtml, markerRadius } from "./utils";
-
-function GitHubIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d="M12 2C6.477 2 2 6.484 2 12.021c0 4.428 2.865 8.184 6.839 9.504.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.605-3.369-1.342-3.369-1.342-.454-1.154-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.026 2.747-1.026.546 1.378.202 2.397.1 2.65.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482C19.138 20.2 22 16.447 22 12.021 22 6.484 17.523 2 12 2z" />
-    </svg>
-  );
-}
+import { escapeHtml } from "./utils";
 
 export function MapView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const locationMarkerRef = useRef<L.Marker | null>(null);
-  const hasRequestedLocationRef = useRef(false);
-  const permissionStatusRef = useRef<PermissionStatus | null>(null);
 
-  const cityLayerRef = useRef<L.LayerGroup | null>(null);
   const companyLayerRef = useRef<L.LayerGroup | null>(null);
-  const officeLayerRef = useRef<L.LayerGroup | null>(null);
 
   const jobsAbortRef = useRef<AbortController | null>(null);
   const jobDetailAbortRef = useRef<AbortController | null>(null);
   const companiesAbortRef = useRef<AbortController | null>(null);
+  const companyDetailAbortRef = useRef<AbortController | null>(null);
+  const pendingGeoRef = useRef<{ lat: number; lng: number } | null>(null);
+  const cityPinsRef = useRef<CityPin[]>([]);
+  const handleCityClickRef = useRef<(name: string) => void>(() => {});
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const filterRef = useRef<HTMLDivElement>(null);
+  const filterRefMobile = useRef<HTMLDivElement>(null);
 
   const [connected, setConnected] = useState<boolean | null>(null);
   const [stars, setStars] = useState<number | null>(null);
+  const [indexedStats, setIndexedStats] = useState<{
+    jobs: number;
+    cities: number;
+  } | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
   const [filterOpen, setFilterOpen] = useState(false);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      const insideDesktop = filterRef.current?.contains(target) ?? false;
+      const insideMobile = filterRefMobile.current?.contains(target) ?? false;
+      if (!insideDesktop && !insideMobile) {
+        setFilterOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [filterOpen]);
+
   const [mapReady, setMapReady] = useState(false);
 
   const [roleFilter, setRoleFilter] = useState<string | null>(null);
@@ -81,6 +87,10 @@ export function MapView() {
     lng_max: number;
   } | null>(null);
   const [zoom, setZoom] = useState(HOME_ZOOM);
+  const [mapCenter, setMapCenter] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
 
   const [panelView, setPanelView] = useState<PanelView>("default");
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
@@ -103,8 +113,20 @@ export function MapView() {
   const isConnected = connected === true;
   const isChecking = connected === null;
   const hasActiveFilter = roleFilter !== null || remoteFilter !== null;
-  const totalIndexedJobs = cityPins.reduce((s, c) => s + c.job_count, 0);
-  const totalIndexedCities = cityPins.filter((c) => c.job_count > 0).length;
+  const activePillCity = (() => {
+    if (!mapCenter || cityPins.length === 0) return null;
+    let best = cityPins[0];
+    let bestDist = Infinity;
+    for (const p of cityPins) {
+      const d =
+        (p.latitude - mapCenter.lat) ** 2 + (p.longitude - mapCenter.lng) ** 2;
+      if (d < bestDist) {
+        bestDist = d;
+        best = p;
+      }
+    }
+    return best;
+  })();
 
   useEffect(() => {
     let cancelled = false;
@@ -131,6 +153,20 @@ export function MapView() {
   }, []);
 
   useEffect(() => {
+    fetch(`${API_BASE}/stats`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (
+          typeof d.active_jobs === "number" &&
+          typeof d.cities_with_jobs === "number"
+        ) {
+          setIndexedStats({ jobs: d.active_jobs, cities: d.cities_with_jobs });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
     const map = L.map(containerRef.current, {
@@ -151,19 +187,16 @@ export function MapView() {
     ).addTo(map);
 
     map.on("zoomend moveend", () => {
-      const z = map.getZoom();
-      setZoom(z);
-      if (z >= COMPANY_ZOOM_THRESHOLD) {
-        const b = map.getBounds();
-        setMapBounds({
-          lat_min: b.getSouth(),
-          lat_max: b.getNorth(),
-          lng_min: b.getWest(),
-          lng_max: b.getEast(),
-        });
-      } else {
-        setMapBounds(null);
-      }
+      setZoom(map.getZoom());
+      const c = map.getCenter();
+      setMapCenter({ lat: c.lat, lng: c.lng });
+      const b = map.getBounds();
+      setMapBounds({
+        lat_min: b.getSouth(),
+        lat_max: b.getNorth(),
+        lng_min: b.getWest(),
+        lng_max: b.getEast(),
+      });
     });
 
     mapRef.current = map;
@@ -175,6 +208,18 @@ export function MapView() {
       setMapReady(false);
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const b = map.getBounds();
+    setMapBounds({
+      lat_min: b.getSouth(),
+      lat_max: b.getNorth(),
+      lng_min: b.getWest(),
+      lng_max: b.getEast(),
+    });
+  }, [mapReady]);
 
   useEffect(() => {
     const ac = new AbortController();
@@ -194,43 +239,24 @@ export function MapView() {
   }, [roleFilter, remoteFilter]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !mapReady || cityPins.length === 0) return;
+    cityPinsRef.current = cityPins;
+  }, [cityPins]);
 
-    cityLayerRef.current?.remove();
-    const layer = L.layerGroup();
-
-    cityPins.forEach((pin) => {
-      if (!pin.latitude || !pin.longitude) return;
-      const r = markerRadius(pin.job_count);
-      const marker = L.circleMarker([pin.latitude, pin.longitude], {
-        radius: r,
-        fillColor: "#4ADE80",
-        color: "#ffffff",
-        weight: 1.5,
-        fillOpacity: 0.9,
-        interactive: true,
-        className: "city-circle-marker",
-      });
-
-      marker.bindTooltip(
-        `<div class="map-tt"><strong>${escapeHtml(pin.name)}</strong><span>${pin.job_count.toLocaleString()} jobs &middot; ${pin.company_count} co.</span></div>`,
-        {
-          direction: "top",
-          offset: [0, -6],
-          className: "map-tt-wrap",
-          sticky: false,
-        },
-      );
-
-      marker.on("click", () => handleCityClick(pin.name));
-      layer.addLayer(marker);
-    });
-
-    layer.addTo(map);
-    cityLayerRef.current = layer;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cityPins, mapReady]);
+  useEffect(() => {
+    if (cityPins.length === 0 || !pendingGeoRef.current) return;
+    const { lat, lng } = pendingGeoRef.current;
+    pendingGeoRef.current = null;
+    let best = cityPins[0];
+    let bestDist = Infinity;
+    for (const p of cityPins) {
+      const d = (p.latitude - lat) ** 2 + (p.longitude - lng) ** 2;
+      if (d < bestDist) {
+        bestDist = d;
+        best = p;
+      }
+    }
+    handleCityClickRef.current(best.name);
+  }, [cityPins]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -253,12 +279,11 @@ export function MapView() {
       .then((r) => r.json())
       .then((d: { companies?: CompanyPin[] }) => {
         if (!d.companies || !mapRef.current) return;
-        renderCompanyPins(mapRef.current, d.companies);
+        renderCompanyPins(mapRef.current, d.companies, handleCompanyClick);
       })
       .catch(() => {});
 
     return () => ac.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapBounds, roleFilter, remoteFilter]);
 
   useEffect(() => {
@@ -267,59 +292,73 @@ export function MapView() {
     } else if (panelView === "jobs" && selectedCity) {
       loadJobs(selectedCity, null, true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleFilter, remoteFilter]);
 
-  function renderCompanyPins(map: L.Map, companies: CompanyPin[]) {
+  function renderCompanyPins(
+    map: L.Map,
+    companies: CompanyPin[],
+    onCompanyClick: (slug: string) => void,
+  ) {
     if (!companyLayerRef.current) {
       companyLayerRef.current = L.layerGroup().addTo(map);
     } else {
       companyLayerRef.current.clearLayers();
     }
 
-    companies.slice(0, 80).forEach((co) => {
-      if (!co.latitude || !co.longitude) return;
+    const byCoord = new Map<string, CompanyPin[]>();
+    for (const co of companies.slice(0, 200)) {
+      if (co.latitude == null || co.longitude == null) continue;
+      const key = `${co.latitude.toFixed(3)},${co.longitude.toFixed(3)}`;
+      const arr = byCoord.get(key) ?? [];
+      arr.push(co);
+      byCoord.set(key, arr);
+    }
 
-      const wrap = document.createElement("div");
-      wrap.className = "company-pin";
+    for (const group of byCoord.values()) {
+      group.forEach((co, idx) => {
+        let lat = co.latitude!;
+        let lng = co.longitude!;
 
-      const sources = [
-        co.logo_url,
-        `https://logo.clearbit.com/${co.slug}.com`,
-        `https://www.google.com/s2/favicons?domain=${co.slug}.com&sz=128`,
-      ].filter(Boolean) as string[];
-
-      let srcIdx = 0;
-      const img = document.createElement("img");
-      img.alt = "";
-      img.style.cssText = "width:100%;height:100%;object-fit:contain;";
-
-      img.onerror = () => {
-        srcIdx += 1;
-        if (srcIdx < sources.length) {
-          img.src = sources[srcIdx];
-        } else {
-          wrap.innerHTML = co.name.charAt(0).toUpperCase();
+        if (group.length > 1) {
+          const angle = (idx / group.length) * 2 * Math.PI - Math.PI / 2;
+          const ring = Math.floor(idx / 8);
+          const radius = 0.007 + ring * 0.006;
+          lat += Math.sin(angle) * radius;
+          lng += Math.cos(angle) * radius;
         }
-      };
 
-      img.src = sources[0];
-      wrap.appendChild(img);
+        const wrap = document.createElement("div");
+        wrap.className = "company-pin";
 
-      const icon = L.divIcon({
-        className: "",
-        html: wrap as unknown as string,
-        iconSize: [26, 26],
-        iconAnchor: [13, 13],
+        if (co.logo_url) {
+          const img = document.createElement("img");
+          img.alt = "";
+          img.style.cssText = "width:100%;height:100%;object-fit:contain;";
+          img.onerror = () => {
+            wrap.innerHTML = co.name.charAt(0).toUpperCase();
+          };
+          img.src = co.logo_url;
+          wrap.appendChild(img);
+        } else {
+          wrap.textContent = co.name.charAt(0).toUpperCase();
+        }
+
+        const icon = L.divIcon({
+          className: "",
+          html: wrap as unknown as string,
+          iconSize: [26, 26],
+          iconAnchor: [13, 13],
+        });
+
+        const marker = L.marker([lat, lng], { icon });
+        marker.bindTooltip(
+          `<div class="map-tt"><strong>${escapeHtml(co.name)}</strong><span>${co.job_count} open roles</span></div>`,
+          { direction: "top", offset: [0, -8], className: "map-tt-wrap" },
+        );
+        marker.on("click", () => onCompanyClick(co.slug));
+        companyLayerRef.current?.addLayer(marker);
       });
-
-      const marker = L.marker([co.latitude, co.longitude], { icon });
-      marker.bindTooltip(
-        `<div class="map-tt"><strong>${escapeHtml(co.name)}</strong><span>${co.job_count} open roles</span></div>`,
-        { direction: "top", offset: [0, -8], className: "map-tt-wrap" },
-      );
-      companyLayerRef.current?.addLayer(marker);
-    });
+    }
   }
 
   const loadJobs = useCallback(
@@ -368,8 +407,6 @@ export function MapView() {
       setJobs([]);
       setNextCursor(null);
 
-      officeLayerRef.current?.clearLayers();
-
       companiesAbortRef.current?.abort();
       const ac = new AbortController();
       companiesAbortRef.current = ac;
@@ -392,6 +429,10 @@ export function MapView() {
 
   const handleCompanyClick = useCallback(
     (slug: string) => {
+      companyDetailAbortRef.current?.abort();
+      const ac = new AbortController();
+      companyDetailAbortRef.current = ac;
+
       setSelectedCompany(null);
       setJobDetail(null);
       setPanelView("company-detail");
@@ -399,76 +440,40 @@ export function MapView() {
       setJobs([]);
       setNextCursor(null);
 
-      const ac = new AbortController();
-      const cityParam = selectedCity
-        ? `?city=${encodeURIComponent(selectedCity)}&limit=20`
-        : "?limit=20";
+      const jobsParams = new URLSearchParams({ limit: "20" });
+      if (roleFilter) jobsParams.set("role_category", roleFilter);
+      if (remoteFilter !== null)
+        jobsParams.set("is_remote", String(remoteFilter));
 
       Promise.all([
         fetch(`${API_BASE}/companies/${encodeURIComponent(slug)}`, {
           signal: ac.signal,
         }).then((r) => r.json()),
         fetch(
-          `${API_BASE}/companies/${encodeURIComponent(slug)}/jobs${cityParam}`,
+          `${API_BASE}/companies/${encodeURIComponent(slug)}/jobs?${jobsParams}`,
           { signal: ac.signal },
         ).then((r) => r.json()),
-        fetch(`${API_BASE}/map/companies/${encodeURIComponent(slug)}/offices`, {
-          signal: ac.signal,
-        }).then((r) => r.json()),
       ])
-        .then(([detail, jobsData, officesData]) => {
+        .then(([detail, jobsData]) => {
           setSelectedCompany(detail as CompanyDetail);
           if (jobsData.jobs) {
             setJobs(jobsData.jobs);
-            setNextCursor(jobsData.has_more ? "more" : null);
+            setNextCursor(
+              jobsData.total > jobsData.jobs.length ? "more" : null,
+            );
           }
           const map = mapRef.current;
-          if (map && officesData.offices?.length) {
-            if (!officeLayerRef.current) {
-              officeLayerRef.current = L.layerGroup().addTo(map);
-            } else {
-              officeLayerRef.current.clearLayers();
-            }
-            (officesData.offices as CompanyOffice[]).forEach((office) => {
-              const marker = L.circleMarker(
-                [office.latitude, office.longitude],
-                {
-                  radius: 7,
-                  fillColor: "#4ADE80",
-                  color: "#ffffff",
-                  weight: 2,
-                  fillOpacity: 0.95,
-                },
-              );
-              marker.bindTooltip(
-                `<div class="map-tt"><strong>${escapeHtml(office.city)}</strong><span>${office.job_count} role${office.job_count !== 1 ? "s" : ""}</span></div>`,
-                { direction: "top", offset: [0, -6], className: "map-tt-wrap" },
-              );
-              officeLayerRef.current?.addLayer(marker);
-            });
-            if (selectedCity) {
-              const match = (officesData.offices as CompanyOffice[]).find(
-                (o) => o.city.toLowerCase() === selectedCity.toLowerCase(),
-              );
-              const target = match ?? officesData.offices[0];
-              map.flyTo([target.latitude, target.longitude], 10, {
-                duration: 1.2,
-              });
-            } else {
-              const bounds = L.latLngBounds(
-                officesData.offices.map((o: CompanyOffice) => [
-                  o.latitude,
-                  o.longitude,
-                ]),
-              );
-              map.flyToBounds(bounds.pad(0.4), { duration: 1.2, maxZoom: 10 });
+          if (map && !selectedCity) {
+            const co = detail as CompanyDetail;
+            if (co.latitude && co.longitude) {
+              map.flyTo([co.latitude, co.longitude], 10, { duration: 1.2 });
             }
           }
         })
         .catch(() => {})
         .finally(() => setSelectedCompanyLoading(false));
     },
-    [selectedCity],
+    [selectedCity, roleFilter, remoteFilter],
   );
 
   function handleSearchSubmit(q: string) {
@@ -534,20 +539,29 @@ export function MapView() {
 
   function handleLoadMore() {
     if (selectedCompany) {
-      const cityParam = selectedCity
-        ? `&city=${encodeURIComponent(selectedCity)}`
-        : "";
+      setLoadingMore(true);
+      const loadParams = new URLSearchParams({
+        limit: "20",
+        offset: String(jobs.length),
+      });
+      if (selectedCity) loadParams.set("city", selectedCity);
+      if (roleFilter) loadParams.set("role_category", roleFilter);
+      if (remoteFilter !== null)
+        loadParams.set("is_remote", String(remoteFilter));
+
       fetch(
-        `${API_BASE}/companies/${encodeURIComponent(selectedCompany.slug)}/jobs?limit=20&offset=${jobs.length}${cityParam}`,
+        `${API_BASE}/companies/${encodeURIComponent(selectedCompany.slug)}/jobs?${loadParams}`,
       )
         .then((r) => r.json())
         .then((d) => {
           if (d.jobs) {
-            setJobs((prev) => [...prev, ...d.jobs]);
-            setNextCursor(d.has_more ? "more" : null);
+            const allJobs = [...jobs, ...d.jobs];
+            setJobs(allJobs);
+            setNextCursor(d.total > allJobs.length ? "more" : null);
           }
         })
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => setLoadingMore(false));
     } else {
       loadJobs(selectedCity, nextCursor, false);
     }
@@ -562,14 +576,14 @@ export function MapView() {
         setPanelView("jobs");
       }
     } else if (panelView === "company-detail") {
-      officeLayerRef.current?.clearLayers();
       setSelectedCompany(null);
       setPanelView(selectedCity ? "companies" : "default");
     }
   }
 
   function handleClearCity() {
-    officeLayerRef.current?.clearLayers();
+    companiesAbortRef.current?.abort();
+    companyDetailAbortRef.current?.abort();
     setSelectedCity(null);
     setSelectedCompany(null);
     setCompanies([]);
@@ -579,86 +593,46 @@ export function MapView() {
     setQuery("");
   }
 
-  const geolocate = useCallback((forceFresh = false) => {
-    const map = mapRef.current;
-    if (!map || !navigator.geolocation) return;
-
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        const { latitude: lat, longitude: lng } = coords;
-        map.flyTo([lat, lng], 12, { duration: 1.6 });
-        locationMarkerRef.current?.remove();
-        const icon = L.divIcon({
-          className: "",
-          html: `<div class="location-dot"><div class="location-dot-ring"></div></div>`,
-          iconSize: [20, 20],
-          iconAnchor: [10, 10],
-        });
-        locationMarkerRef.current = L.marker([lat, lng], { icon }).addTo(map);
-      },
-      () => {},
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: forceFresh ? 0 : 5 * 60 * 1000,
-      },
-    );
-  }, []);
+  useEffect(() => {
+    handleCityClickRef.current = handleCityClick;
+  }, [handleCityClick]);
 
   useEffect(() => {
-    if (!mapReady || !mapRef.current || !navigator.geolocation) return;
-
+    const map = mapRef.current;
+    if (!map || !mapReady || !navigator.geolocation) return;
     let disposed = false;
-
-    const requestLocation = async () => {
-      if (!navigator.permissions?.query) {
-        if (!hasRequestedLocationRef.current) {
-          hasRequestedLocationRef.current = true;
-          geolocate();
-        }
-        return;
-      }
-
-      try {
-        const status = await navigator.permissions.query({
-          name: "geolocation",
-        });
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
         if (disposed) return;
-
-        permissionStatusRef.current = status;
-
-        if (status.state === "granted") {
-          geolocate();
-        } else if (
-          status.state === "prompt" &&
-          !hasRequestedLocationRef.current
-        ) {
-          hasRequestedLocationRef.current = true;
-          geolocate();
-        }
-
-        status.onchange = () => {
-          if (status.state === "granted") {
-            geolocate(true);
+        map.flyTo([coords.latitude, coords.longitude], 12, { duration: 1.6 });
+        const pins = cityPinsRef.current;
+        if (pins.length > 0) {
+          let best = pins[0];
+          let bestDist = Infinity;
+          for (const p of pins) {
+            const d =
+              (p.latitude - coords.latitude) ** 2 +
+              (p.longitude - coords.longitude) ** 2;
+            if (d < bestDist) {
+              bestDist = d;
+              best = p;
+            }
           }
-        };
-      } catch {
-        if (!hasRequestedLocationRef.current) {
-          hasRequestedLocationRef.current = true;
-          geolocate();
+          handleCityClickRef.current(best.name);
+        } else {
+          pendingGeoRef.current = {
+            lat: coords.latitude,
+            lng: coords.longitude,
+          };
         }
-      }
-    };
-
-    void requestLocation();
-
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
     return () => {
       disposed = true;
-      if (permissionStatusRef.current) {
-        permissionStatusRef.current.onchange = null;
-      }
     };
-  }, [geolocate, mapReady]);
+  }, [mapReady]);
 
   return (
     <div className="flex h-screen flex-col gap-3 bg-gray-50 p-5 font-sans antialiased">
@@ -680,7 +654,7 @@ export function MapView() {
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </Link>
 
-            <div className="relative w-96">
+            <div className="relative w-96" ref={filterRef}>
               <Search
                 className="pointer-events-none absolute top-1/2 left-3.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
                 aria-hidden="true"
@@ -772,7 +746,7 @@ export function MapView() {
       </header>
 
       <div className="flex shrink-0 md:hidden">
-        <div className="relative w-full">
+        <div className="relative w-full" ref={filterRefMobile}>
           <Search
             className="pointer-events-none absolute top-1/2 left-3.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
             aria-hidden="true"
@@ -819,19 +793,20 @@ export function MapView() {
             aria-label="Interactive world map"
           />
 
-          {zoom >= COMPANY_ZOOM_THRESHOLD && (
-            <div className="pointer-events-none absolute top-4 left-1/2 z-[1000] -translate-x-1/2">
-              <span className="rounded-full border border-black/8 bg-white/80 px-3 py-1 text-[11px] text-gray-500 shadow-sm backdrop-blur-sm">
-                Company view
+          {indexedStats && (
+            <div className="absolute top-4 left-4 z-[1000] overflow-hidden rounded-full border border-white/20 bg-white/25 px-3 py-1.5 shadow-sm shadow-black/5 backdrop-blur-md">
+              <span className="text-[10px] font-medium text-gray-700">
+                {indexedStats.jobs.toLocaleString()} jobs &middot;{" "}
+                {indexedStats.cities.toLocaleString()} cities indexed
               </span>
             </div>
           )}
 
-          {cityPins.length > 0 && (
-            <div className="absolute top-4 left-4 z-[1000] overflow-hidden rounded-full border border-white/20 bg-white/25 px-3 py-1.5 shadow-sm shadow-black/5 backdrop-blur-md">
+          {activePillCity && zoom >= 10 && (
+            <div className="absolute top-4 left-1/2 z-[1000] -translate-x-1/2 overflow-hidden rounded-full border border-white/20 bg-white/25 px-3 py-1.5 shadow-sm shadow-black/5 backdrop-blur-md">
               <span className="text-[10px] font-medium text-gray-700">
-                {totalIndexedJobs.toLocaleString()} jobs &middot;{" "}
-                {totalIndexedCities} cities indexed
+                {activePillCity.company_count.toLocaleString()} companies
+                &middot; {activePillCity.job_count.toLocaleString()} jobs
               </span>
             </div>
           )}
@@ -858,8 +833,10 @@ export function MapView() {
             </button>
             <div className="h-px w-full bg-black/10" />
             <button
-              aria-label="Go to my location"
-              onClick={() => geolocate(true)}
+              aria-label="World overview"
+              onClick={() =>
+                mapRef.current?.flyTo(HOME_CENTER, HOME_ZOOM, { duration: 1.2 })
+              }
               className="flex h-9 w-9 items-center justify-center text-gray-700 transition-colors hover:bg-white/50"
             >
               <Home className="h-3.5 w-3.5" aria-hidden="true" />
@@ -893,24 +870,6 @@ export function MapView() {
       <style>{`
         .leaflet-control-attribution { font-size: 10px; }
 
-        .location-dot {
-          position: relative; width: 20px; height: 20px;
-          display: flex; align-items: center; justify-content: center;
-        }
-        .location-dot::after {
-          content: ''; position: absolute; width: 12px; height: 12px;
-          background: #2563eb; border: 2.5px solid #fff; border-radius: 50%;
-          box-shadow: 0 1px 4px rgba(0,0,0,0.25);
-        }
-        .location-dot-ring {
-          position: absolute; width: 32px; height: 32px; border-radius: 50%;
-          background: rgba(37,99,235,0.15); animation: loc-ring 2s ease-out infinite;
-        }
-        @keyframes loc-ring {
-          0%   { transform: scale(0.4); opacity: 0.8; }
-          100% { transform: scale(1);   opacity: 0; }
-        }
-
         @keyframes pulse-green {
           0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
           60%       { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
@@ -921,8 +880,6 @@ export function MapView() {
         }
         .dot-pulse-green { animation: pulse-green 2.4s ease-out infinite; }
         .dot-pulse-red   { animation: pulse-red   2.4s ease-out infinite; }
-
-        .city-circle-marker { cursor: pointer; }
 
         .map-tt-wrap {
           background: transparent !important;

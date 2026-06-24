@@ -1,7 +1,30 @@
-import { ChevronLeft, ExternalLink, Loader2, MapPin } from "lucide-react";
+import {
+  ChevronLeft,
+  Clock,
+  ExternalLink,
+  Loader2,
+  MapPin,
+} from "lucide-react";
 import type { JobDetail } from "../types";
 import { relativeTime } from "../utils";
 import { CompanyAvatar } from "./CompanyAvatar";
+
+function formatAbsoluteDate(iso: string): string {
+  const d = new Date(iso);
+  const day = d.getDate();
+  const suffix =
+    day >= 11 && day <= 13
+      ? "th"
+      : day % 10 === 1
+        ? "st"
+        : day % 10 === 2
+          ? "nd"
+          : day % 10 === 3
+            ? "rd"
+            : "th";
+  const month = d.toLocaleDateString("en-GB", { month: "long" });
+  return `${day}${suffix} ${month} ${d.getFullYear()}`;
+}
 
 type Props = {
   job: JobDetail | null;
@@ -49,7 +72,6 @@ export function JobDetailView({ job, loading, onBack }: Props) {
         <div className="flex items-start gap-3">
           <CompanyAvatar
             name={job.company_name}
-            slug={job.company_slug}
             logoUrl={job.company_logo_url}
             size={40}
           />
@@ -73,14 +95,24 @@ export function JobDetailView({ job, loading, onBack }: Props) {
               {job.seniority}
             </span>
           )}
+          {job.job_type && (
+            <span className="rounded-full border border-black/8 bg-white/60 px-2 py-1 text-[11px] text-gray-600 capitalize">
+              {job.job_type}
+            </span>
+          )}
           {job.is_remote && (
-            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] text-emerald-600">
-              Remote OK
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] text-emerald-600 capitalize">
+              {job.remote_type === "hybrid" ? "Hybrid" : "Remote OK"}
             </span>
           )}
           {job.role_category && (
             <span className="rounded-full border border-black/8 bg-white/60 px-2 py-1 text-[11px] text-gray-600 capitalize">
               {job.role_category}
+            </span>
+          )}
+          {job.department && (
+            <span className="rounded-full border border-black/8 bg-white/60 px-2 py-1 text-[11px] text-gray-600">
+              {job.department}
             </span>
           )}
         </div>
@@ -104,21 +136,29 @@ export function JobDetailView({ job, loading, onBack }: Props) {
           </div>
         )}
 
-        {job.posted_at && (
-          <p className="text-[11px] text-gray-400">
-            Posted {relativeTime(job.posted_at)}
-          </p>
-        )}
-
-        <a
-          href={job.source_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-auto flex items-center justify-center gap-1.5 rounded-lg bg-gray-400 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-500"
-        >
-          Apply
-          <ExternalLink className="h-3.5 w-3.5" />
-        </a>
+        <div className="mt-auto flex flex-col gap-2">
+          {job.posted_at && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-black/8 bg-gray-50/60 px-2.5 py-2">
+              <Clock className="h-3 w-3 shrink-0 text-gray-400" />
+              <p className="text-[11px] text-gray-500">
+                <span className="text-gray-400">Last updated:</span>{" "}
+                {formatAbsoluteDate(job.posted_at)}{" "}
+                <span className="text-gray-400">
+                  ({relativeTime(job.posted_at)})
+                </span>
+              </p>
+            </div>
+          )}
+          <a
+            href={job.source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-black px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+          >
+            Apply now
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </div>
       </div>
     </div>
   );

@@ -16,7 +16,6 @@ export function JobCard({ job, onClick }: Props) {
       <div className="flex items-start gap-2.5">
         <CompanyAvatar
           name={job.company_name}
-          slug={job.company_slug}
           logoUrl={job.company_logo_url}
           size={28}
         />
@@ -46,8 +45,8 @@ export function JobCard({ job, onClick }: Props) {
               </span>
             )}
             {job.is_remote && (
-              <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
-                Remote
+              <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 capitalize">
+                {job.remote_type === "hybrid" ? "Hybrid" : "Remote"}
               </span>
             )}
           </div>

@@ -13,12 +13,7 @@ export function CompanyCard({ company, onClick }: Props) {
       onClick={onClick}
       className="group flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-black/20 focus-visible:outline-none"
     >
-      <CompanyAvatar
-        name={company.name}
-        slug={company.slug}
-        logoUrl={company.logo_url}
-        size={32}
-      />
+      <CompanyAvatar name={company.name} logoUrl={company.logo_url} size={32} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-gray-900">
           {company.name}

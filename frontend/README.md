@@ -21,7 +21,7 @@ React frontend for JobDex. Renders the landing page, interactive world map, and 
 ### Prerequisites
 
 - Node.js 22+
-- npm
+- npm 11+
 
 ### Installation
 

@@ -11,7 +11,7 @@ export function DefaultPanel() {
           Explore jobs worldwide
         </p>
         <p className="mt-1 text-xs text-gray-400">
-          Click any city pin on the map to see open roles
+          Click any company pin or search to find open roles
         </p>
       </div>
     </div>
