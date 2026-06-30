@@ -24,18 +24,91 @@ import {
 import type {
   CityPin,
   CompanyDetail,
+  CompanyJobsData,
   CompanyListItem,
   CompanyPin,
   Job,
   JobDetail,
+  MapCitiesData,
+  MapCompaniesData,
+  PaginatedCompaniesData,
+  PaginatedJobsData,
   PanelView,
 } from "./types";
+import { useStatusBar } from "./useStatusBar";
 import { escapeHtml } from "./utils";
 
-export function MapView() {
+function renderCompanyPins(
+  map: L.Map,
+  layerRef: { current: L.LayerGroup | null },
+  companies: CompanyPin[],
+  onCompanyClick: (slug: string) => void,
+) {
+  if (!layerRef.current) {
+    layerRef.current = L.layerGroup().addTo(map);
+  } else {
+    layerRef.current.clearLayers();
+  }
+
+  const byCoord = new Map<string, CompanyPin[]>();
+  for (const co of companies.slice(0, 200)) {
+    if (co.latitude == null || co.longitude == null) continue;
+    const key = `${co.latitude.toFixed(3)},${co.longitude.toFixed(3)}`;
+    const arr = byCoord.get(key) ?? [];
+    arr.push(co);
+    byCoord.set(key, arr);
+  }
+
+  for (const group of byCoord.values()) {
+    group.forEach((co, idx) => {
+      let lat = co.latitude!;
+      let lng = co.longitude!;
+
+      if (group.length > 1) {
+        const angle = (idx / group.length) * 2 * Math.PI - Math.PI / 2;
+        const ring = Math.floor(idx / 8);
+        const radius = 0.007 + ring * 0.006;
+        lat += Math.sin(angle) * radius;
+        lng += Math.cos(angle) * radius;
+      }
+
+      const wrap = document.createElement("div");
+      wrap.className = "company-pin";
+
+      if (co.logo_url) {
+        const img = document.createElement("img");
+        img.alt = "";
+        img.style.cssText = "width:100%;height:100%;object-fit:contain;";
+        img.onerror = () => {
+          wrap.innerHTML = co.name.charAt(0).toUpperCase();
+        };
+        img.src = co.logo_url;
+        wrap.appendChild(img);
+      } else {
+        wrap.textContent = co.name.charAt(0).toUpperCase();
+      }
+
+      const icon = L.divIcon({
+        className: "",
+        html: wrap as unknown as string,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+      });
+
+      const marker = L.marker([lat, lng], { icon });
+      marker.bindTooltip(
+        `<div class="map-tt"><strong>${escapeHtml(co.name)}</strong><span>${co.job_count} open roles</span></div>`,
+        { direction: "top", offset: [0, -8], className: "map-tt-wrap" },
+      );
+      marker.on("click", () => onCompanyClick(co.slug));
+      layerRef.current?.addLayer(marker);
+    });
+  }
+}
+
+export default function MapPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-
   const companyLayerRef = useRef<L.LayerGroup | null>(null);
 
   const jobsAbortRef = useRef<AbortController | null>(null);
@@ -50,29 +123,9 @@ export function MapView() {
   const filterRef = useRef<HTMLDivElement>(null);
   const filterRefMobile = useRef<HTMLDivElement>(null);
 
-  const [connected, setConnected] = useState<boolean | null>(null);
-  const [stars, setStars] = useState<number | null>(null);
-  const [indexedStats, setIndexedStats] = useState<{
-    jobs: number;
-    cities: number;
-  } | null>(null);
+  const { connected, stars, indexedStats } = useStatusBar();
   const [panelOpen, setPanelOpen] = useState(true);
   const [filterOpen, setFilterOpen] = useState(false);
-
-  useEffect(() => {
-    if (!filterOpen) return;
-    function handleClickOutside(e: MouseEvent) {
-      const target = e.target as Node;
-      const insideDesktop = filterRef.current?.contains(target) ?? false;
-      const insideMobile = filterRefMobile.current?.contains(target) ?? false;
-      if (!insideDesktop && !insideMobile) {
-        setFilterOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [filterOpen]);
-
   const [mapReady, setMapReady] = useState(false);
 
   const [roleFilter, setRoleFilter] = useState<string | null>(null);
@@ -129,42 +182,18 @@ export function MapView() {
   })();
 
   useEffect(() => {
-    let cancelled = false;
-    fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(4000) })
-      .then((r) => {
-        if (!cancelled) setConnected(r.ok);
-      })
-      .catch(() => {
-        if (!cancelled) setConnected(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    fetch(`https://api.github.com/repos/${GITHUB_REPO}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (typeof d.stargazers_count === "number")
-          setStars(d.stargazers_count);
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    fetch(`${API_BASE}/stats`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (
-          typeof d.active_jobs === "number" &&
-          typeof d.cities_with_jobs === "number"
-        ) {
-          setIndexedStats({ jobs: d.active_jobs, cities: d.cities_with_jobs });
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (!filterOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      const insideDesktop = filterRef.current?.contains(target) ?? false;
+      const insideMobile = filterRefMobile.current?.contains(target) ?? false;
+      if (!insideDesktop && !insideMobile) {
+        setFilterOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [filterOpen]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -229,9 +258,9 @@ export function MapView() {
     const qs = params.toString();
 
     fetch(`${API_BASE}/map/cities${qs ? `?${qs}` : ""}`, { signal: ac.signal })
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.cities) setCityPins(d.cities);
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: MapCitiesData) => {
+        setCityPins(d.cities);
       })
       .catch(() => {});
 
@@ -276,10 +305,15 @@ export function MapView() {
     if (remoteFilter !== null) params.set("is_remote", String(remoteFilter));
 
     fetch(`${API_BASE}/map/companies?${params}`, { signal: ac.signal })
-      .then((r) => r.json())
-      .then((d: { companies?: CompanyPin[] }) => {
-        if (!d.companies || !mapRef.current) return;
-        renderCompanyPins(mapRef.current, d.companies, handleCompanyClick);
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: MapCompaniesData) => {
+        if (!mapRef.current) return;
+        renderCompanyPins(
+          mapRef.current,
+          companyLayerRef,
+          d.companies,
+          handleCompanyClick,
+        );
       })
       .catch(() => {});
 
@@ -293,73 +327,6 @@ export function MapView() {
       loadJobs(selectedCity, null, true);
     }
   }, [roleFilter, remoteFilter]);
-
-  function renderCompanyPins(
-    map: L.Map,
-    companies: CompanyPin[],
-    onCompanyClick: (slug: string) => void,
-  ) {
-    if (!companyLayerRef.current) {
-      companyLayerRef.current = L.layerGroup().addTo(map);
-    } else {
-      companyLayerRef.current.clearLayers();
-    }
-
-    const byCoord = new Map<string, CompanyPin[]>();
-    for (const co of companies.slice(0, 200)) {
-      if (co.latitude == null || co.longitude == null) continue;
-      const key = `${co.latitude.toFixed(3)},${co.longitude.toFixed(3)}`;
-      const arr = byCoord.get(key) ?? [];
-      arr.push(co);
-      byCoord.set(key, arr);
-    }
-
-    for (const group of byCoord.values()) {
-      group.forEach((co, idx) => {
-        let lat = co.latitude!;
-        let lng = co.longitude!;
-
-        if (group.length > 1) {
-          const angle = (idx / group.length) * 2 * Math.PI - Math.PI / 2;
-          const ring = Math.floor(idx / 8);
-          const radius = 0.007 + ring * 0.006;
-          lat += Math.sin(angle) * radius;
-          lng += Math.cos(angle) * radius;
-        }
-
-        const wrap = document.createElement("div");
-        wrap.className = "company-pin";
-
-        if (co.logo_url) {
-          const img = document.createElement("img");
-          img.alt = "";
-          img.style.cssText = "width:100%;height:100%;object-fit:contain;";
-          img.onerror = () => {
-            wrap.innerHTML = co.name.charAt(0).toUpperCase();
-          };
-          img.src = co.logo_url;
-          wrap.appendChild(img);
-        } else {
-          wrap.textContent = co.name.charAt(0).toUpperCase();
-        }
-
-        const icon = L.divIcon({
-          className: "",
-          html: wrap as unknown as string,
-          iconSize: [26, 26],
-          iconAnchor: [13, 13],
-        });
-
-        const marker = L.marker([lat, lng], { icon });
-        marker.bindTooltip(
-          `<div class="map-tt"><strong>${escapeHtml(co.name)}</strong><span>${co.job_count} open roles</span></div>`,
-          { direction: "top", offset: [0, -8], className: "map-tt-wrap" },
-        );
-        marker.on("click", () => onCompanyClick(co.slug));
-        companyLayerRef.current?.addLayer(marker);
-      });
-    }
-  }
 
   const loadJobs = useCallback(
     async (city: string | null, cursor: string | null, replace: boolean) => {
@@ -380,12 +347,11 @@ export function MapView() {
         const r = await fetch(`${API_BASE}/jobs?${params}`, {
           signal: ac.signal,
         });
-        const d = await r.json();
+        if (!r.ok) return;
+        const d: PaginatedJobsData = await r.json();
 
-        if (d.jobs) {
-          setJobs((prev) => (replace ? d.jobs : [...prev, ...d.jobs]));
-          setNextCursor(d.next_cursor ?? null);
-        }
+        setJobs((prev) => (replace ? d.jobs : [...prev, ...d.jobs]));
+        setNextCursor(d.next_cursor ?? null);
       } catch {
       } finally {
         setJobsLoading(false);
@@ -417,9 +383,9 @@ export function MapView() {
       if (remoteFilter !== null) params.set("is_remote", String(remoteFilter));
 
       fetch(`${API_BASE}/companies?${params}`, { signal: ac.signal })
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.companies) setCompanies(d.companies);
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((d: PaginatedCompaniesData) => {
+          setCompanies(d.companies);
         })
         .catch(() => {})
         .finally(() => setCompaniesLoading(false));
@@ -448,25 +414,22 @@ export function MapView() {
       Promise.all([
         fetch(`${API_BASE}/companies/${encodeURIComponent(slug)}`, {
           signal: ac.signal,
-        }).then((r) => r.json()),
+        }).then((r) => (r.ok ? r.json() : Promise.reject())),
         fetch(
           `${API_BASE}/companies/${encodeURIComponent(slug)}/jobs?${jobsParams}`,
           { signal: ac.signal },
-        ).then((r) => r.json()),
+        ).then((r) => (r.ok ? r.json() : Promise.reject())),
       ])
-        .then(([detail, jobsData]) => {
-          setSelectedCompany(detail as CompanyDetail);
-          if (jobsData.jobs) {
-            setJobs(jobsData.jobs);
-            setNextCursor(
-              jobsData.total > jobsData.jobs.length ? "more" : null,
-            );
-          }
+        .then(([detail, jobsData]: [CompanyDetail, CompanyJobsData]) => {
+          setSelectedCompany(detail);
+          setJobs(jobsData.jobs);
+          setNextCursor(jobsData.total > jobsData.jobs.length ? "more" : null);
           const map = mapRef.current;
           if (map && !selectedCity) {
-            const co = detail as CompanyDetail;
-            if (co.latitude && co.longitude) {
-              map.flyTo([co.latitude, co.longitude], 10, { duration: 1.2 });
+            if (detail.latitude && detail.longitude) {
+              map.flyTo([detail.latitude, detail.longitude], 10, {
+                duration: 1.2,
+              });
             }
           }
         })
@@ -494,12 +457,10 @@ export function MapView() {
     if (remoteFilter !== null) params.set("is_remote", String(remoteFilter));
 
     fetch(`${API_BASE}/jobs?${params}`, { signal: ac.signal })
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.jobs) {
-          setJobs(d.jobs);
-          setNextCursor(d.next_cursor ?? null);
-        }
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: PaginatedJobsData) => {
+        setJobs(d.jobs);
+        setNextCursor(d.next_cursor ?? null);
       })
       .catch(() => {})
       .finally(() => setJobsLoading(false));
@@ -531,7 +492,7 @@ export function MapView() {
     fetch(`${API_BASE}/jobs/${encodeURIComponent(jobId)}`, {
       signal: ac.signal,
     })
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d: JobDetail) => setJobDetail(d))
       .catch(() => {})
       .finally(() => setJobDetailLoading(false));
@@ -552,13 +513,11 @@ export function MapView() {
       fetch(
         `${API_BASE}/companies/${encodeURIComponent(selectedCompany.slug)}/jobs?${loadParams}`,
       )
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.jobs) {
-            const allJobs = [...jobs, ...d.jobs];
-            setJobs(allJobs);
-            setNextCursor(d.total > allJobs.length ? "more" : null);
-          }
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((d: CompanyJobsData) => {
+          const allJobs = [...jobs, ...d.jobs];
+          setJobs(allJobs);
+          setNextCursor(d.total > allJobs.length ? "more" : null);
         })
         .catch(() => {})
         .finally(() => setLoadingMore(false));

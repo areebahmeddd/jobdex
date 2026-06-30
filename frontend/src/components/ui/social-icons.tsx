@@ -13,7 +13,7 @@ export function GitHubIcon({ className }: { className?: string }) {
   );
 }
 
-export function XIcon({ className }: { className?: string }) {
+function XIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -26,7 +26,7 @@ export function XIcon({ className }: { className?: string }) {
   );
 }
 
-export function LinkedInIcon({ className }: { className?: string }) {
+function LinkedInIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -39,7 +39,7 @@ export function LinkedInIcon({ className }: { className?: string }) {
   );
 }
 
-export function InstagramIcon({ className }: { className?: string }) {
+function InstagramIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -52,7 +52,7 @@ export function InstagramIcon({ className }: { className?: string }) {
   );
 }
 
-export function FacebookIcon({ className }: { className?: string }) {
+function FacebookIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}

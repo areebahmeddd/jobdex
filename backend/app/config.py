@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     ENRICHMENT_REQUEST_TIMEOUT: float = 15.0
     ENRICHMENT_STEP_DELAY: float = 0.5
 
+    ALLOWED_ORIGINS: list[str] = [
+        "https://jobdex-api.1mindlabs.org",
+        "https://jobdex.1mindlabs.org",
+        "http://localhost:3000",
+    ]
+
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""
 

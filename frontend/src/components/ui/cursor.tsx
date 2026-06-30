@@ -6,7 +6,7 @@ interface Position {
   y: number;
 }
 
-export interface SmoothCursorProps {
+interface SmoothCursorProps {
   cursor?: React.ReactNode;
   springConfig?: {
     damping: number;

@@ -10,10 +10,6 @@ export function relativeTime(dateStr: string | null): string {
   });
 }
 
-export function markerRadius(jobCount: number): number {
-  return Math.max(5, Math.min(18, 5 + Math.log2(jobCount + 1) * 2.2));
-}
-
 export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")

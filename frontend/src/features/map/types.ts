@@ -57,14 +57,6 @@ export type CompanyDetail = CompanyListItem & {
   departments: string[];
 };
 
-export type CompanyOffice = {
-  city: string;
-  country_code: string | null;
-  latitude: number;
-  longitude: number;
-  job_count: number;
-};
-
 export type Job = {
   id: string;
   company_id: string;
@@ -92,6 +84,36 @@ export type Job = {
 export type JobDetail = Job & {
   location_raw: string | null;
   description: string | null;
+};
+
+export type MapCitiesData = {
+  cities: CityPin[];
+  total: number;
+};
+
+export type MapCompaniesData = {
+  companies: CompanyPin[];
+  total: number;
+};
+
+export type PaginatedCompaniesData = {
+  companies: CompanyListItem[];
+  total: number;
+};
+
+export type CompanyJobsData = {
+  jobs: Job[];
+  total: number;
+};
+
+export type PaginatedJobsData = {
+  jobs: Job[];
+  next_cursor: string | null;
+};
+
+export type StatsData = {
+  active_jobs: number;
+  cities_with_jobs: number;
 };
 
 export type PanelView =

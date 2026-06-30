@@ -1,0 +1,16 @@
+# JobDex
+
+> Open-source global index of startup hiring by city. Aggregates job listings from Greenhouse, Lever, Ashby, and YCombinator ATS providers and plots them on an interactive world map. No login required.
+
+## Pages
+
+- [Home](https://jobdex.1mindlabs.org/): Landing page with project overview and globe visualization
+- [Map](https://jobdex.1mindlabs.org/map): Interactive world map with city and company-level job pins, search, and role/remote filters
+
+## API
+
+- [API Reference](https://jobdex-api.1mindlabs.org/docs): REST API for jobs, companies, cities, map pins, and platform stats. Fully public, no authentication required.
+
+## Optional
+
+- [GitHub](https://github.com/areebahmeddd/jobdex): Source code, issue tracker, and contribution guide (MIT license)

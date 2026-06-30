@@ -4,6 +4,7 @@ import uuid
 
 import razorpay
 from fastapi import APIRouter, HTTPException
+from loguru import logger
 
 from app.config import settings
 from app.schemas import OrderRequest, OrderResponse, VerifyRequest, VerifyResponse
@@ -35,7 +36,8 @@ def create_order(body: OrderRequest):
             }
         )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Order creation failed: {exc}") from exc
+        logger.error(f"[payments] order creation failed: {exc}")
+        raise HTTPException(status_code=502, detail="Payment service unavailable.") from exc
 
     return OrderResponse(
         order_id=order["id"],

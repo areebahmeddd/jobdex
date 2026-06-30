@@ -4,12 +4,57 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Primary meta -->
   <title>JobDex: Map-First Job Discovery</title>
   <meta name="description"
     content="A global index of startup hiring by city. Explore jobs on an interactive world map." />
-  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="canonical" href="https://jobdex.1mindlabs.org" />
-  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="JobDex: Map-First Job Discovery" />
+  <meta property="og:description"
+    content="A global index of startup hiring by city. Explore jobs on an interactive world map." />
+  <meta property="og:url" content="https://jobdex.1mindlabs.org" />
+  <meta property="og:image" content="https://jobdex.1mindlabs.org/logo-light.svg" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="JobDex: Map-First Job Discovery" />
+  <meta name="twitter:description"
+    content="A global index of startup hiring by city. Explore jobs on an interactive world map." />
+
+  <!-- Preconnect for external origins -->
+  <link rel="preconnect" href="https://checkout.razorpay.com" />
+  <link rel="preconnect" href="https://cdn.simpleicons.org" />
+
+  <!-- Third-party scripts — deferred so they do not block rendering -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
+
+  <!-- Structured data -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "JobDex",
+      "url": "https://jobdex.1mindlabs.org",
+      "description": "A global index of startup hiring by city. Explore jobs on an interactive world map.",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "Areeb Ahmed",
+        "url": "https://github.com/areebahmeddd"
+      }
+    }
+  </script>
 </head>
 
 <body>

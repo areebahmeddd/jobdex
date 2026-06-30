@@ -23,9 +23,6 @@ importers:
       cobe:
         specifier: ^2.0.1
         version: 2.0.1
-      framer-motion:
-        specifier: ^12.40.0
-        version: 12.42.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4

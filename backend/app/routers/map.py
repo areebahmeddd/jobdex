@@ -108,7 +108,7 @@ def map_companies(
     if country_code:
         q = q.filter(resolved_cc == country_code.upper())
 
-    rows = q.order_by(func.count(filtered_jobs.c.id).desc()).all()
+    rows = q.order_by(func.count(filtered_jobs.c.id).desc()).limit(500).all()
 
     if response is not None:
         response.headers["Cache-Control"] = "public, max-age=120, stale-while-revalidate=30"
@@ -188,7 +188,7 @@ def map_cities(
     if lng_max is not None:
         city_q = city_q.filter(City.longitude <= lng_max)
 
-    rows = city_q.order_by(City.name).all()
+    rows = city_q.order_by(City.name).limit(500).all()
 
     if response is not None:
         response.headers["Cache-Control"] = "public, max-age=120, stale-while-revalidate=30"

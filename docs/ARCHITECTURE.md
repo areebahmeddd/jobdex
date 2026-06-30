@@ -78,6 +78,15 @@ Additional filters: `region`, `country_code`, `role`, `is_remote`
 
 Response fields: `total_companies` (active), `total_jobs` (all-time), `active_jobs`, `total_cities`, `cities_with_jobs`, `role_categories`, `top_cities`, `top_regions`, `ats_breakdown`.
 
+### Payments `/payments`
+
+| Method | Path                | Description                              |
+| ------ | ------------------- | ---------------------------------------- |
+| `POST` | `/payments/orders`  | Create a Razorpay order for a donation   |
+| `POST` | `/payments/verify`  | Verify Razorpay payment signature        |
+
+Requires `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in the environment. The `key_id` is returned from `/payments/orders` and used by the frontend to initialise Razorpay Checkout. Signature verification uses HMAC-SHA256 over `order_id|payment_id` with `compare_digest` for constant-time comparison.
+
 ### Meta
 
 | Method | Path      | Description                         |

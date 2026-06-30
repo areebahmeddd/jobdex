@@ -88,18 +88,21 @@ async def run_discovery() -> None:
             logger.error(f"[scheduler] discovery failed for {ats_name}: {exc}")
             continue
 
-        for stub in stubs:
-            with get_session() as db:
-                existing = db.query(Company).filter(Company.slug == stub.slug).first()
+        if not stubs:
+            continue
 
-            if existing:
-                skipped += 1
-                continue
-
-            with get_session() as db:
+        stub_slugs = [s.slug for s in stubs]
+        with get_session() as db:
+            existing_slugs = {
+                row.slug
+                for row in db.query(Company.slug).filter(Company.slug.in_(stub_slugs)).all()
+            }
+            new_stubs = [s for s in stubs if s.slug not in existing_slugs]
+            for stub in new_stubs:
                 db.add(stub)
-                db.commit()
-            added += 1
+            db.commit()
+        added += len(new_stubs)
+        skipped += len(stubs) - len(new_stubs)
 
     logger.info(f"[scheduler] discovery complete — added={added} skipped={skipped}")
 

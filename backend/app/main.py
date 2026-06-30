@@ -34,9 +34,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 app.include_router(jobs.router)
@@ -61,7 +61,7 @@ def root():
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "docs": "/docs",
-        "supported_ats": ["ashy", "greenhouse", "lever", "ycombinator"],
+        "supported_ats": ["ashby", "greenhouse", "lever", "ycombinator"],
         "endpoints": {
             "jobs": "GET /jobs?city=&role_category=&seniority=&is_remote=&q=&cursor=",
             "companies": "GET /companies?city=&industry=&country_code=&region=",

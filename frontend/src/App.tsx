@@ -1,5 +1,5 @@
-import LandingPage from "@/pages/LandingPage";
-import MapPage from "@/pages/MapPage";
+import LandingPage from "@/features/landing/LandingPage";
+import MapPage from "@/features/map/MapPage";
 import { Route, Routes } from "react-router-dom";
 
 export default function App() {

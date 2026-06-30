@@ -13,7 +13,7 @@ uv run pytest --tb=short -q                              # quiet
 
 ## Coverage
 
-**133 tests -- 89 unit, 44 integration | 64% line coverage**
+**145 tests -- 101 unit, 44 integration | 64% line coverage**
 
 ## Files
 
@@ -24,6 +24,7 @@ uv run pytest --tb=short -q                              # quiet
 | `unit/test_classifiers.py` | 42    | `classify_seniority`, `classify_role`, `extract_tech_stack`, `normalize_job_type` |
 | `unit/test_location.py`    | 35    | `canonicalize_city`, `get_region_for_country`                                     |
 | `unit/test_text.py`        | 12    | `strip_html`, `make_snippet`                                                      |
+| `unit/test_payments.py`    | 12    | `create_order` (validation), `verify_payment` (HMAC)                              |
 
 ### Integration
 
