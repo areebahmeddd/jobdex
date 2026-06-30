@@ -13,7 +13,7 @@ React frontend for JobDex. Renders the landing page, interactive world map, and 
 | UI Extras             | Magic UI (Globe, Highlighter) |
 | Map                   | Leaflet + OpenStreetMap       |
 | Routing               | React Router v7               |
-| Dependency Management | npm                           |
+| Dependency Management | pnpm                          |
 | Deployment            | Docker + nginx                |
 
 ## Getting Started
@@ -21,20 +21,20 @@ React frontend for JobDex. Renders the landing page, interactive world map, and 
 ### Prerequisites
 
 - Node.js 22+
-- npm 11+
+- pnpm 11+
 
 ### Installation
 
 ```bash
 git clone <repo-url>
 cd jobdex/frontend
-npm install
+pnpm install
 ```
 
 ### Running Locally
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Available at `http://localhost:3000`.

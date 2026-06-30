@@ -3,10 +3,30 @@ name: Code Quality and Testing
 on:
   pull_request:
     branches: [main]
+    paths-ignore:
+      - "frontend/**"
+      - "docs/**"
+      - "**/*.md"
+      - "LICENSE"
+      - "PLAN.md"
+      - "docker-compose.yaml"
+      - "backend/Dockerfile"
+      - "backend/.dockerignore"
+      - "backend/.env.example"
   pull_request_review:
     types: [submitted]
   push:
     branches: [main]
+    paths-ignore:
+      - "frontend/**"
+      - "docs/**"
+      - "**/*.md"
+      - "LICENSE"
+      - "PLAN.md"
+      - "docker-compose.yaml"
+      - "backend/Dockerfile"
+      - "backend/.dockerignore"
+      - "backend/.env.example"
   workflow_dispatch:
 
 permissions:
