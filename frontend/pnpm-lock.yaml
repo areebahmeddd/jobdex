@@ -42,7 +42,7 @@ importers:
         specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
       react-router-dom:
-        specifier: ^7.18.1
+        specifier: ^7.18.0
         version: 7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       rough-notation:
         specifier: ^0.5.1
@@ -61,7 +61,7 @@ importers:
         specifier: ^1.9.21
         version: 1.9.21
       '@types/node':
-        specifier: ^26.0.1
+        specifier: ^26.0.0
         version: 26.0.1
       '@types/react':
         specifier: ^19.2.17

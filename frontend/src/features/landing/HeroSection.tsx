@@ -60,13 +60,13 @@ export function HeroSection() {
     <>
       <DonateModal open={donateOpen} onClose={() => setDonateOpen(false)} />
 
-      <section className="pt-12 pb-8 sm:pt-20 sm:pb-12">
-        <div className="mx-auto w-full max-w-2xl px-6 md:px-4 lg:px-0">
+      <section className="pt-12 pb-12 sm:pt-20 sm:pb-20">
+        <div className="mx-auto w-full max-w-2xl px-6 lg:px-0">
           <div className="text-center">
             <h1 className="mx-auto max-w-xl text-4xl font-medium tracking-tight text-balance text-gray-950 sm:text-5xl">
               A global index of startup hiring by city.
             </h1>
-            <p className="text-muted-foreground mx-auto mt-4 max-w-md text-lg text-balance">
+            <p className="mx-auto mt-5 max-w-md text-lg text-balance text-gray-500">
               Aggregates startup jobs from hundreds of hiring sources onto a{" "}
               <Highlighter
                 action="underline"
@@ -81,7 +81,7 @@ export function HeroSection() {
 
             <nav
               aria-label="Primary actions"
-              className="mt-6 inline-flex items-center gap-1 rounded-full border border-black/10 bg-white/90 px-2 py-1.5 shadow-lg shadow-black/8 backdrop-blur-md"
+              className="mt-6 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/90 px-2.5 py-1.5 shadow-lg shadow-black/8 backdrop-blur-md"
             >
               <Link
                 to="/map"
@@ -135,13 +135,13 @@ export function HeroSection() {
             </nav>
           </div>
 
-          <div className="relative mt-6 w-full sm:mt-8">
+          <div className="relative mt-8 w-full sm:mt-10">
             <div className="mx-auto aspect-square w-full max-w-xl">
               <Globe className="!absolute !inset-0" />
             </div>
           </div>
 
-          <div className="mt-8 flex flex-col items-center gap-2 sm:mt-16 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-6">
+          <div className="mt-8 flex flex-col items-center gap-3 sm:mt-10 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-6">
             <span className="text-xs text-gray-400">Powered by</span>
             <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 sm:contents">
               {TECH_STACK.map((tech) => (

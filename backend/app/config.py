@@ -36,5 +36,8 @@ class Settings(BaseSettings):
     ENRICHMENT_REQUEST_TIMEOUT: float = 15.0
     ENRICHMENT_STEP_DELAY: float = 0.5
 
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+
 
 settings = Settings()

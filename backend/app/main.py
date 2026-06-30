@@ -7,7 +7,7 @@ from loguru import logger
 from app import scheduler as _scheduler
 from app.config import settings
 from app.database import migrate_db
-from app.routers import cities, companies, jobs, map, search, stats
+from app.routers import cities, companies, jobs, map, payments, search, stats
 from app.startup import seed_cities
 
 
@@ -41,10 +41,11 @@ app.add_middleware(
 
 app.include_router(jobs.router)
 app.include_router(companies.router)
-app.include_router(search.router)
 app.include_router(cities.router)
+app.include_router(search.router)
 app.include_router(map.router)
 app.include_router(stats.router)
+app.include_router(payments.router)
 
 
 @app.get("/health", tags=["meta"])

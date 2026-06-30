@@ -32,7 +32,7 @@ export function FilterDropdown({
               onClick={() => onRoleChange(opt.value)}
               className={`rounded-lg px-2 py-1.5 text-left text-xs transition-colors ${
                 roleFilter === opt.value
-                  ? "bg-green-400 text-white"
+                  ? "bg-black text-white"
                   : "text-gray-600 hover:bg-gray-50"
               }`}
             >
@@ -52,7 +52,7 @@ export function FilterDropdown({
               onClick={() => onRemoteChange(opt.value)}
               className={`flex-1 rounded-lg py-1.5 text-xs transition-colors ${
                 remoteFilter === opt.value
-                  ? "bg-green-400 text-white"
+                  ? "bg-black text-white"
                   : "border border-black/8 text-gray-600 hover:bg-gray-50"
               }`}
             >

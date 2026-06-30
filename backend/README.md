@@ -43,6 +43,8 @@ cp .env.example .env
 
 Set `DATABASE_URL` to your Neon connection string.
 
+For donations, set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` from the [Razorpay Dashboard](https://dashboard.razorpay.com) -> Account & Settings -> API Keys.
+
 ### Running
 
 ```bash
@@ -71,8 +73,10 @@ API: `http://localhost:8000` | Docs: `http://localhost:8000/docs`
 | `GET`  | `/map/companies`                | Company pins               |
 | `GET`  | `/map/cities`                   | City cluster pins          |
 | `GET`  | `/map/companies/{slug}/offices` | Office locations           |
+| `POST` | `/payments/orders`              | Create a donation order    |
+| `POST` | `/payments/verify`              | Verify payment signature   |
 
-All endpoints are public.
+All read endpoints are public. Payment endpoints require valid Razorpay API keys.
 
 ### Search Filters
 

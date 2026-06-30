@@ -415,7 +415,7 @@ export function CompanyDetailView({
         )}
 
         <div className="flex flex-col">
-          <div className="border-b border-black/8 px-3 py-2">
+          <div className="border-b border-black/8 px-3 py-3">
             <div className="flex items-center gap-2">
               <Briefcase className="h-3 w-3 text-gray-400" />
               <span className="text-[11px] text-gray-400">

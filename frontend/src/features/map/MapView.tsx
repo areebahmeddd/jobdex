@@ -698,7 +698,7 @@ export function MapView() {
 
         <nav
           aria-label="Status"
-          className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full border border-black/10 bg-white/90 px-2 py-1.5 shadow-sm shadow-black/5 backdrop-blur-md"
+          className="ml-auto inline-flex shrink-0 items-center gap-2 rounded-full border border-black/10 bg-white/90 px-2.5 py-1.5 shadow-sm shadow-black/5 backdrop-blur-md"
         >
           <div className="flex items-center gap-1.5 px-1.5 py-0.5">
             <span

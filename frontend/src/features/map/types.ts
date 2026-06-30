@@ -95,8 +95,4 @@ export type JobDetail = Job & {
 };
 
 export type PanelView =
-  | "default"
-  | "companies"
-  | "company-detail"
-  | "jobs"
-  | "job-detail";
+  "default" | "companies" | "company-detail" | "jobs" | "job-detail";

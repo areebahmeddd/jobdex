@@ -269,3 +269,28 @@ class OfficePin(BaseModel):
 
 class CompanyOfficesResponse(BaseModel):
     offices: list[OfficePin]
+
+
+# Payments
+
+
+class OrderRequest(BaseModel):
+    amount: int
+
+
+class OrderResponse(BaseModel):
+    order_id: str
+    amount: int
+    currency: str
+    key_id: str
+
+
+class VerifyRequest(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+
+class VerifyResponse(BaseModel):
+    status: str
+    payment_id: str
