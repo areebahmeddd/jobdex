@@ -62,6 +62,9 @@ def list_companies(
     industry: str | None = Query(None),
     stage: str | None = Query(None),
     ats_type: str | None = Query(None),
+    has_errors: bool | None = Query(
+        None, description="true = only companies with a crawl error; false = only error-free"
+    ),
     q: str | None = Query(None, description="Search company name / description"),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -80,6 +83,10 @@ def list_companies(
         base = base.filter(Company.stage == stage.lower())
     if ats_type:
         base = base.filter(Company.ats_type == ats_type.lower())
+    if has_errors is True:
+        base = base.filter(Company.crawl_error.isnot(None))
+    elif has_errors is False:
+        base = base.filter(Company.crawl_error.is_(None))
     if q:
         base = base.filter(Company.name.ilike(f"%{q}%") | Company.description.ilike(f"%{q}%"))
     if industry:

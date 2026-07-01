@@ -1,7 +1,9 @@
 import asyncio
+from datetime import UTC, datetime, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from loguru import logger
+from sqlalchemy import or_
 
 from app.config import settings
 from app.database import get_session
@@ -43,24 +45,35 @@ async def run_ingestion() -> None:
         await asyncio.sleep(settings.CRAWL_DELAY)
 
     logger.info(
-        f"[scheduler] ingestion complete — new={total_new} updated={total_updated} errors={errors}"
+        f"[scheduler] ingestion complete: new={total_new} updated={total_updated} errors={errors}"
     )
 
 
 async def run_enrichment() -> None:
-    """Enrich companies that have not yet been enriched with Wikidata/Wikipedia data."""
+    """Enrich pending companies with Wikidata/Wikipedia data; re-enriches after ENRICH_REFRESH_DAYS."""
     logger.info("[scheduler] enrichment run started")
     enriched = 0
     errors = 0
+    cutoff = datetime.now(UTC) - timedelta(days=settings.ENRICH_REFRESH_DAYS)
 
     with get_session() as db:
         slugs = [
             company.slug
             for company in db.query(Company)
-            .filter(Company.is_active.is_(True), Company.enriched_at.is_(None))
-            .order_by(Company.name)
+            .filter(
+                Company.is_active.is_(True),
+                or_(
+                    Company.enriched_at.is_(None),
+                    Company.enriched_at < cutoff,
+                ),
+            )
+            .order_by(Company.enriched_at.asc().nullsfirst(), Company.name)
             .all()
         ]
+
+    if not slugs:
+        logger.info("[scheduler] enrichment complete: nothing pending")
+        return
 
     for slug in slugs:
         try:
@@ -72,7 +85,7 @@ async def run_enrichment() -> None:
             errors += 1
         await asyncio.sleep(settings.ENRICHMENT_STEP_DELAY)
 
-    logger.info(f"[scheduler] enrichment complete — enriched={enriched} errors={errors}")
+    logger.info(f"[scheduler] enrichment complete: enriched={enriched} errors={errors}")
 
 
 async def run_discovery() -> None:
@@ -104,7 +117,7 @@ async def run_discovery() -> None:
         added += len(new_stubs)
         skipped += len(stubs) - len(new_stubs)
 
-    logger.info(f"[scheduler] discovery complete — added={added} skipped={skipped}")
+    logger.info(f"[scheduler] discovery complete: added={added} skipped={skipped}")
 
 
 def start() -> None:

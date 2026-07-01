@@ -7,7 +7,9 @@ import httpx2 as httpx
 from loguru import logger
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from tenacity import AsyncRetrying, retry_if_exception, stop_after_attempt, wait_exponential
 
+from app.config import settings
 from app.ingestion.normalizer import get_region_for_country, is_blocked_location
 from app.models import Company, Job
 from app.schemas import IngestResponse
@@ -15,6 +17,42 @@ from app.schemas import IngestResponse
 # Shared limits used by all ingester build_job() implementations.
 _TECH_EXTRACT_CHARS: int = 2000
 _DESCRIPTION_MAX_CHARS: int = 20000
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """Return True for transient HTTP/network errors that warrant a retry."""
+    if isinstance(exc, httpx.RequestError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in {429, 500, 502, 503, 504}
+    return False
+
+
+async def _fetch_raw_with_retry(ingester: "BaseIngester", slug: str) -> list[dict]:
+    """Call fetch_raw with exponential backoff for transient ATS API errors."""
+
+    def _before_sleep(retry_state) -> None:
+        exc = retry_state.outcome.exception()
+        logger.warning(
+            f"[{ingester.ats_type}] '{slug}' fetch attempt {retry_state.attempt_number} failed"
+            f" ({type(exc).__name__}: {exc}); retrying..."
+        )
+
+    result: list[dict] = []
+    async for attempt in AsyncRetrying(
+        retry=retry_if_exception(_is_retryable),
+        stop=stop_after_attempt(settings.HTTP_RETRY_ATTEMPTS),
+        wait=wait_exponential(
+            multiplier=1,
+            min=settings.HTTP_RETRY_MIN_WAIT,
+            max=settings.HTTP_RETRY_MAX_WAIT,
+        ),
+        before_sleep=_before_sleep,
+        reraise=True,
+    ):
+        with attempt:
+            result = await ingester.fetch_raw(slug)
+    return result
 
 
 def _backfill_company_hq(company: Company, db: Session) -> None:
@@ -140,7 +178,7 @@ class BaseIngester(ABC):
                 )
 
         try:
-            raw_jobs = await self.fetch_raw(slug)
+            raw_jobs = await _fetch_raw_with_retry(self, slug)
         except httpx.HTTPStatusError as exc:
             msg = f"HTTP {exc.response.status_code} from {self.ats_type} board '{slug}'"
             logger.error(msg)
@@ -160,7 +198,7 @@ class BaseIngester(ABC):
         logger.info(f"[{self.ats_type}] '{slug}' -> {len(raw_jobs)} raw jobs")
 
         existing_rows = (
-            db.query(Job.dedup_hash, Job.id, Job.is_active)
+            db.query(Job.dedup_hash, Job.id, Job.is_active, Job.last_seen_at)
             .filter(Job.company_id == company.id, Job.dedup_hash.isnot(None))
             .all()
         )
@@ -170,16 +208,25 @@ class BaseIngester(ABC):
 
         now = datetime.now(tz=UTC)
 
+        # Skip the UPDATE for jobs that are active and already touched today.
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        fresh_hashes: set[str] = {
+            row.dedup_hash
+            for row in existing_rows
+            if row.is_active and row.last_seen_at is not None and row.last_seen_at >= today_start
+        }
+
         for raw in raw_jobs:
             try:
                 job_id = self.extract_job_id(raw)
                 dedup_hash = self.make_hash(slug, job_id)
                 seen_hashes.add(dedup_hash)
                 if dedup_hash in existing_hash_to_id:
-                    db.query(Job).filter(Job.id == existing_hash_to_id[dedup_hash]).update(
-                        {"last_seen_at": now, "is_active": True},
-                        synchronize_session=False,
-                    )
+                    if dedup_hash not in fresh_hashes:
+                        db.query(Job).filter(Job.id == existing_hash_to_id[dedup_hash]).update(
+                            {"last_seen_at": now, "is_active": True},
+                            synchronize_session=False,
+                        )
                     result.updated_jobs += 1
                 else:
                     job = self.build_job(raw, company, slug)

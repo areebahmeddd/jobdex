@@ -35,7 +35,7 @@ Pagination defaults to offset-based. Pass `cursor` (returned as `next_cursor`) f
 | `GET`  | `/companies/{slug}`      | Full company profile (active companies only) |
 | `GET`  | `/companies/{slug}/jobs` | Paginated jobs for a specific company        |
 
-Filters: `city`, `country_code`, `region`, `industry`, `stage`, `ats_type`, `q` (name/description ILIKE), `limit`, `offset`
+Filters: `city`, `country_code`, `region`, `industry`, `stage`, `ats_type`, `has_errors` (boolean, filters by `crawl_error` presence), `q` (name/description ILIKE), `limit`, `offset`
 
 ### Search `/search`
 
@@ -101,7 +101,7 @@ All jobs run in-process via APScheduler. No separate worker is needed.
 | Job ID               | Interval | Function         | Description                                                    |
 | -------------------- | -------- | ---------------- | -------------------------------------------------------------- |
 | `ingest_all`         | 6 h      | `run_ingestion`  | Crawls all active companies, oldest-first                      |
-| `enrich_pending`     | 12 h     | `run_enrichment` | Enriches companies where `enriched_at IS NULL`                 |
+| `enrich_pending`     | 12 h     | `run_enrichment` | Enriches companies with null or stale `enriched_at`                                     |
 | `discover_companies` | 24 h     | `run_discovery`  | Seeds new companies from ingesters that implement `discover()` |
 
 Intervals are configurable via `INGEST_INTERVAL_HOURS`, `ENRICH_INTERVAL_HOURS`, and `DISCOVER_INTERVAL_HOURS`.
@@ -191,7 +191,7 @@ Jobs with `country_code = IL` or a city matching `israel`, `tel aviv`, `haifa`, 
 
 ## Enrichment Pipeline
 
-Processes companies where `enriched_at IS NULL`, ordered alphabetically. Once enriched, `enriched_at` is set and the company is skipped on all future runs.
+Processes companies where `enriched_at IS NULL` or where `enriched_at` is older than `ENRICH_REFRESH_DAYS` days (default 90), ordered oldest-first. Re-enrichment refreshes all fields.
 
 Wikidata provides structured facts: founders, key investors, total funding, funding stage, business model, headcount range, and social profile handles. Wikipedia provides the long-form company description. Social links from Wikidata are merged with any existing `social_links` rather than overwriting them.
 

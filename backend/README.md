@@ -102,7 +102,7 @@ Runs in-process. No separate worker needed.
 | Job                 | Interval | Description                                            |
 | ------------------- | -------- | ------------------------------------------------------ |
 | `ingest_all`        | 6 h      | Crawls active companies, oldest-first                  |
-| `enrich_pending`    | 12 h     | Enriches companies with null `enriched_at`             |
+| `enrich_pending`    | 12 h     | Enriches companies with null or stale `enriched_at`    |
 | `discover_companies`| 24 h     | Seeds new companies from ingesters with bulk discovery |
 
 Configurable via `INGEST_INTERVAL_HOURS`, `ENRICH_INTERVAL_HOURS`, and `DISCOVER_INTERVAL_HOURS`.

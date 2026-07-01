@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "JobDex API"
     APP_VERSION: str = "1.0.0"
     APP_DESCRIPTION: str = "A global index of startup hiring by city"
+    API_URL: str = "http://localhost:8000"
     DEBUG: bool = False
 
     DATABASE_URL: str = "postgresql://localhost/jobdex"
@@ -35,6 +36,11 @@ class Settings(BaseSettings):
     ENRICHMENT_BOT_AGENT: str = "JobDex/1.0 (+https://github.com/areebahmeddd/jobdex)"
     ENRICHMENT_REQUEST_TIMEOUT: float = 15.0
     ENRICHMENT_STEP_DELAY: float = 0.5
+    ENRICH_REFRESH_DAYS: int = 90
+
+    HTTP_RETRY_ATTEMPTS: int = 3
+    HTTP_RETRY_MIN_WAIT: float = 2.0
+    HTTP_RETRY_MAX_WAIT: float = 30.0
 
     ALLOWED_ORIGINS: list[str] = [
         "https://jobdex-api.1mindlabs.org",
