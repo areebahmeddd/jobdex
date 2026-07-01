@@ -1,11 +1,11 @@
-import { ChevronDown, Loader2, MapPin, Search, X } from "lucide-react";
 import type {
   CompanyDetail,
   CompanyListItem,
   Job,
   JobDetail,
   PanelView,
-} from "../types";
+} from "@/types";
+import { ChevronDown, Loader2, MapPin, Search, X } from "lucide-react";
 import { CompanyCard } from "./CompanyCard";
 import { CompanyDetailView } from "./CompanyDetailView";
 import { DefaultPanel } from "./DefaultPanel";

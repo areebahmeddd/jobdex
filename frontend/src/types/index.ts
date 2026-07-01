@@ -23,6 +23,17 @@ export type CompanyPin = {
   industry: string[];
 };
 
+export type CompanyBrief = {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  city: string | null;
+  country_code: string | null;
+  latitude: number | null;
+  longitude: number | null;
+};
+
 export type CompanyListItem = {
   id: string;
   name: string;
@@ -30,6 +41,7 @@ export type CompanyListItem = {
   description: string | null;
   website: string | null;
   city: string | null;
+  country: string | null;
   country_code: string | null;
   region: string | null;
   latitude: number | null;
@@ -37,6 +49,8 @@ export type CompanyListItem = {
   industry: string[];
   stage: string | null;
   founded_year: number | null;
+  ats_type: string | null;
+  last_crawled_at: string | null;
   logo_url: string | null;
   job_count: number;
   open_role_categories: string[];
@@ -44,6 +58,7 @@ export type CompanyListItem = {
 
 export type CompanyDetail = CompanyListItem & {
   wikidata_id: string | null;
+  enriched_at: string | null;
   founders: Record<string, unknown>[] | null;
   key_investors: Record<string, unknown>[] | null;
   total_funding_usd: number | null;
@@ -66,8 +81,11 @@ export type Job = {
   title: string;
   description_snippet: string | null;
   city: string | null;
+  country: string | null;
   country_code: string | null;
   region: string | null;
+  latitude: number | null;
+  longitude: number | null;
   is_remote: boolean;
   remote_type: string | null;
   seniority: string | null;
@@ -77,6 +95,7 @@ export type Job = {
   department: string | null;
   tech_stack: string[];
   source_url: string;
+  ats_type: string | null;
   posted_at: string | null;
   location_display: string;
 };
@@ -99,15 +118,23 @@ export type MapCompaniesData = {
 export type PaginatedCompaniesData = {
   companies: CompanyListItem[];
   total: number;
+  limit: number;
+  offset: number;
 };
 
 export type CompanyJobsData = {
+  company: CompanyBrief;
   jobs: Job[];
   total: number;
+  limit: number;
+  offset: number;
 };
 
 export type PaginatedJobsData = {
   jobs: Job[];
+  total: number | null;
+  limit: number;
+  offset: number | null;
   next_cursor: string | null;
 };
 

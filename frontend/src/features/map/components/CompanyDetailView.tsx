@@ -1,4 +1,5 @@
 import { SocialIcon } from "@/components/ui/social-icons";
+import type { CompanyDetail, Job } from "@/types";
 import {
   Briefcase,
   Building2,
@@ -16,7 +17,6 @@ import {
   Users,
 } from "lucide-react";
 import { useState } from "react";
-import type { CompanyDetail, Job } from "../types";
 import { CompanyAvatar } from "./CompanyAvatar";
 import { JobCard } from "./JobCard";
 
@@ -82,7 +82,7 @@ function MetaRow({
     <div className="flex gap-2">
       <span className="mt-px shrink-0 text-gray-400">{icon}</span>
       <p className="text-[11px] leading-snug text-gray-600">
-        <span className="text-gray-400">{label}:</span> {value}
+        <span className="text-gray-500">{label}:</span> {value}
       </p>
     </div>
   );
@@ -167,7 +167,7 @@ export function CompanyDetailView({
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <span className="text-xs text-gray-400">Loading...</span>
+          <span className="text-xs text-gray-500">Loading...</span>
         </div>
         <div className="flex flex-1 items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-gray-300" />
@@ -226,7 +226,7 @@ export function CompanyDetailView({
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <span className="truncate text-[11px] text-gray-400">Companies</span>
+        <span className="truncate text-[11px] text-gray-500">Companies</span>
       </div>
 
       <div className="no-scrollbar flex flex-1 flex-col overflow-y-auto">
@@ -242,7 +242,7 @@ export function CompanyDetailView({
                 {company.name}
               </h3>
               {location && (
-                <p className="mt-0.5 text-[11px] text-gray-400">{location}</p>
+                <p className="mt-0.5 text-[11px] text-gray-500">{location}</p>
               )}
             </div>
           </div>
@@ -359,7 +359,7 @@ export function CompanyDetailView({
           <div className="flex flex-col gap-1.5 border-b border-black/8 px-3 py-3">
             <div className="flex items-center gap-2">
               <FileText className="h-3 w-3 shrink-0 text-gray-400" />
-              <span className="text-[11px] text-gray-400">About</span>
+              <span className="text-[11px] text-gray-500">About</span>
             </div>
             <p
               className={`text-[11px] leading-relaxed text-gray-600 ${
@@ -383,7 +383,7 @@ export function CompanyDetailView({
           <div className="flex flex-col gap-2 border-b border-black/8 px-3 py-3">
             <div className="flex items-center gap-2">
               <User className="h-3 w-3 shrink-0 text-gray-400" />
-              <span className="text-[11px] text-gray-400">
+              <span className="text-[11px] text-gray-500">
                 Founders ({founders.length})
               </span>
             </div>
@@ -399,7 +399,7 @@ export function CompanyDetailView({
           <div className="flex flex-col gap-1.5 border-b border-black/8 px-3 py-3">
             <div className="flex items-center gap-2">
               <DollarSign className="h-3 w-3 shrink-0 text-gray-400" />
-              <span className="text-[11px] text-gray-400">Key investors</span>
+              <span className="text-[11px] text-gray-500">Key investors</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {investors.map((inv) => (
@@ -418,7 +418,7 @@ export function CompanyDetailView({
           <div className="border-b border-black/8 px-3 py-3">
             <div className="flex items-center gap-2">
               <Briefcase className="h-3 w-3 text-gray-400" />
-              <span className="text-[11px] text-gray-400">
+              <span className="text-[11px] text-gray-500">
                 Open positions
                 {company.job_count > 0 ? ` (${company.job_count})` : ""}
               </span>
@@ -431,7 +431,7 @@ export function CompanyDetailView({
             </div>
           ) : jobs.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-1 py-8 text-center">
-              <p className="text-sm text-gray-400">No open roles</p>
+              <p className="text-sm text-gray-500">No open roles</p>
             </div>
           ) : (
             <div className="flex flex-col py-1">

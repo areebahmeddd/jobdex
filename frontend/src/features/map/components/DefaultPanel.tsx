@@ -10,7 +10,7 @@ export function DefaultPanel() {
         <p className="text-sm font-medium text-gray-700">
           Explore jobs worldwide
         </p>
-        <p className="mt-1 text-xs text-gray-400">
+        <p className="mt-1 text-xs text-gray-500">
           Click any company pin or search to find open roles
         </p>
       </div>

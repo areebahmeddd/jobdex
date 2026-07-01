@@ -1,3 +1,5 @@
+import { relativeTime } from "@/lib/utils";
+import type { JobDetail } from "@/types";
 import {
   ChevronLeft,
   Clock,
@@ -5,8 +7,6 @@ import {
   Loader2,
   MapPin,
 } from "lucide-react";
-import type { JobDetail } from "../types";
-import { relativeTime } from "../utils";
 import { CompanyAvatar } from "./CompanyAvatar";
 
 function formatAbsoluteDate(iso: string): string {

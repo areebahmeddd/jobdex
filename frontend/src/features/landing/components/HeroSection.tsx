@@ -2,7 +2,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Globe } from "@/components/ui/globe";
 import { Highlighter } from "@/components/ui/highlighter";
 import { GitHubIcon } from "@/components/ui/social-icons";
-import { DonateModal } from "@/features/landing/DonateModal";
+import { DonateModal } from "@/features/landing/components/DonateModal";
 import { GITHUB_REPO } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Heart, MapPin, Star } from "lucide-react";
@@ -49,7 +49,7 @@ export function HeroSection() {
   useEffect(() => {
     fetch(`https://api.github.com/repos/${GITHUB_REPO}`)
       .then((res) => res.json())
-      .then((data) => {
+      .then((data: { stargazers_count?: number }) => {
         if (typeof data.stargazers_count === "number")
           setStars(data.stargazers_count);
       })
@@ -135,8 +135,8 @@ export function HeroSection() {
             </nav>
           </div>
 
-          <div className="relative mt-8 w-full sm:mt-10">
-            <div className="mx-auto aspect-square w-full max-w-xl">
+          <div className="mt-8 w-full sm:mt-10">
+            <div className="relative mx-auto aspect-square w-full max-w-xl">
               <Globe className="!absolute !inset-0" />
             </div>
           </div>
@@ -166,6 +166,36 @@ export function HeroSection() {
               ))}
             </div>
           </div>
+
+          <nav
+            aria-label="Site links"
+            className="mt-8 flex items-center justify-center gap-3 border-t border-gray-100 pt-5"
+          >
+            <Link
+              to="/how-it-works"
+              className="text-xs text-gray-500 transition-colors hover:text-gray-700"
+            >
+              How it works
+            </Link>
+            <span className="text-xs text-gray-300" aria-hidden="true">
+              &middot;
+            </span>
+            <Link
+              to="/legal"
+              className="text-xs text-gray-500 transition-colors hover:text-gray-700"
+            >
+              Legal
+            </Link>
+            <span className="text-xs text-gray-300" aria-hidden="true">
+              &middot;
+            </span>
+            <Link
+              to="/faq"
+              className="text-xs text-gray-500 transition-colors hover:text-gray-700"
+            >
+              FAQ
+            </Link>
+          </nav>
         </div>
       </section>
     </>

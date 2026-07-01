@@ -1,5 +1,5 @@
-import type { Job } from "../types";
-import { relativeTime } from "../utils";
+import { relativeTime } from "@/lib/utils";
+import type { Job } from "@/types";
 import { CompanyAvatar } from "./CompanyAvatar";
 
 type Props = {

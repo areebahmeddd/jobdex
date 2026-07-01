@@ -1,3 +1,4 @@
+import { createOrder, verifyPayment } from "@/api/payments";
 import {
   Dialog,
   DialogContent,
@@ -7,8 +8,7 @@ import {
 import { ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
-const FALLBACK_UPI = "project-jodbex@upi";
+const FALLBACK_UPI = "https://razorpay.me/@1mindlabs";
 
 const TIERS = [
   { emoji: "🍵", label: "Kadak Chai", amount: 10, desc: "Shukriya yaar" },
@@ -42,23 +42,12 @@ export function DonateModal({ open, onClose }: DonateModalProps) {
     setLoadingAmount(amount);
 
     try {
-      const orderRes = await fetch(`${API_URL}/payments/orders`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount }),
-      });
-
-      if (!orderRes.ok) {
-        const detail = await orderRes.json().catch(() => ({}));
-        throw new Error(detail?.detail ?? "Failed to create payment order.");
-      }
-
       const {
         order_id,
         amount: orderAmount,
         currency,
         key_id,
-      } = await orderRes.json();
+      } = await createOrder(amount);
 
       await new Promise<void>((resolve, reject) => {
         const options = {
@@ -77,18 +66,11 @@ export function DonateModal({ open, onClose }: DonateModalProps) {
             razorpay_signature: string;
           }) => {
             try {
-              const verifyRes = await fetch(`${API_URL}/payments/verify`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature,
-                }),
+              await verifyPayment({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
               });
-
-              if (!verifyRes.ok)
-                throw new Error("Signature verification failed.");
               resolve();
             } catch (err) {
               reject(err);
@@ -96,15 +78,23 @@ export function DonateModal({ open, onClose }: DonateModalProps) {
           },
         };
 
-        const rzp = new (window as any).Razorpay(options);
+        const rzp = new (
+          window as unknown as {
+            Razorpay: new (o: unknown) => {
+              on: (e: string, cb: () => void) => void;
+              open: () => void;
+            };
+          }
+        ).Razorpay(options);
         rzp.on("payment.failed", () => reject(new Error("Payment failed.")));
         rzp.open();
       });
 
       onClose();
-    } catch (err: any) {
-      if (err?.message !== "dismissed") {
-        setError(err?.message ?? "Something went wrong. Please try again.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : null;
+      if (message !== "dismissed") {
+        setError(message ?? "Something went wrong. Please try again.");
       }
     } finally {
       setLoadingAmount(null);
@@ -126,7 +116,7 @@ export function DonateModal({ open, onClose }: DonateModalProps) {
           <DialogTitle className="text-sm font-medium text-gray-950">
             Buy me a drink?
           </DialogTitle>
-          <p className="mt-0.5 text-xs text-gray-400">
+          <p className="mt-0.5 text-xs text-gray-500">
             Every bit keeps this running
           </p>
         </DialogHeader>
@@ -151,7 +141,7 @@ export function DonateModal({ open, onClose }: DonateModalProps) {
                   <p className="text-sm font-medium text-gray-900">
                     {tier.label}
                   </p>
-                  <p className="text-xs text-gray-400">{tier.desc}</p>
+                  <p className="text-xs text-gray-500">{tier.desc}</p>
                 </div>
                 <span className="shrink-0 rounded-full border border-black/10 px-2.5 py-0.5 text-xs font-medium text-gray-600 tabular-nums">
                   {loadingAmount === tier.amount ? "…" : `₹${tier.amount}`}
@@ -173,7 +163,7 @@ export function DonateModal({ open, onClose }: DonateModalProps) {
             className="size-3 shrink-0 text-gray-400"
             aria-hidden="true"
           />
-          <span className="text-xs text-gray-400">Secured by Razorpay</span>
+          <span className="text-xs text-gray-500">Secured by Razorpay</span>
         </div>
       </DialogContent>
     </Dialog>

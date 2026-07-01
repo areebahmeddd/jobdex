@@ -1,4 +1,27 @@
-﻿import { GitHubIcon } from "@/components/ui/social-icons";
+﻿import {
+  fetchCompanies,
+  fetchCompanyDetail,
+  fetchCompanyJobs,
+} from "@/api/companies";
+import { fetchJobDetail, fetchJobs } from "@/api/jobs";
+import { fetchMapCities, fetchMapCompanies } from "@/api/map";
+import { GitHubIcon } from "@/components/ui/social-icons";
+import {
+  GITHUB_REPO,
+  HOME_CENTER,
+  HOME_ZOOM,
+  MAP_MAX_ZOOM,
+  MAP_MIN_ZOOM,
+} from "@/lib/constants";
+import type {
+  CityPin,
+  CompanyDetail,
+  CompanyJobsData,
+  CompanyListItem,
+  Job,
+  JobDetail,
+  PanelView,
+} from "@/types";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
@@ -14,97 +37,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { FilterDropdown } from "./components/FilterDropdown";
 import { ResultsPanel } from "./components/ResultsPanel";
-import {
-  API_BASE,
-  GITHUB_REPO,
-  HOME_CENTER,
-  HOME_ZOOM,
-  MAP_MAX_ZOOM,
-} from "./constants";
-import type {
-  CityPin,
-  CompanyDetail,
-  CompanyJobsData,
-  CompanyListItem,
-  CompanyPin,
-  Job,
-  JobDetail,
-  MapCitiesData,
-  MapCompaniesData,
-  PaginatedCompaniesData,
-  PaginatedJobsData,
-  PanelView,
-} from "./types";
-import { useStatusBar } from "./useStatusBar";
-import { escapeHtml } from "./utils";
-
-function renderCompanyPins(
-  map: L.Map,
-  layerRef: { current: L.LayerGroup | null },
-  companies: CompanyPin[],
-  onCompanyClick: (slug: string) => void,
-) {
-  if (!layerRef.current) {
-    layerRef.current = L.layerGroup().addTo(map);
-  } else {
-    layerRef.current.clearLayers();
-  }
-
-  const byCoord = new Map<string, CompanyPin[]>();
-  for (const co of companies.slice(0, 200)) {
-    if (co.latitude == null || co.longitude == null) continue;
-    const key = `${co.latitude.toFixed(3)},${co.longitude.toFixed(3)}`;
-    const arr = byCoord.get(key) ?? [];
-    arr.push(co);
-    byCoord.set(key, arr);
-  }
-
-  for (const group of byCoord.values()) {
-    group.forEach((co, idx) => {
-      let lat = co.latitude!;
-      let lng = co.longitude!;
-
-      if (group.length > 1) {
-        const angle = (idx / group.length) * 2 * Math.PI - Math.PI / 2;
-        const ring = Math.floor(idx / 8);
-        const radius = 0.007 + ring * 0.006;
-        lat += Math.sin(angle) * radius;
-        lng += Math.cos(angle) * radius;
-      }
-
-      const wrap = document.createElement("div");
-      wrap.className = "company-pin";
-
-      if (co.logo_url) {
-        const img = document.createElement("img");
-        img.alt = "";
-        img.style.cssText = "width:100%;height:100%;object-fit:contain;";
-        img.onerror = () => {
-          wrap.innerHTML = co.name.charAt(0).toUpperCase();
-        };
-        img.src = co.logo_url;
-        wrap.appendChild(img);
-      } else {
-        wrap.textContent = co.name.charAt(0).toUpperCase();
-      }
-
-      const icon = L.divIcon({
-        className: "",
-        html: wrap as unknown as string,
-        iconSize: [26, 26],
-        iconAnchor: [13, 13],
-      });
-
-      const marker = L.marker([lat, lng], { icon });
-      marker.bindTooltip(
-        `<div class="map-tt"><strong>${escapeHtml(co.name)}</strong><span>${co.job_count} open roles</span></div>`,
-        { direction: "top", offset: [0, -8], className: "map-tt-wrap" },
-      );
-      marker.on("click", () => onCompanyClick(co.slug));
-      layerRef.current?.addLayer(marker);
-    });
-  }
-}
+import { useFilters } from "./hooks/useFilters";
+import { useStatusBar } from "./hooks/useStatusBar";
+import { renderCompanyPins } from "./mapUtils";
 
 export default function MapPage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -124,12 +59,17 @@ export default function MapPage() {
   const filterRefMobile = useRef<HTMLDivElement>(null);
 
   const { connected, stars, indexedStats } = useStatusBar();
-  const [panelOpen, setPanelOpen] = useState(true);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [mapReady, setMapReady] = useState(false);
+  const {
+    roleFilter,
+    setRoleFilter,
+    remoteFilter,
+    setRemoteFilter,
+    filterOpen,
+    setFilterOpen,
+  } = useFilters();
 
-  const [roleFilter, setRoleFilter] = useState<string | null>(null);
-  const [remoteFilter, setRemoteFilter] = useState<boolean | null>(null);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [mapReady, setMapReady] = useState(false);
 
   const [query, setQuery] = useState("");
   const [cityPins, setCityPins] = useState<CityPin[]>([]);
@@ -187,13 +127,11 @@ export default function MapPage() {
       const target = e.target as Node;
       const insideDesktop = filterRef.current?.contains(target) ?? false;
       const insideMobile = filterRefMobile.current?.contains(target) ?? false;
-      if (!insideDesktop && !insideMobile) {
-        setFilterOpen(false);
-      }
+      if (!insideDesktop && !insideMobile) setFilterOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [filterOpen]);
+  }, [filterOpen, setFilterOpen]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -201,8 +139,14 @@ export default function MapPage() {
     const map = L.map(containerRef.current, {
       center: HOME_CENTER,
       zoom: HOME_ZOOM,
+      minZoom: MAP_MIN_ZOOM,
       zoomSnap: 0.1,
       zoomControl: false,
+      maxBounds: [
+        [-85, -Infinity],
+        [85, Infinity],
+      ],
+      maxBoundsViscosity: 1.0,
     });
 
     L.tileLayer(
@@ -252,16 +196,12 @@ export default function MapPage() {
 
   useEffect(() => {
     const ac = new AbortController();
-    const params = new URLSearchParams();
-    if (roleFilter) params.set("role", roleFilter);
-    if (remoteFilter !== null) params.set("is_remote", String(remoteFilter));
-    const qs = params.toString();
+    const params: Record<string, string> = {};
+    if (roleFilter) params.role = roleFilter;
+    if (remoteFilter !== null) params.is_remote = String(remoteFilter);
 
-    fetch(`${API_BASE}/map/cities${qs ? `?${qs}` : ""}`, { signal: ac.signal })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d: MapCitiesData) => {
-        setCityPins(d.cities);
-      })
+    fetchMapCities(params, ac.signal)
+      .then((d) => setCityPins(d.cities))
       .catch(() => {});
 
     return () => ac.abort();
@@ -295,18 +235,17 @@ export default function MapPage() {
     }
 
     const ac = new AbortController();
-    const params = new URLSearchParams({
+    const params: Record<string, string> = {
       lat_min: mapBounds.lat_min.toString(),
       lat_max: mapBounds.lat_max.toString(),
       lng_min: mapBounds.lng_min.toString(),
       lng_max: mapBounds.lng_max.toString(),
-    });
-    if (roleFilter) params.set("role", roleFilter);
-    if (remoteFilter !== null) params.set("is_remote", String(remoteFilter));
+    };
+    if (roleFilter) params.role = roleFilter;
+    if (remoteFilter !== null) params.is_remote = String(remoteFilter);
 
-    fetch(`${API_BASE}/map/companies?${params}`, { signal: ac.signal })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d: MapCompaniesData) => {
+    fetchMapCompanies(params, ac.signal)
+      .then((d) => {
         if (!mapRef.current) return;
         renderCompanyPins(
           mapRef.current,
@@ -323,8 +262,12 @@ export default function MapPage() {
   useEffect(() => {
     if (panelView === "companies" && selectedCity) {
       handleCityClick(selectedCity);
-    } else if (panelView === "jobs" && selectedCity) {
-      loadJobs(selectedCity, null, true);
+    } else if (panelView === "jobs") {
+      if (selectedCity) {
+        loadJobs(selectedCity, null, true);
+      } else if (query.trim()) {
+        handleSearchSubmit(query);
+      }
     }
   }, [roleFilter, remoteFilter]);
 
@@ -337,25 +280,21 @@ export default function MapPage() {
       replace ? setJobsLoading(true) : setLoadingMore(true);
 
       try {
-        const params = new URLSearchParams({ limit: "20" });
-        if (city) params.set("city", city);
-        if (cursor) params.set("cursor", cursor);
-        if (roleFilter) params.set("role_category", roleFilter);
-        if (remoteFilter !== null)
-          params.set("is_remote", String(remoteFilter));
+        const params: Record<string, string> = { limit: "20" };
+        if (city) params.city = city;
+        if (cursor) params.cursor = cursor;
+        if (roleFilter) params.role_category = roleFilter;
+        if (remoteFilter !== null) params.is_remote = String(remoteFilter);
 
-        const r = await fetch(`${API_BASE}/jobs?${params}`, {
-          signal: ac.signal,
-        });
-        if (!r.ok) return;
-        const d: PaginatedJobsData = await r.json();
-
+        const d = await fetchJobs(params, ac.signal);
         setJobs((prev) => (replace ? d.jobs : [...prev, ...d.jobs]));
         setNextCursor(d.next_cursor ?? null);
       } catch {
       } finally {
-        setJobsLoading(false);
-        setLoadingMore(false);
+        if (!ac.signal.aborted) {
+          setJobsLoading(false);
+          setLoadingMore(false);
+        }
       }
     },
     [roleFilter, remoteFilter],
@@ -378,14 +317,14 @@ export default function MapPage() {
       companiesAbortRef.current = ac;
       setCompaniesLoading(true);
 
-      const params = new URLSearchParams({ city: cityName, limit: "50" });
-      if (roleFilter) params.set("role_category", roleFilter);
-      if (remoteFilter !== null) params.set("is_remote", String(remoteFilter));
-
-      fetch(`${API_BASE}/companies?${params}`, { signal: ac.signal })
-        .then((r) => (r.ok ? r.json() : Promise.reject()))
-        .then((d: PaginatedCompaniesData) => {
-          setCompanies(d.companies);
+      fetchCompanies({ city: cityName, limit: "50" }, ac.signal)
+        .then((d) => {
+          const results = roleFilter
+            ? d.companies.filter((c) =>
+                c.open_role_categories.includes(roleFilter),
+              )
+            : d.companies;
+          setCompanies(results);
         })
         .catch(() => {})
         .finally(() => setCompaniesLoading(false));
@@ -406,31 +345,23 @@ export default function MapPage() {
       setJobs([]);
       setNextCursor(null);
 
-      const jobsParams = new URLSearchParams({ limit: "20" });
-      if (roleFilter) jobsParams.set("role_category", roleFilter);
-      if (remoteFilter !== null)
-        jobsParams.set("is_remote", String(remoteFilter));
+      const jobsParams: Record<string, string> = { limit: "20" };
+      if (roleFilter) jobsParams.role_category = roleFilter;
+      if (remoteFilter !== null) jobsParams.is_remote = String(remoteFilter);
 
       Promise.all([
-        fetch(`${API_BASE}/companies/${encodeURIComponent(slug)}`, {
-          signal: ac.signal,
-        }).then((r) => (r.ok ? r.json() : Promise.reject())),
-        fetch(
-          `${API_BASE}/companies/${encodeURIComponent(slug)}/jobs?${jobsParams}`,
-          { signal: ac.signal },
-        ).then((r) => (r.ok ? r.json() : Promise.reject())),
+        fetchCompanyDetail(slug, ac.signal),
+        fetchCompanyJobs(slug, jobsParams, ac.signal),
       ])
         .then(([detail, jobsData]: [CompanyDetail, CompanyJobsData]) => {
           setSelectedCompany(detail);
           setJobs(jobsData.jobs);
           setNextCursor(jobsData.total > jobsData.jobs.length ? "more" : null);
           const map = mapRef.current;
-          if (map && !selectedCity) {
-            if (detail.latitude && detail.longitude) {
-              map.flyTo([detail.latitude, detail.longitude], 10, {
-                duration: 1.2,
-              });
-            }
+          if (map && !selectedCity && detail.latitude && detail.longitude) {
+            map.flyTo([detail.latitude, detail.longitude], 10, {
+              duration: 1.2,
+            });
           }
         })
         .catch(() => {})
@@ -452,29 +383,26 @@ export default function MapPage() {
     setJobs([]);
     setNextCursor(null);
 
-    const params = new URLSearchParams({ q: q.trim(), limit: "20" });
-    if (roleFilter) params.set("role_category", roleFilter);
-    if (remoteFilter !== null) params.set("is_remote", String(remoteFilter));
+    const params: Record<string, string> = { q: q.trim(), limit: "20" };
+    if (roleFilter) params.role_category = roleFilter;
+    if (remoteFilter !== null) params.is_remote = String(remoteFilter);
 
-    fetch(`${API_BASE}/jobs?${params}`, { signal: ac.signal })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d: PaginatedJobsData) => {
+    fetchJobs(params, ac.signal)
+      .then((d) => {
         setJobs(d.jobs);
         setNextCursor(d.next_cursor ?? null);
       })
       .catch(() => {})
-      .finally(() => setJobsLoading(false));
+      .finally(() => {
+        if (!ac.signal.aborted) setJobsLoading(false);
+      });
   }
 
   function handleQueryChange(val: string) {
     setQuery(val);
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     if (!val.trim()) {
-      if (selectedCity) {
-        setPanelView("companies");
-      } else {
-        setPanelView("default");
-      }
+      setPanelView(selectedCity ? "companies" : "default");
       return;
     }
     searchDebounceRef.current = setTimeout(() => handleSearchSubmit(val), 450);
@@ -485,15 +413,21 @@ export default function MapPage() {
     setPanelView("job-detail");
     setJobDetailLoading(true);
 
+    if (!selectedCity) {
+      const job = jobs.find((j) => j.id === jobId);
+      if (job?.latitude && job?.longitude) {
+        mapRef.current?.flyTo([job.latitude, job.longitude], 12, {
+          duration: 1.2,
+        });
+      }
+    }
+
     jobDetailAbortRef.current?.abort();
     const ac = new AbortController();
     jobDetailAbortRef.current = ac;
 
-    fetch(`${API_BASE}/jobs/${encodeURIComponent(jobId)}`, {
-      signal: ac.signal,
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d: JobDetail) => setJobDetail(d))
+    fetchJobDetail(jobId, ac.signal)
+      .then((d) => setJobDetail(d))
       .catch(() => {})
       .finally(() => setJobDetailLoading(false));
   }
@@ -501,19 +435,15 @@ export default function MapPage() {
   function handleLoadMore() {
     if (selectedCompany) {
       setLoadingMore(true);
-      const loadParams = new URLSearchParams({
+      const loadParams: Record<string, string> = {
         limit: "20",
         offset: String(jobs.length),
-      });
-      if (selectedCity) loadParams.set("city", selectedCity);
-      if (roleFilter) loadParams.set("role_category", roleFilter);
-      if (remoteFilter !== null)
-        loadParams.set("is_remote", String(remoteFilter));
+      };
+      if (selectedCity) loadParams.city = selectedCity;
+      if (roleFilter) loadParams.role_category = roleFilter;
+      if (remoteFilter !== null) loadParams.is_remote = String(remoteFilter);
 
-      fetch(
-        `${API_BASE}/companies/${encodeURIComponent(selectedCompany.slug)}/jobs?${loadParams}`,
-      )
-        .then((r) => (r.ok ? r.json() : Promise.reject()))
+      fetchCompanyJobs(selectedCompany.slug, loadParams)
         .then((d: CompanyJobsData) => {
           const allJobs = [...jobs, ...d.jobs];
           setJobs(allJobs);
@@ -529,11 +459,7 @@ export default function MapPage() {
   function handleBackToList() {
     if (panelView === "job-detail") {
       setJobDetail(null);
-      if (selectedCompany) {
-        setPanelView("company-detail");
-      } else {
-        setPanelView("jobs");
-      }
+      setPanelView(selectedCompany ? "company-detail" : "jobs");
     } else if (panelView === "company-detail") {
       setSelectedCompany(null);
       setPanelView(selectedCity ? "companies" : "default");
@@ -761,11 +687,12 @@ export default function MapPage() {
             </div>
           )}
 
-          {activePillCity && zoom >= 10 && (
+          {zoom >= 10 && (
             <div className="absolute top-4 left-1/2 z-[1000] -translate-x-1/2 overflow-hidden rounded-full border border-white/20 bg-white/25 px-3 py-1.5 shadow-sm shadow-black/5 backdrop-blur-md">
               <span className="text-[10px] font-medium text-gray-700">
-                {activePillCity.company_count.toLocaleString()} companies
-                &middot; {activePillCity.job_count.toLocaleString()} jobs
+                {(activePillCity?.company_count ?? 0).toLocaleString()}{" "}
+                companies &middot;{" "}
+                {(activePillCity?.job_count ?? 0).toLocaleString()} jobs
               </span>
             </div>
           )}
@@ -786,7 +713,8 @@ export default function MapPage() {
             <button
               aria-label="Zoom out"
               onClick={() => mapRef.current?.zoomOut()}
-              className="flex h-9 w-9 items-center justify-center text-gray-700 transition-colors hover:bg-white/50"
+              disabled={zoom <= MAP_MIN_ZOOM}
+              className="flex h-9 w-9 items-center justify-center text-gray-700 transition-colors hover:bg-white/50 disabled:cursor-not-allowed disabled:opacity-30"
             >
               <Minus className="h-3.5 w-3.5" aria-hidden="true" />
             </button>

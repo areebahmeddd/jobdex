@@ -1,6 +1,6 @@
+import { fetchStats } from "@/api/stats";
+import { API_BASE, GITHUB_REPO } from "@/lib/constants";
 import { useEffect, useState } from "react";
-import { API_BASE, GITHUB_REPO } from "./constants";
-import type { StatsData } from "./types";
 
 type StatusBar = {
   connected: boolean | null;
@@ -33,7 +33,7 @@ export function useStatusBar(): StatusBar {
   useEffect(() => {
     fetch(`https://api.github.com/repos/${GITHUB_REPO}`)
       .then((r) => r.json())
-      .then((d) => {
+      .then((d: { stargazers_count?: number }) => {
         if (typeof d.stargazers_count === "number")
           setStars(d.stargazers_count);
       })
@@ -41,12 +41,18 @@ export function useStatusBar(): StatusBar {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/stats`)
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((d: StatsData) => {
-        setIndexedStats({ jobs: d.active_jobs, cities: d.cities_with_jobs });
+    let cancelled = false;
+    const ac = new AbortController();
+    fetchStats(ac.signal)
+      .then((d) => {
+        if (!cancelled)
+          setIndexedStats({ jobs: d.active_jobs, cities: d.cities_with_jobs });
       })
       .catch(() => {});
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
   }, []);
 
   return { connected, stars, indexedStats };

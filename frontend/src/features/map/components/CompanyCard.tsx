@@ -1,5 +1,5 @@
+import type { CompanyListItem } from "@/types";
 import { Briefcase, ChevronRight } from "lucide-react";
-import type { CompanyListItem } from "../types";
 import { CompanyAvatar } from "./CompanyAvatar";
 
 type Props = {
@@ -20,7 +20,7 @@ export function CompanyCard({ company, onClick }: Props) {
         </p>
         {company.job_count > 0 && (
           <div className="mt-0.5 flex items-center gap-0.5">
-            <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-gray-400">
+            <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-gray-500">
               <Briefcase className="h-2.5 w-2.5" />
               {company.job_count} open role{company.job_count !== 1 ? "s" : ""}
             </span>

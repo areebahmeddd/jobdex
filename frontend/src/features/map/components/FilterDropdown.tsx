@@ -1,4 +1,4 @@
-import { ROLE_OPTIONS } from "../constants";
+import { ROLE_OPTIONS } from "@/lib/constants";
 
 type Props = {
   roleFilter: string | null;
