@@ -1,6 +1,6 @@
 ﻿# JobDex Backend — Deep-Dive Q&A
 
-Each question is answered with exact code and file references, cross-checked against the full codebase, and includes a **verdict** on design quality with improvement suggestions where appropriate.
+Each question includes exact code references and a verdict with notes on open issues.
 
 ## Bugs & Investigations
 
@@ -16,7 +16,7 @@ scheduler.add_job(run_enrichment, "interval", hours=settings.ENRICH_INTERVAL_HOU
 scheduler.add_job(run_discovery,  "interval", hours=settings.DISCOVER_INTERVAL_HOURS,id="discover_companies", max_instances=1)
 ```
 
-The manual scripts (`scripts/ingest.py`, `scripts/discover.py`, `scripts/enrich.py`) call the exact same functions (`run_ingestion`, `run_discovery`, `run_enrichment`). `max_instances=1` only prevents the APScheduler trigger from firing the same job twice concurrently — it has no effect on the manual script process.
+The manual scripts (`scripts/ingest.py`, `scripts/discover.py`, `scripts/enrich.py`) call the exact same functions (`run_ingestion`, `run_discovery`, `run_enrichment`). `max_instances=1` only prevents the APScheduler trigger from firing the same job twice concurrently; it has no effect on the manual script process.
 
 ### The actual risk
 
@@ -90,7 +90,7 @@ if expired:
 
 So for **identical data**:
 
-- Every existing job gets an `UPDATE SET last_seen_at = now, is_active = true` — O(n) updates per crawl, even when nothing changed.
+- Every existing job gets an `UPDATE SET last_seen_at = now, is_active = true` (O(n) writes per crawl, even on unchanged data).
 - `result.updated_jobs` is incremented for each.
 - No new inserts happen.
 - No deactivations happen (expired = empty set).
@@ -128,13 +128,13 @@ for raw in raw_jobs:
         ...
         job = self.build_job(raw, company, slug)
         ...
-    except Exception as exc:  # noqa: BLE001
+    except (KeyError, ValueError, TypeError, AttributeError, IndexError) as exc:
         msg = f"Error on job id={raw.get('id', '?')}: {exc}"
         logger.warning(msg)
         result.errors.append(msg)
 ```
 
-Catches everything — parse failures, missing fields, bad data. Loop continues, error is appended to `IngestResponse.errors`. **Good: one bad job doesn't kill the whole company crawl.**
+Catches data errors (missing keys, bad values, type mismatches). Programmer errors bubble up. Loop continues, error is appended to `IngestResponse.errors`. **One bad job doesn't kill the whole company crawl.**
 
 ### Layer 2 — HTTP errors (base.py)
 
@@ -154,7 +154,7 @@ except httpx.RequestError as exc:
     return result
 ```
 
-Differentiates HTTP status errors (4xx/5xx) from network errors (timeout, DNS). Stores the last error on the company record. **Good distinction.** However `crawl_error` is never exposed via the API, so there's no operational visibility without querying the DB directly.
+Differentiates HTTP status errors (4xx/5xx) from network errors (timeout, DNS). Stores the last error on the company record. **Good distinction.** The `crawl_error` field is surfaced via the `/companies?has_errors=true` filter.
 
 ### Layer 3 — Per-company errors (scheduler.py)
 
@@ -192,11 +192,11 @@ Any unhandled exception inside a `with get_session()` block rolls back the trans
 
 ### What's missing / problems
 
-1. **No retry logic.** A transient 503 from an ATS API is treated as a permanent failure until the next cron run (6 hours). A simple exponential backoff would dramatically improve reliability.
-2. **No circuit breaker.** If an ATS API is down for days, every cron run still tries every company on that ATS and collects errors. A per-ATS failure count with skip logic would reduce noise.
-3. **`crawl_error` is invisible.** The field is written but not surfaced. A `/companies?has_errors=true` filter or a `/admin/errors` endpoint would help ops.
-4. **`noqa: BLE001` (blind exception)**. Catching all exceptions in the per-job loop hides programmer errors (e.g., AttributeError in `build_job`) alongside data errors. Narrowing to `(KeyError, ValueError, TypeError)` would be safer.
-5. **Discovery uses `logger.error` for failures, ingestion uses `logger.warning`** — this inconsistency makes log-level-based alerting unreliable.
+1. ~~**No retry logic.**~~ **[FIXED]** `_fetch_raw_with_retry()` in `base.py` wraps `fetch_raw` with tenacity exponential backoff (min 2s, max 30s, 3 attempts) and retries on HTTP 429/5xx and network errors.
+2. **No circuit breaker.** If an ATS API is down for days, every cron run still tries every company on that ATS and collects errors. Deferred — overkill at current scale.
+3. ~~**`crawl_error` is invisible.**~~ **[FIXED]** The `/companies?has_errors=true` filter exposes companies with a non-null `crawl_error` field.
+4. ~~**`noqa: BLE001` (blind exception).**~~ **[FIXED]** Narrowed to `except (KeyError, ValueError, TypeError, AttributeError, IndexError)` — programmer errors now bubble up correctly.
+5. ~~**Discovery uses `logger.error`, ingestion uses `logger.warning`**~~ **[FIXED]** Both now use `logger.warning` for gracefully-handled per-item failures.
 
 ## Q10 — Are the time intervals logically correct? `[FIXED]`
 
@@ -220,10 +220,8 @@ ENRICHMENT_STEP_DELAY: float = 0.5  # Between API calls in enrichment
 **Ingest: 6h ✓**
 Job boards don't refresh faster than a few hours in practice. 6h means you're at most 6h stale. Reasonable for a discovery/index product (vs. a realtime job alerts service). The `order_by(last_crawled_at.asc().nullsfirst())` ensures new companies get crawled immediately on the next cycle.
 
-**Enrich: 12h ⚠**
-The enrichment job filters `enriched_at IS NULL`. After all companies are enriched (say, after week 2), this job runs every 12h but processes **zero companies** every time. It's a perpetual no-op after the initial catchup. The log output will be `enriched=0 errors=0` twice daily forever. This is harmless but wastes a scheduler slot.
-
-More importantly: **company data changes over time** (new funding rounds, headcount changes, social links). The current model never re-enriches. A company that closed a Series B last week won't get its `funding_stage` updated unless `enriched_at` is manually reset.
+**Enrich: 12h ✓** **[FIXED]**
+The enrichment scheduler now uses `or_(enriched_at IS NULL, enriched_at < cutoff)` where `cutoff = now - ENRICH_REFRESH_DAYS` (default 90 days). Companies are re-enriched when stale, and the run exits early with a `"nothing pending"` log when all companies are fresh — no more perpetual no-op.
 
 **Discover: 24h ✓**
 New companies don't appear on YC's hiring list that frequently. 24h is appropriate. Discovery is idempotent (slug check before insert), so running it more often would just increase the `skipped` count.
@@ -236,28 +234,24 @@ New companies don't appear on YC's hiring list that frequently. 24h is appropria
 
 ### Verdict
 
-**Intervals are broadly correct.** The logical bug is the enrichment scheduler becoming a permanent no-op. Fix:
+**Intervals are correct.** ~~The logical bug is the enrichment scheduler becoming a permanent no-op.~~ **[FIXED]** Option A was implemented: enrichment re-runs for companies where `enriched_at < now - 90 days`.
 
 ```python
-# Option A: Change filter to re-enrich older than N days
+# Option A (implemented): re-enrich companies older than ENRICH_REFRESH_DAYS
 .filter(
     Company.is_active.is_(True),
     or_(
         Company.enriched_at.is_(None),
-        Company.enriched_at < (datetime.now(UTC) - timedelta(days=90))
+        Company.enriched_at < (datetime.now(UTC) - timedelta(days=settings.ENRICH_REFRESH_DAYS))
     )
 )
 ```
 
-Or:
-
 ```python
-# Option B: Run enrichment once on startup then stop the job
+# Option B (not used): run once then remove the job
 scheduler.add_job(run_enrichment, "interval", hours=12, id="enrich_pending", max_instances=1)
-# And add a check in run_enrichment: if no pending, remove the job
+# Add a check in run_enrichment: if slugs is empty, scheduler.remove_job("enrich_pending")
 ```
-
-Option A is the better production choice as it keeps company data reasonably fresh.
 
 ## Architecture & Design
 
@@ -357,10 +351,10 @@ The cursor is a Base64-encoded JSON of `{p: posted_at_iso, i: job_id}`. It handl
 
 ### Problems
 
-1. **`total = None` when using cursor** — the response schema allows `total: int | None`, which is correct but the client gets no indication of the full dataset size on cursor pages. Standard for keyset but worth documenting.
+1. **`total = None` when using cursor.** The response schema allows `total: int | None`, which is correct, but the client gets no indication of the full dataset size on cursor pages. Standard for keyset but worth documenting.
 2. **Both `cursor` and `offset` can be passed simultaneously.** When `cursor` is present, `offset` is ignored entirely but still accepted without error. The response returns `offset: None` in cursor mode, which could confuse a client that passed `offset=40`.
 3. **No stable sort guarantee for offset mode.** If new jobs are inserted between page 1 and page 2 fetches (offset=0 and offset=20), the page 2 result will be shifted, causing duplicates or skipped rows. The cursor mode solves this; the offset mode doesn't.
-4. **Search endpoint runs 3 separate queries**: `query.count()` for total jobs, `query.with_entities(func.count(func.distinct(Job.company_id)))` for total companies, then the paged `.offset().limit()`. These are three round trips without a transaction wrapping them — counts could be inconsistent with the page result.
+4. **Search endpoint runs 3 separate queries**: `query.count()` for total jobs, `query.with_entities(func.count(func.distinct(Job.company_id)))` for total companies, then the paged `.offset().limit()`. These are three round trips without a transaction wrapping them; counts could be inconsistent with the page result.
 5. **`limit` upper bound is 100** for jobs/companies, but 200 for cities. Inconsistency.
 
 ### Verdict
@@ -437,7 +431,7 @@ if is_blocked_location(job.country_code, job.city):
     continue
 ```
 
-Checked after `build_job()` but before `db.add(job)`. Note: `seen_hashes.discard(dedup_hash)` is important — it prevents previously-active blocked jobs from being deactivated incorrectly.
+Checked after `build_job()` but before `db.add(job)`. Note: `seen_hashes.discard(dedup_hash)` is important; it prevents previously-active blocked jobs from being deactivated incorrectly.
 
 **Geo-fetch guard:**
 
@@ -458,7 +452,7 @@ Only calls Clearbit if `latitude` is not set. Prevents re-fetching on every craw
    db.bulk_save_objects(new_cities)
    ```
 
-2. **No schema validation of ATS responses.** `fetch_raw()` returns raw dicts and `build_job()` uses `.get()` with defaults everywhere — fine for resilience, but a missing required field like `raw["id"]` (used in `extract_job_id`) will raise a `KeyError` that gets caught by the bare except. A Pydantic model for the raw ATS response would provide better error messages.
+2. **No schema validation of ATS responses.** `fetch_raw()` returns raw dicts and `build_job()` uses `.get()` with defaults everywhere — fine for resilience, but a missing required field like `raw["id"]` (used in `extract_job_id`) will raise a `KeyError` caught by the per-job except clause. A Pydantic model for the raw ATS response would provide better error messages.
 3. **No health check for DB connection before scheduler starts.** If the DB is briefly unavailable at startup, `migrate_db()` raises and the app crashes. This is actually fine (fail-fast is correct), but there's no retry.
 
 ## Q7 — What happens with 10+ ATS? Is Kafka/queue needed?
@@ -498,9 +492,9 @@ For N companies with average ATS latency of 1s and `CRAWL_DELAY=0.3s`:
 - 5000 companies → ~1.8 hours per run (still within 6h window, barely) ⚠
 - 20,000 companies → ~7.2 hours — **exceeds the 6h interval** ✗
 
-### The 4 ATS providers issue
+### The 9 ATS providers
 
-All 4 ingesters are registered in `INGESTERS`. `run_ingestion` processes them all sequentially based on `last_crawled_at`, regardless of which ATS they belong to. So having 10 ATS types doesn't change the sequential model — you'd just have more total companies.
+All 9 ingesters are registered in `INGESTERS` (Ashby, Greenhouse, Lever, SmartRecruiters, Workable, YCombinator, Recruitee, PyjamaHR, MCF). `run_ingestion` processes them all sequentially based on `last_crawled_at`, regardless of which ATS they belong to. So having more ATS types doesn't change the sequential model — you'd just have more total companies.
 
 ### Kafka/queue needed?
 
@@ -509,7 +503,7 @@ All 4 ingesters are registered in `INGESTERS`. `run_ingestion` processes them al
 **Where it breaks down:**
 
 - If you scale to thousands of companies and need results fresher than 6h
-- If ATS APIs become rate-limited (currently no per-ATS rate limiting is implemented — all companies on the same ATS will hit it in rapid succession)
+- If ATS APIs become rate-limited (currently no per-ATS rate limiting; all companies on the same ATS are requested in rapid succession)
 - If you need parallel processing across multiple server instances
 
 ### Realistic improvement path
@@ -530,7 +524,7 @@ results = await asyncio.gather(*tasks, return_exceptions=True)
 
 **Step 2 (at scale):** Move to a task queue (Celery + Redis or ARQ) — but this adds significant operational complexity. Only justified at 1000+ companies.
 
-**Kafka is overkill** for this use case. It's designed for high-throughput event streaming, not scheduled polling of 4 ATS APIs.
+**Kafka is overkill** for this use case. It's designed for high-throughput event streaming, not scheduled polling of 9 ATS APIs.
 
 ## Q8 — What is ingestion doing vs discover vs enrich?
 
@@ -582,7 +576,7 @@ Only **YCombinator** implements `discover()` meaningfully — it paginates `api.
 
 **What:** Adds structured metadata to **Company** records from Wikidata + Wikipedia.
 
-**When:** Every 12h (but only processes companies where `enriched_at IS NULL` — so effectively one-time per company).
+**When:** Every 12h. Processes companies where `enriched_at IS NULL` or older than 90 days (`ENRICH_REFRESH_DAYS`).
 
 **How:**
 
@@ -618,20 +612,20 @@ Discovery and Enrichment are about **companies**. Ingestion is about **jobs**. T
 
 ### What's logged
 
-| Location | Level | What |
-|---|---|---|
-| `main.py` lifespan | `info` | App start/stop, version |
-| `scheduler.py` | `info` | Each run start, final summary (new/updated/errors) |
-| `scheduler.py` | `warning` | Per-company ingest failure |
-| `scheduler.py` | `error` | Per-ATS discovery failure |
-| `ingestion/base.py` | `info` | Company created, raw jobs count, deactivation count, done summary |
-| `ingestion/base.py` | `debug` | Geocode success |
-| `ingestion/base.py` | `error` | HTTP status and network errors |
-| `ingestion/base.py` | `warning` | Per-job parse error |
-| `ingestion/base.py` | `info` | Blocked location skip |
-| `startup.py` | `info` | City seed count |
-| `enrichment/runner.py` | `info` | Start, no Wikidata found, done with field count |
-| `database.py` | `info` | Migrations applied |
+| Location               | Level     | What                                                              |
+| ---------------------- | --------- | ----------------------------------------------------------------- |
+| `main.py` lifespan     | `info`    | App start/stop, version                                           |
+| `scheduler.py`         | `info`    | Each run start, final summary (new/updated/errors)                |
+| `scheduler.py`         | `warning` | Per-company ingest failure                                        |
+| `scheduler.py`         | `warning` | Per-ATS discovery failure                                         |
+| `ingestion/base.py`    | `info`    | Company created, raw jobs count, deactivation count, done summary |
+| `ingestion/base.py`    | `debug`   | Geocode success                                                   |
+| `ingestion/base.py`    | `error`   | HTTP status and network errors                                    |
+| `ingestion/base.py`    | `warning` | Per-job parse error                                               |
+| `ingestion/base.py`    | `info`    | Blocked location skip                                             |
+| `startup.py`           | `info`    | City seed count                                                   |
+| `enrichment/runner.py` | `info`    | Start, no Wikidata found, done with field count                   |
+| `database.py`          | `info`    | Migrations applied                                                |
 
 ### Assessment
 
@@ -644,16 +638,14 @@ Discovery and Enrichment are about **companies**. Ingestion is about **jobs**. T
 
 **Overlogged:**
 
-- `logger.info(f"[{self.ats_type}] '{slug}' -> {len(raw_jobs)} raw jobs")` + `logger.info(f"[{self.ats_type}] '{slug}' done - ...")` — two info lines per company. For 200 companies, that's 400 info lines per ingestion run. This is fine for development but noisy in production without log filtering.
-- `logger.info` for blocked location skips — these could be `debug` since they're expected and frequent.
+- `logger.info(f"[{self.ats_type}] '{slug}' -> {len(raw_jobs)} raw jobs")` + `logger.info(f"[{self.ats_type}] '{slug}' done - ...")` produce two info lines per company. For 200 companies, that's 400 info lines per ingestion run. Fine for development but noisy in production without log filtering.
+- `logger.info` for blocked location skips; these could be `debug` since they're expected and frequent.
 
 **Underlogged:**
 
-- No request ID / correlation ID — can't trace a specific company through scheduler → ingestion → DB in a log aggregator
-- `crawl_error` is never logged to a monitoring channel — you can't alert on companies with persistent crawl errors
+- No request ID / correlation ID; tracing a company through scheduler to DB in a log aggregator is not possible
 - No timing logs (how long did ingesting company X take?)
-- No log on enrichment when `enriched_at` is already set (scheduler just skips silently)
-- Router endpoints have zero logging — no way to audit what queries are hitting the DB
+- Router endpoints have zero logging; no way to audit what queries are hitting the DB
 
 **Not over-engineered:** No unnecessary trace/span logging. `DEBUG` is used sparingly. No structured JSON logging is set up (Loguru is text-format by default), but adding that would be a one-liner change to the Loguru config.
 
@@ -661,13 +653,13 @@ Discovery and Enrichment are about **companies**. Ingestion is about **jobs**. T
 
 ### Idempotency analysis
 
-| Operation | Idempotent? | Mechanism |
-|---|---|---|
-| `seed_cities()` | ✓ Full | Slug existence check before insert |
-| `run_discovery()` | ✓ Full | Slug existence check before insert |
-| `run_ingestion()` | ✓ Effective | Dedup hash + unique constraint; UPDATEs are idempotent (same values) |
-| `run_enrichment()` | ✓ Partial | `enriched_at IS NULL` filter; re-running for same company writes same data |
-| Job deactivation | ✓ Full | `UPDATE is_active=False` on same set is idempotent |
+| Operation          | Idempotent? | Mechanism                                                                  |
+| ------------------ | ----------- | -------------------------------------------------------------------------- |
+| `seed_cities()`    | ✓ Full      | Slug existence check before insert                                         |
+| `run_discovery()`  | ✓ Full      | Slug existence check before insert                                         |
+| `run_ingestion()`  | ✓ Effective | Dedup hash + unique constraint; UPDATEs are idempotent (same values)       |
+| `run_enrichment()` | ✓ Partial   | `enriched_at IS NULL` filter; re-running for same company writes same data |
+| Job deactivation   | ✓ Full      | `UPDATE is_active=False` on same set is idempotent                         |
 
 **Discovery batching (single session per ATS):**
 
@@ -709,7 +701,7 @@ with get_session() as db:
     await enrich_company(slug, db)
 ```
 
-Same pattern — atomic per company. If the Wikidata SPARQL call succeeds but Wikipedia fails, the already-fetched Wikidata fields won't be committed (good). However, `db.commit()` is called inside `enrich_company` itself:
+Same pattern; atomic per company. If the Wikidata SPARQL call succeeds but Wikipedia fails, the already-fetched Wikidata fields won't be committed (good). However, `db.commit()` is called inside `enrich_company` itself:
 
 ```python
 # backend/app/enrichment/runner.py
@@ -816,7 +808,7 @@ best_loc = db.query(loc_counts.c.company_id, ...).distinct(loc_counts.c.company_
 resolved_lat = func.coalesce(Company.latitude, best_loc.c.latitude)
 ```
 
-This uses `DISTINCT ON (company_id) ORDER BY company_id, loc_cnt DESC` — a PostgreSQL-specific pattern that picks the row with the highest `loc_cnt` per company. It's correct and efficient. However this query has no pagination — it returns **all** companies with coordinates in one shot. For the map use case this is intentional (the front-end handles clustering), but it's worth noting this could return thousands of rows.
+This uses `DISTINCT ON (company_id) ORDER BY company_id, loc_cnt DESC`, a PostgreSQL-specific pattern that picks the row with the highest `loc_cnt` per company. It's correct and efficient. However this query has no pagination; it returns **all** companies with coordinates in one shot. For the map use case this is intentional (the front-end handles clustering), but it's worth noting this could return thousands of rows.
 
 ### DB connection pool
 
@@ -830,23 +822,23 @@ Max 5 simultaneous connections. For a single-process API this is adequate since 
 
 ### Index coverage summary
 
-| Filter | Index used |
-|---|---|
-| `is_active = TRUE` | All partial indexes |
-| `city + role_category` | `ix_jobs_active_city_role` |
-| `region + role_category` | `ix_jobs_active_region_role` |
-| `country_code + role_category` | `ix_jobs_active_country_role` |
-| `is_remote` | `ix_jobs_active_remote` |
-| FTS (`q=`) | `ix_jobs_fts_gin` |
-| `posted_at` (sort/cursor) | `ix_jobs_active_posted` |
-| `company_id + is_active` | `ix_jobs_company_active` |
-| `companies.slug` | built-in unique index |
-| `companies.industry` JSONB | `ix_companies_industry_gin` |
-| `companies.city + country_code` | `ix_companies_city_country` |
+| Filter                          | Index used                    |
+| ------------------------------- | ----------------------------- |
+| `is_active = TRUE`              | All partial indexes           |
+| `city + role_category`          | `ix_jobs_active_city_role`    |
+| `region + role_category`        | `ix_jobs_active_region_role`  |
+| `country_code + role_category`  | `ix_jobs_active_country_role` |
+| `is_remote`                     | `ix_jobs_active_remote`       |
+| FTS (`q=`)                      | `ix_jobs_fts_gin`             |
+| `posted_at` (sort/cursor)       | `ix_jobs_active_posted`       |
+| `company_id + is_active`        | `ix_jobs_company_active`      |
+| `companies.slug`                | built-in unique index         |
+| `companies.industry` JSONB      | `ix_companies_industry_gin`   |
+| `companies.city + country_code` | `ix_companies_city_country`   |
 
 Coverage is comprehensive. Notable gaps:
 
-- **`Job.seniority`** has a simple index (`index=True`) but no partial index on `is_active=TRUE`, so `seniority` filters scan all jobs including inactive ones before the `is_active` filter is applied — minor inefficiency.
+- **`Job.seniority`** has a simple index (`index=True`) but no partial index on `is_active=TRUE`, so `seniority` filters scan all jobs including inactive ones before the `is_active` filter is applied (minor inefficiency).
 - **Combined filters** like `city + seniority` or `role + is_remote` have no composite partial index. PostgreSQL will use bitmap AND across the relevant partial indexes, which is usually fine.
 
 ### Overall DB ops quality
@@ -855,17 +847,17 @@ The ORM usage is clean and correct. `synchronize_session=False` on bulk UPDATEs 
 
 ## Summary Table
 
-| # | Question | Status | Severity |
-|---|---|---|---|
-| 1 | Cron vs manual clash | Minor race, guarded by unique constraint | Low |
-| 2 | Deduplication | Solid at job level via SHA-256 + DB constraint | None |
-| 3 | Same data on re-run | Updates `last_seen_at` only, no skipping | None (intentional) |
-| 4 | Error handling | Good layering; missing retry logic and re-enrichment | Medium |
-| 5 | Pagination | Hybrid cursor/offset; search has 3 separate count queries | Low |
-| 6 | Startup checks | Safe; seed_cities has N+1 pattern | Low |
-| 7 | 10+ ATS scaling | Sequential is fine now; needs semaphore at 500+ companies | Low-Medium |
-| 8 | Ingestion vs Discovery vs Enrich | Clean separation; clearly defined roles | None |
-| 9 | Logging | Well-calibrated; missing correlation IDs and timing | Low |
-| 10 | Time intervals | Enrich scheduler becomes no-op; no re-enrichment | Medium |
-| 11 | Idempotency & atomicity | Good; discovery has unguarded check-then-act race | Medium |
-| 12 | Search & DB ops | FTS index correct; pool size tight; index coverage good | Low |
+| #  | Question                         | Status                                                    | Severity           |
+| -- | -------------------------------- | --------------------------------------------------------- | ------------------ |
+| 1  | Cron vs manual clash             | Minor race, guarded by unique constraint                  | Low                |
+| 2  | Deduplication                    | Solid at job level via SHA-256 + DB constraint            | None               |
+| 3  | Same data on re-run              | Updates `last_seen_at` only, no skipping                  | None (intentional) |
+| 4  | Error handling                   | Good layering; retry and visibility fixes applied         | Low                |
+| 5  | Pagination                       | Hybrid cursor/offset; search has 3 separate count queries | Low                |
+| 6  | Startup checks                   | Safe; seed_cities has N+1 pattern                         | Low                |
+| 7  | 10+ ATS scaling                  | Sequential is fine now; needs semaphore at 500+ companies | Low-Medium         |
+| 8  | Ingestion vs Discovery vs Enrich | Clean separation; clearly defined roles                   | None               |
+| 9  | Logging                          | Well-calibrated; missing correlation IDs and timing       | Low                |
+| 10 | Time intervals                   | Fixed: enrichment re-runs after 90 days                   | None               |
+| 11 | Idempotency & atomicity          | Good; discovery has unguarded check-then-act race         | Medium             |
+| 12 | Search & DB ops                  | FTS index correct; pool size tight; index coverage good   | Low                |

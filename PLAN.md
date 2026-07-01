@@ -70,6 +70,30 @@ Triggered by the `enrich_pending` scheduler job and the `uv run python scripts/e
 - Timestamps: `posted_at`, `first_seen_at`, `last_seen_at`, `is_active`
 - FTS: GIN index on `to_tsvector('english', title || snippet || role_category)`, partial on `is_active = TRUE`. Partial composite indexes on `(city, role_category)`, `(region, role_category)`, `(country_code, role_category)`, `(is_remote)`, and `(posted_at)`.
 
+### Role Categories
+
+`role_category` is a free-text `String(100)` column with no enum constraint. Values are produced by `classify_role()` from `data/role_patterns.json`, which does first-match regex against job title and department (then description as fallback). Pattern order is significant: more specific subcategories are listed before broad catch-alls (e.g. `healthcare.medtech` fires before `engineering.general`'s `\bengineer\b`).
+
+| Category      | Subcategories                                                                         |
+| ------------- | ------------------------------------------------------------------------------------- |
+| `engineering` | backend, frontend, fullstack, mobile, data, ml, devops, security, qa, embedded        |
+| `data`        | scientist, analyst, bi                                                                |
+| `design`      | ux, ui, product, graphic, general                                                     |
+| `product`     | manager, owner, general                                                               |
+| `marketing`   | growth, content, brand, general                                                       |
+| `sales`       | ae, sdr, csm, general                                                                 |
+| `operations`  | general                                                                               |
+| `finance`     | general                                                                               |
+| `legal`       | general                                                                               |
+| `hr`          | recruiting, general                                                                   |
+| `support`     | general                                                                               |
+| `research`    | general                                                                               |
+| `healthcare`  | clinical, medtech, pharma, informatics                                                |
+| `hospitality` | culinary, general                                                                     |
+| `other`       | general (fallback)                                                                    |
+
+**Healthcare coverage note** — Clinical roles (nurses, doctors, physiotherapists, pharmacists) and health-adjacent roles (biomedical engineers, clinical trials, regulatory affairs, health informatics) are classified under `healthcare`. No DB migration is required; the column accepts any string value. Health-tech companies on existing ATS (Veeva → Lever, Flatiron Health → Greenhouse, Commure → Ashby) benefit from this classification automatically.
+
 ### API Surface
 
 | Router    | Prefix       | Notes                                                                         |
@@ -78,7 +102,7 @@ Triggered by the `enrich_pending` scheduler job and the `uv run python scripts/e
 | companies | `/companies` | List, detail; ingest and enrich are triggered via scripts and the scheduler   |
 | search    | `/search`    | Combinable filters (city, role, industry, region, remote) across jobs and companies |
 | map       | `/map`       | Lat/lon points for companies and job clusters; supports viewport bounding box |
-| cities    | `/cities`    | City list for dropdown/autocomplete                                            |
+| cities    | `/cities`    | City list for dropdown/autocomplete                                           |
 | stats     | `/stats`     | Counts by region, role category, seniority                                    |
 | payments  | `/payments`  | `POST /orders` + `POST /verify` via Razorpay                                  |
 
@@ -87,7 +111,7 @@ Triggered by the `enrich_pending` scheduler job and the `uv run python scripts/e
 | Job ID               | Interval | Purpose                                                                  |
 | -------------------- | -------- | ------------------------------------------------------------------------ |
 | `ingest_all`         | 6 h      | Crawl all active companies ordered by `last_crawled_at ASC NULLS FIRST`  |
-| `enrich_pending`     | 12 h     | Enrich companies where `enriched_at IS NULL` or older than 90 days      |
+| `enrich_pending`     | 12 h     | Enrich companies where `enriched_at IS NULL` or older than 90 days       |
 | `discover_companies` | 24 h     | Call `discover()` on all ingesters; only YCombinator implements it today |
 
 A `CRAWL_DELAY` of 0.3 s is inserted between each company during scheduled ingestion to avoid hammering ATS APIs.
@@ -106,6 +130,7 @@ A `CRAWL_DELAY` of 0.3 s is inserted between each company during scheduled inges
 | YCombinator     | USA    | `api.ycombinator.com/v0.1/companies?q={slug}`           | GET    | None |
 | Recruitee       | Europe | `{slug}.recruitee.com/api/offers/`                      | GET    | None |
 | PyjamaHR        | India  | `api.pyjamahr.com/api/career/jobs/?company_slug={slug}` | GET    | None |
+| MCF             | Singapore | `api.mycareersfuture.gov.sg/v2/jobs?company={slug}`  | GET    | None |
 
 **Workable** — cursor-based POST pagination; each subsequent page is fetched with `{"nextPage": "<cursor>"}` in the request body. The list endpoint returns minimal fields; a second request to `GET api/v2/accounts/{slug}/jobs/{shortcode}` retrieves description, requirements, and benefits. Internal jobs (`isInternal: true`) are filtered out. Up to 5 detail requests run concurrently via `asyncio.Semaphore(5)`.
 
@@ -119,43 +144,56 @@ A `CRAWL_DELAY` of 0.3 s is inserted between each company during scheduled inges
 | ---------- | ------ | ----------------------------------------------------------- | ----------------- | ----------------------------------------- |
 | Freshteam  | India  | `{slug}.freshteam.com/api/open_positions`                   | Bearer token      | Needs per-company `ats_api_key` on schema |
 | Teamtailor | Europe | `api.teamtailor.com/v1/jobs`                                | Token per company | Needs per-company `ats_api_key` on schema |
-| Workday    | Global | `{company}.wd{n}.myworkdayjobs.com/en-US/{board}/jobs/data` | None (unofficial) | Tenant ID and board name vary per company |
+| Workday    | Global | `POST {company}.wd{n}.myworkdayjobs.com/wday/cxs/{company}/{board}/jobs` | None (unofficial) | Tenant number (`wd1`–`wd24`) and board name vary per company; must be discovered from each company's careers page URL |
 
 Freshteam and Teamtailor both require a `company.ats_api_key` column that does not yet exist in the schema. Unblocking them means: an Alembic migration to add the column, threading the key from `Company` through `ingest()` and `fetch_raw()`, and an admin endpoint or script to register keys per company.
 
 ### Not Compatible
 
-| ATS / Platform | Region      | Reason                                         |
-| -------------- | ----------- | ---------------------------------------------- |
-| BreezyHR       | USA         | HTTP 403 on all endpoints — auth required      |
-| JazzHR         | USA         | `{slug}.jazz.co/api/jobs` serves SPA, no JSON  |
-| Jobvite        | USA         | Auth required                                  |
-| Personio       | Europe      | XML endpoint returns Next.js SPA for all slugs |
-| Bayt           | Middle East | Cloudflare 403 — scraping blocked              |
-| GulfTalent     | Middle East | No public API; Cloudflare-protected            |
-| NaukriGulf     | Middle East | DNS failure — no accessible endpoint           |
-| Wuzzuf         | Middle East | Custom SSR; all `/api/v1/` paths return 404    |
-| Darwinbox      | India       | Angular SPA + Cloudflare Turnstile             |
-| Instahyre      | India       | No public API                                  |
+| ATS / Platform | Region      | Reason                                                                                                  |
+| -------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
+| BreezyHR       | USA         | HTTP 403 on all endpoints; auth required                                                                |
+| JazzHR         | USA         | `{slug}.jazz.co/api/jobs` serves SPA, no JSON                                                           |
+| Jobvite        | USA         | Auth required                                                                                           |
+| Wellfound      | Global      | All API endpoints 403/404; auth required                                                                |
+| Welcome to the Jungle | Europe | Algolia-backed search; all `/api/v1/jobs` paths return 404                                            |
+| Softgarden     | Europe      | Numeric client IDs required (not human-readable slugs); no per-company API path                         |
+| Pinpoint       | Europe      | Auth required on all endpoints                                                                          |
+| JOIN.com       | Europe      | v1 deprecated (410); v2 requires `Authorization` header                                                 |
+| Personio       | Europe      | XML feed (`{slug}.jobs.personio.de/xml`) works for legacy customers only; newer customers use Personio's Next.js job board builder; aggressive rate limiting |
+| Bayt           | Middle East | Cloudflare 403; scraping blocked                                                                        |
+| GulfTalent     | Middle East | No public API; Cloudflare-protected                                                                     |
+| NaukriGulf     | Middle East | DNS failure; no accessible endpoint                                                                     |
+| Talentera      | Middle East | DNS failure; domain unreachable                                                                         |
+| Akhtaboot      | Middle East | Elasticsearch API exists but no working per-company filter parameter                                    |
+| Wuzzuf         | Middle East | Custom SSR; all `/api/v1/` paths return 404                                                             |
+| Darwinbox      | India       | Angular SPA + Cloudflare Turnstile                                                                      |
+| Keka HR        | India       | React SPA; no JSON on any `/careers/api/*` path                                                         |
+| Instahyre      | India       | No public API                                                                                           |
+| Glints         | SEA         | 403 on all endpoints                                                                                    |
+| JobStreet      | SEA         | 403 (MY region); HTML SPA (PH region); Chalice API blocked                                              |
+| Fuzu           | Africa      | Job board; no per-company API                                                                           |
+| PNet           | Africa      | No public API                                                                                           |
+| MyJobMag       | Africa      | No public API                                                                                           |
 
 ## Backlog
 
 Platforms not yet researched. Candidates for future sprints.
 
 - **Global / Enterprise** — iCIMS, Taleo (Oracle), SAP SuccessFactors, Bullhorn
-- **Europe** — Personio JSON API (OAuth, revisit), Welcome to the Jungle (GraphQL, untested), Softgarden, Pinpoint, JOIN
-- **Middle East** — Talentera (Bayt's ATS product), Akhtaboot, Mihnati
-- **India** — Keka HR, Zoho Recruit, Naukri.com, Hirect
-- **Asia Pacific** — SEEK (AU/NZ), JobStreet (SE Asia), MyCareersFuture (SG), JobKorea, CakeResume
+- **Middle East** — Mihnati
+- **India** — Zoho Recruit, Naukri.com, Hirect
+- **Asia Pacific** — SEEK (AU/NZ), JobKorea
+- **Asia Pacific (deferred)** — Kalibrr (PH/ID): `GET /api/companies/{slug}/jobs` is zero-auth JSON and structurally compatible; skipped because no active listings found across 80+ tested company slugs; revisit if platform activity recovers
 - **Latin America** — Computrabajo, OCC Mundial, Catho, Bumeran
-- **Africa** — Fuzu, PNet, MyJobMag
-- **Specialty** — Wellfound, Dice, NHS Jobs (UK healthcare), Culinary Agents
+- **Specialty** — Dice, Culinary Agents
+- **Healthcare** — NHS Jobs (UK): API exists at `api.jobs.nhs.uk/v1/search`; requires a free `Ocp-Apim-Subscription-Key` (Azure APIM, register at `developer.jobs.nhs.uk`). This is a single static key, not per-company, but the ingestion model is search-based rather than slug-based, which requires a fundamentally different architecture from current ingesters. All other major healthcare ATS (HealthcareSource, iCIMS, Taleo) require per-organisation auth contracts and are not feasible. Traditional clinical job boards (BioSpace, Health eCareers, Medscape Jobs) have no public JSON API.
 
 ## Adding an Ingester
 
 ### Standard (zero-auth JSON)
 
-1. Create `backend/app/ingestion/{region}/{ats}.py` — subclass `BaseIngester`, set `ats_type`
+1. Create `backend/app/ingestion/{ats}.py` and subclass `BaseIngester`, set `ats_type`
 2. Implement `fetch_raw`, `extract_job_id`, `build_job`
 3. Register in `app/ingestion/__init__.py` under `INGESTERS`
 4. Add unit tests in `tests/unit/test_ingesters.py`

@@ -13,38 +13,33 @@ uv run pytest --tb=short -q                              # quiet
 
 ## Coverage
 
-**145 tests -- 101 unit, 44 integration | 64% line coverage**
+**176 tests — 133 unit, 43 integration | 57% overall | ~92% testable layer**
+
+The overall 57% includes `app/ingestion/`, `app/enrichment/`, and `app/scheduler.py` which are intentionally excluded (live HTTP to external ATSes / Wikipedia/Wikidata). The testable layer (routers, normalizer, schemas, config) sits at ~92%.
 
 ## Files
 
 ### Unit
 
-| File                       | Tests | Covers                                                                            |
-| -------------------------- | ----- | --------------------------------------------------------------------------------- |
-| `unit/test_classifiers.py` | 42    | `classify_seniority`, `classify_role`, `extract_tech_stack`, `normalize_job_type` |
-| `unit/test_location.py`    | 35    | `canonicalize_city`, `get_region_for_country`                                     |
-| `unit/test_text.py`        | 12    | `strip_html`, `make_snippet`                                                      |
-| `unit/test_payments.py`    | 12    | `create_order` (validation), `verify_payment` (HMAC)                              |
+| File                         | Tests | Covers                                                                            |
+| ---------------------------- | ----- | --------------------------------------------------------------------------------- |
+| `unit/test_classifiers.py`   | 71    | `classify_seniority`, `classify_role`, `extract_tech_stack`, `normalize_job_type` |
+| `unit/test_location.py`      | 35    | `canonicalize_city`, `normalize_location`, `get_region_for_country`               |
+| `unit/test_payments.py`      | 10    | `create_order` (validation), `verify_payment` (HMAC)                              |
+| `unit/test_text.py`          | 12    | `strip_html`, `make_snippet`                                                      |
+| `unit/test_pagination.py`    | 5     | `_encode_cursor`, `_decode_cursor`                                                |
 
 ### Integration
 
 | File                            | Tests | Covers                                                           |
 | ------------------------------- | ----- | ---------------------------------------------------------------- |
-| `integration/test_jobs.py`      | 9     | `/jobs`, `/jobs/{id}`                                            |
+| `integration/test_jobs.py`      | 10    | `/jobs`, `/jobs/{id}`                                            |
 | `integration/test_map.py`       | 9     | `/map/companies`, `/map/cities`, `/map/companies/{slug}/offices` |
-| `integration/test_cities.py`    | 8     | `/cities`, `/cities/{slug}`                                      |
-| `integration/test_companies.py` | 8     | `/companies`, `/companies/{slug}`, `/companies/{slug}/jobs`      |
-| `integration/test_search.py`    | 5     | `/search`                                                        |
-| `integration/test_health.py`    | 4     | `/health`, `/`                                                   |
+| `integration/test_companies.py` | 7     | `/companies`, `/companies/{slug}`, `/companies/{slug}/jobs`      |
+| `integration/test_search.py`    | 6     | `/search`                                                        |
+| `integration/test_cities.py`    | 5     | `/cities`, `/cities/{slug}`                                      |
 | `integration/test_stats.py`     | 4     | `/stats`                                                         |
-
-## Not Covered
-
-| Area               | Reason                          |
-| ------------------ | ------------------------------- |
-| `app/ingestion/`   | Live HTTP to external ATSes     |
-| `app/enrichment/`  | Live HTTP to Wikipedia/Wikidata |
-| `app/scheduler.py` | No unit-testable surface        |
+| `integration/test_health.py`    | 2     | `/health`, `/`                                                   |
 
 ## Stack
 

@@ -34,3 +34,6 @@ Thumbs.db
 
 # logs
 *.log
+
+# others
+ats/

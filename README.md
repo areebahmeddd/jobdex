@@ -24,69 +24,38 @@ JobDex is a startup-focused job board built around map-first discovery. Instead 
 
 ## Data Sources
 
-### USA
+### Integrated (Total: 9)
 
-| ATS             | Endpoint                                                    | Status                            |
-| --------------- | ----------------------------------------------------------- | --------------------------------- |
-| Ashby           | `api.ashbyhq.com/posting-api/job-board/{slug}`              | ✅                                |
-| Greenhouse      | `boards-api.greenhouse.io/v1/boards/{slug}/jobs`            | ✅                                |
-| Lever           | `api.lever.co/v0/postings/{slug}`                           | ✅                                |
-| SmartRecruiters | `api.smartrecruiters.com/v1/companies/{slug}/postings`      | ✅                                |
-| Workable        | `apply.workable.com/api/v3/accounts/{slug}/jobs`            | ✅                                |
-| YCombinator     | `api.ycombinator.com/v0.1/companies?q={slug}`               | ✅                                |
-| Workday         | `{company}.wd{n}.myworkdayjobs.com/en-US/{board}/jobs/data` | Planned                           |
-| BreezyHR        | `{slug}.breezy.hr/positions.json`                           | Not compatible                    |
-| JazzHR          | `{slug}.jazz.co/api/jobs`                                   | Not compatible                    |
-| Jobvite         | `jobs.jobvite.com/api/jobs`                                 | Not compatible                    |
+| ATS                                                              | Region    | Endpoint                                                      |
+| ---------------------------------------------------------------- | --------- | ------------------------------------------------------------- |
+| [Ashby](https://ashbyhq.com)                                     | Global    | `api.ashbyhq.com/posting-api/job-board/{slug}`                |
+| [Greenhouse](https://greenhouse.io)                              | Global    | `boards-api.greenhouse.io/v1/boards/{slug}/jobs`              |
+| [Lever](https://lever.co)                                        | Global    | `api.lever.co/v0/postings/{slug}`                             |
+| [SmartRecruiters](https://smartrecruiters.com)                   | Global    | `api.smartrecruiters.com/v1/companies/{slug}/postings`        |
+| [Workable](https://workable.com)                                 | Global    | `apply.workable.com/api/v3/accounts/{slug}/jobs`              |
+| [YCombinator](https://ycombinator.com)                           | USA       | `api.ycombinator.com/v0.1/companies?q={slug}`                 |
+| [Recruitee](https://recruitee.com)                               | Europe    | `{slug}.recruitee.com/api/offers/`                            |
+| [PyjamaHR](https://pyjamahr.com)                                 | India     | `api.pyjamahr.com/api/career/jobs/?company_slug={slug}`       |
+| [MCF](https://mycareersfuture.gov.sg)                            | Singapore | `api.mycareersfuture.gov.sg/v2/jobs?company={slug}`           |
 
-### Europe
+### Planned
 
-| ATS        | Endpoint                           | Status                         |
-| ---------- | ---------------------------------- | ------------------------------ |
-| Recruitee  | `{slug}.recruitee.com/api/offers/` | ✅                             |
-| Personio   | `{slug}.jobs.personio.de/xml`      | Planned                        |
-| Teamtailor | `api.teamtailor.com/v1/jobs`       | Planned                        |
+| ATS                                              | Region | Blocker                                              |
+| ------------------------------------------------ | ------ | ---------------------------------------------------- |
+| [Workday](https://workday.com)                   | Global | Tenant and board name must be discovered per company |
+| [Freshteam](https://freshteam.com)               | India  | Needs per-company API key                            |
+| [Teamtailor](https://teamtailor.com)             | Europe | Needs per-company API key                            |
 
-### Middle East
+> For a full compatibility matrix including researched but incompatible platforms, see [ATS Integrations](PLAN.md#ats-integrations) in PLAN.md.
 
-| ATS        | Endpoint                           | Status                            |
-| ---------- | ---------------------------------- | --------------------------------- |
-| Bayt       | `bayt.com/en/company/{slug}/jobs/` | Not compatible                    |
-| NaukriGulf | `naukrigulf.com/jobs-in-{country}` | Not compatible                    |
-| Wuzzuf     | `wuzzuf.net/api/v1/jobs`           | Not compatible                    |
-
-### Africa
-
-| ATS            | Endpoint                  | Status                         |
-| -------------- | ------------------------- | ------------------------------ |
-| BrighterMonday | `brightermonday.com/jobs` | Not compatible                 |
-| Careers24      | `careers24.com/jobs`      | Not compatible                 |
-| Jobberman      | `jobberman.com/jobs`      | Not compatible                 |
-
-### India
-
-| ATS       | Endpoint                                                | Status                                    |
-| --------- | ------------------------------------------------------- | ----------------------------------------- |
-| PyjamaHR  | `api.pyjamahr.com/api/career/jobs/?company_slug={slug}` | ✅                                        |
-| Freshteam | `{slug}.freshteam.com/api/open_positions`               | Planned                                   |
-| Darwinbox | `{slug}.darwinbox.in/ms/candidate/careers`              | Not compatible                            |
-
-### Australia
-
-| ATS       | Endpoint                          | Status                              |
-| --------- | --------------------------------- | ----------------------------------- |
-| CareerOne | `careerone.com.au/jobs`           | Not compatible                      |
-| PageUp    | `{slug}.pageuppeople.com/careers` | Not compatible                      |
-| Seek      | `seek.com.au/jobs`                | Not compatible                      |
-
-## Production
+## Live Deployment (Production)
 
 | Service      | URL                                  |
 | ------------ | ------------------------------------ |
 | Frontend UI  | <https://jobdex.1mindlabs.org>       |
 | Backend API  | <https://jobdex-api.1mindlabs.org>   |
 
-## Getting Started
+## Getting Started (Locally)
 
 ```bash
 git clone https://github.com/areebahmeddd/jobdex
