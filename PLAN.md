@@ -289,14 +289,6 @@ These match the architecture of existing integrations:
 
 ---
 
-## Note on WeWork
-
-**WeWork is not an ATS.** WeWork is a coworking space / flexible office company. It is not a hiring platform, job board, or applicant tracking system used by other companies for recruitment. WeWork posts its own internal jobs through third-party ATS platforms (historically Greenhouse and Lever), both of which are already integrated in JobDex.
-
-If you are thinking of a startup job discovery platform, you may be thinking of **Wellfound** (formerly AngelList Talent) — already listed in the roadmap below.
-
----
-
 ## Long-term 50 ATS Roadmap
 
 Beyond the 13 new proposals above, the path to 50 ATS integrations includes:

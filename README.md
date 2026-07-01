@@ -24,12 +24,42 @@ JobDex is a startup-focused job board built around map-first discovery. Instead 
 
 ## Data Sources
 
-| ATS          | Endpoint                                                       |
-| ------------ | -------------------------------------------------------------- |
-| Ashby        | `api.ashbyhq.com/posting-api/job-board/{slug}`                 |
-| Greenhouse   | `boards-api.greenhouse.io/v1/boards/{slug}/jobs`               |
-| Lever        | `api.lever.co/v0/postings/{slug}`                              |
-| YCombinator  | `api.ycombinator.com/v0.1/companies?q={slug}`                  |
+### USA
+
+| ATS             | Endpoint                                                              | Status  |
+| --------------- | --------------------------------------------------------------------- | ------- |
+| Ashby           | `api.ashbyhq.com/posting-api/job-board/{slug}`                        | ✅      |
+| BreezyHR        | `{slug}.breezy.hr/positions.json`                                     | Planned |
+| Greenhouse      | `boards-api.greenhouse.io/v1/boards/{slug}/jobs`                      | ✅      |
+| JazzHR          | `{slug}.jazz.co/api/jobs`                                             | Planned |
+| Lever           | `api.lever.co/v0/postings/{slug}`                                     | ✅      |
+| SmartRecruiters | `api.smartrecruiters.com/v1/companies/{slug}/postings`                | ✅      |
+| Workable        | `apply.workable.com/{slug}/api/v3/jobs`                               | Planned |
+| YCombinator     | `api.ycombinator.com/v0.1/companies?q={slug}`                         | ✅      |
+
+### Europe
+
+| ATS        | Endpoint                              | Status  |
+| ---------- | ------------------------------------- | ------- |
+| Personio   | `{slug}.jobs.personio.de/xml`         | Planned |
+| Recruitee  | `{slug}.recruitee.com/api/offers`     | Planned |
+| Teamtailor | `api.teamtailor.com/v1/jobs`          | Planned |
+
+### Middle East
+
+| ATS        | Endpoint                              | Status  |
+| ---------- | ------------------------------------- | ------- |
+| Bayt       | `bayt.com/en/company/{slug}/jobs/`    | Planned |
+| GulfTalent | `gulftalent.com/jobs`                 | Planned |
+| NaukriGulf | `naukrigulf.com/jobs-in-{country}`    | Planned |
+
+### India
+
+| ATS       | Endpoint                                                        | Status  |
+| --------- | --------------------------------------------------------------- | ------- |
+| Darwinbox | `{slug}.darwinbox.in/ms/candidate/careers`                      | Planned |
+| Freshteam | `{slug}.freshteam.com/api/open_positions`                       | Planned |
+| PyjamaHR  | `api.pyjamahr.com/api/career/jobs/?company_slug={slug}`         | ✅      |
 
 ## Production
 
