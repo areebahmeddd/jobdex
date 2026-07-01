@@ -95,13 +95,15 @@ async def run_discovery() -> None:
     skipped = 0
 
     for ats_name, ingester in INGESTERS.items():
+        logger.info(f"[scheduler] discovering from {ats_name}")
         try:
             stubs = await ingester.discover()
         except Exception as exc:
-            logger.error(f"[scheduler] discovery failed for {ats_name}: {exc}")
+            logger.warning(f"[scheduler] discovery failed for {ats_name}: {exc}")
             continue
 
         if not stubs:
+            logger.info(f"[scheduler] {ats_name}: no stubs returned")
             continue
 
         stub_slugs = [s.slug for s in stubs]
@@ -116,6 +118,10 @@ async def run_discovery() -> None:
             db.commit()
         added += len(new_stubs)
         skipped += len(stubs) - len(new_stubs)
+        logger.info(
+            f"[scheduler] {ats_name}: {len(stubs)} found  "
+            f"{len(new_stubs)} new  {len(stubs) - len(new_stubs)} skipped"
+        )
 
     logger.info(f"[scheduler] discovery complete: added={added} skipped={skipped}")
 
@@ -145,7 +151,7 @@ def start() -> None:
     )
     scheduler.start()
     logger.info(
-        f"[scheduler] started — ingest every {settings.INGEST_INTERVAL_HOURS}h, "
+        f"[scheduler] started: ingest every {settings.INGEST_INTERVAL_HOURS}h, "
         f"enrich every {settings.ENRICH_INTERVAL_HOURS}h, "
         f"discover every {settings.DISCOVER_INTERVAL_HOURS}h"
     )

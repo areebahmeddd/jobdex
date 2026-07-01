@@ -18,7 +18,8 @@ def search(
         None, description="City name (supports aliases: 'Bengaluru', 'NCR', 'NYC'...)"
     ),
     role: str | None = Query(
-        None, description="Role category: engineering, design, product, sales..."
+        None,
+        description="Role category: engineering, design, product, data, marketing, sales, finance, operations, healthcare, hospitality...",
     ),
     industry: str | None = Query(
         None, description="Industry tag partial match: fintech, saas, ai..."

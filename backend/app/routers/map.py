@@ -17,7 +17,10 @@ def map_companies(
     lng_max: float | None = Query(None, ge=-180, le=180, description="East bound of viewport"),
     region: str | None = Query(None, description="e.g. south_asia, north_america, europe"),
     country_code: str | None = Query(None, description="ISO-2 country code: IN, AE, US..."),
-    role: str | None = Query(None, description="Role category: engineering, design, product..."),
+    role: str | None = Query(
+        None,
+        description="Role category: engineering, design, product, data, marketing, sales, finance, operations, healthcare...",
+    ),
     is_remote: bool | None = Query(None),
     response: Response = None,
     db: Session = Depends(get_db),
@@ -142,7 +145,10 @@ def map_cities(
     lng_max: float | None = Query(None, ge=-180, le=180, description="East bound of viewport"),
     region: str | None = Query(None),
     country_code: str | None = Query(None),
-    role: str | None = Query(None, description="Count only jobs with this role category"),
+    role: str | None = Query(
+        None,
+        description="Count only jobs with this role category: engineering, design, product, data, marketing, sales, finance, operations, healthcare...",
+    ),
     is_remote: bool | None = Query(None),
     response: Response = None,
     db: Session = Depends(get_db),

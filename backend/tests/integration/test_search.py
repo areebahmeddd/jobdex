@@ -2,14 +2,10 @@ import pytest
 
 
 @pytest.mark.integration
-def test_search_returns_200(client):
+def test_search_schema(client):
     r = client.get("/search")
     assert r.status_code == 200
-
-
-@pytest.mark.integration
-def test_search_schema(client):
-    data = client.get("/search").json()
+    data = r.json()
     assert "companies" in data
     assert "jobs" in data
     assert "total_companies" in data
@@ -21,6 +17,7 @@ def test_search_schema(client):
 @pytest.mark.integration
 def test_search_role_filter(client):
     data = client.get("/search", params={"role": "engineering"}).json()
+    assert len(data["jobs"]) > 0
     for job in data["jobs"]:
         assert job["role_category"] == "engineering"
 
@@ -28,6 +25,7 @@ def test_search_role_filter(client):
 @pytest.mark.integration
 def test_search_city_filter(client):
     data = client.get("/search", params={"city": "Bangalore"}).json()
+    assert len(data["jobs"]) > 0
     for job in data["jobs"]:
         assert job["city"] == "Bangalore"
 
@@ -42,5 +40,14 @@ def test_search_totals_consistent(client):
 @pytest.mark.integration
 def test_search_remote_filter(client):
     data = client.get("/search", params={"is_remote": "true"}).json()
+    assert len(data["jobs"]) > 0
     for job in data["jobs"]:
         assert job["is_remote"] is True
+
+
+@pytest.mark.integration
+def test_search_country_code_filter(client):
+    data = client.get("/search", params={"country_code": "IN", "limit": 10}).json()
+    assert len(data["jobs"]) > 0
+    for job in data["jobs"]:
+        assert job["country_code"] == "IN"

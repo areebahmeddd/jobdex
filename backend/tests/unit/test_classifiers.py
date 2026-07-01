@@ -56,10 +56,56 @@ class TestClassifyRole:
         category, _ = classify_role(title)
         assert category == expected_category
 
-    def test_returns_tuple_of_two(self):
-        result = classify_role("Backend Engineer")
-        assert isinstance(result, tuple)
-        assert len(result) == 2
+    @pytest.mark.parametrize(
+        "title, expected_category, expected_subcategory",
+        [
+            ("Registered Nurse", "healthcare", "clinical"),
+            ("Staff Nurse ICU", "healthcare", "clinical"),
+            ("Physiotherapist", "healthcare", "clinical"),
+            ("Senior Physiotherapist", "healthcare", "clinical"),
+            ("Clinical Pharmacist", "healthcare", "clinical"),
+            ("Psychiatrist", "healthcare", "clinical"),
+            ("Biomedical Engineer", "healthcare", "medtech"),
+            ("Clinical Engineer", "healthcare", "medtech"),
+            ("Medical Device Specialist", "healthcare", "medtech"),
+            ("Regulatory Affairs Manager", "healthcare", "pharma"),
+            ("Pharmacovigilance Analyst", "healthcare", "pharma"),
+            ("Clinical Trial Manager", "healthcare", "pharma"),
+            ("Health Informatics Analyst", "healthcare", "informatics"),
+            ("Clinical Informatics Specialist", "healthcare", "informatics"),
+        ],
+    )
+    def test_healthcare_categories(self, title, expected_category, expected_subcategory):
+        category, subcategory = classify_role(title)
+        assert category == expected_category
+        assert subcategory == expected_subcategory
+
+    @pytest.mark.parametrize(
+        "title, expected_subcategory",
+        [
+            ("Head Chef", "culinary"),
+            ("Sous Chef", "culinary"),
+            ("Pastry Chef", "culinary"),
+            ("Line Cook", "culinary"),
+            ("Prep Cook", "culinary"),
+            ("Baker", "culinary"),
+            ("Barista", "culinary"),
+            ("Sommelier", "culinary"),
+            ("Kitchen Manager", "culinary"),
+            ("Bartender", "general"),
+            ("Restaurant Manager", "general"),
+            ("Hotel Manager", "general"),
+            ("Waiter", "general"),
+            ("Waitress", "general"),
+            ("Concierge", "general"),
+            ("Catering Manager", "general"),
+            ("Front of House Manager", "general"),
+        ],
+    )
+    def test_hospitality_categories(self, title, expected_subcategory):
+        category, subcategory = classify_role(title)
+        assert category == "hospitality"
+        assert subcategory == expected_subcategory
 
     def test_fallback_to_other(self):
         category, subcategory = classify_role("Elephant Trainer XYZ123")
@@ -70,10 +116,6 @@ class TestClassifyRole:
         # Title alone is generic; description should disambiguate
         category, _ = classify_role("Associate", description="product management roadmap sprint")
         assert category != "other"
-
-    def test_subcategory_is_string(self):
-        _, subcategory = classify_role("Data Scientist")
-        assert isinstance(subcategory, str)
 
 
 class TestExtractTechStack:

@@ -2,14 +2,10 @@ import pytest
 
 
 @pytest.mark.integration
-def test_list_jobs_returns_200(client):
+def test_list_jobs_schema(client):
     r = client.get("/jobs")
     assert r.status_code == 200
-
-
-@pytest.mark.integration
-def test_list_jobs_schema(client):
-    data = client.get("/jobs").json()
+    data = r.json()
     assert "jobs" in data
     assert isinstance(data["total"], int)
     assert "limit" in data
@@ -25,15 +21,32 @@ def test_list_jobs_respects_limit(client):
 @pytest.mark.integration
 def test_list_jobs_role_filter(client):
     data = client.get("/jobs", params={"role_category": "engineering", "limit": 20}).json()
+    assert len(data["jobs"]) > 0
     for job in data["jobs"]:
         assert job["role_category"] == "engineering"
 
 
 @pytest.mark.integration
+def test_list_jobs_seniority_filter(client):
+    data = client.get("/jobs", params={"seniority": "senior", "limit": 10}).json()
+    assert len(data["jobs"]) > 0
+    for job in data["jobs"]:
+        assert job["seniority"] == "senior"
+
+
+@pytest.mark.integration
 def test_list_jobs_remote_filter(client):
     data = client.get("/jobs", params={"is_remote": "true", "limit": 20}).json()
+    assert len(data["jobs"]) > 0
     for job in data["jobs"]:
         assert job["is_remote"] is True
+
+
+@pytest.mark.integration
+def test_list_jobs_fulltext_search(client):
+    r = client.get("/jobs", params={"q": "engineer", "limit": 5})
+    assert r.status_code == 200
+    assert "jobs" in r.json()
 
 
 @pytest.mark.integration
@@ -43,10 +56,15 @@ def test_list_jobs_cursor_pagination(client):
     if cursor:
         page2 = client.get("/jobs", params={"limit": 5, "cursor": cursor}).json()
         assert "jobs" in page2
-        # No overlap between pages
         ids1 = {j["id"] for j in page1["jobs"]}
         ids2 = {j["id"] for j in page2["jobs"]}
         assert ids1.isdisjoint(ids2)
+
+
+@pytest.mark.integration
+def test_list_jobs_invalid_cursor_graceful(client):
+    r = client.get("/jobs", params={"cursor": "this-is-not-a-valid-cursor"})
+    assert r.status_code == 200
 
 
 @pytest.mark.integration

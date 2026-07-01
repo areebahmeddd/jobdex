@@ -23,7 +23,7 @@ def main() -> None:
         db.query(Company).update({"last_crawled_at": None, "crawl_error": None})
         db.commit()
 
-    print(f"Reset complete — {deleted} jobs deleted. Companies and cities retained.")
+    print(f"Reset complete - {deleted} jobs deleted. Companies and cities retained.")
 
 
 if __name__ == "__main__":

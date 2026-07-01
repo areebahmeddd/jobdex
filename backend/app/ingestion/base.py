@@ -242,7 +242,7 @@ class BaseIngester(ABC):
                     job.last_seen_at = now
                     db.add(job)
                     result.new_jobs += 1
-            except Exception as exc:  # noqa: BLE001
+            except (KeyError, ValueError, TypeError, AttributeError, IndexError) as exc:
                 msg = f"Error on job id={raw.get('id', '?')}: {exc}"
                 logger.warning(msg)
                 result.errors.append(msg)

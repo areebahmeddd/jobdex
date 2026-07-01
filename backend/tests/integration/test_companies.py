@@ -2,37 +2,41 @@ import pytest
 
 
 @pytest.mark.integration
-def test_list_companies_returns_200(client):
-    r = client.get("/companies")
-    assert r.status_code == 200
-
-
-@pytest.mark.integration
 def test_list_companies_schema(client):
-    data = client.get("/companies").json()
+    r = client.get("/companies", params={"limit": 5})
+    assert r.status_code == 200
+    data = r.json()
     assert "companies" in data
     assert "total" in data
     assert "limit" in data
     assert "offset" in data
     assert isinstance(data["companies"], list)
-
-
-@pytest.mark.integration
-def test_list_companies_has_required_fields(client):
-    companies = client.get("/companies", params={"limit": 5}).json()["companies"]
-    if not companies:
-        pytest.skip("No companies in database")
-    c = companies[0]
-    assert "id" in c
-    assert "name" in c
-    assert "slug" in c
-    assert "job_count" in c
+    if data["companies"]:
+        c = data["companies"][0]
+        assert "id" in c
+        assert "name" in c
+        assert "slug" in c
+        assert "job_count" in c
 
 
 @pytest.mark.integration
 def test_list_companies_respects_limit(client):
     data = client.get("/companies", params={"limit": 3}).json()
     assert len(data["companies"]) <= 3
+
+
+@pytest.mark.integration
+def test_list_companies_has_errors_filter(client):
+    r = client.get("/companies", params={"has_errors": "false"})
+    assert r.status_code == 200
+    assert "companies" in r.json()
+
+
+@pytest.mark.integration
+def test_list_companies_text_search(client):
+    r = client.get("/companies", params={"q": "tech", "limit": 5})
+    assert r.status_code == 200
+    assert "companies" in r.json()
 
 
 @pytest.mark.integration

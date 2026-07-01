@@ -38,7 +38,7 @@ async def main() -> None:
         print("No YCombinator companies in DB. Run scripts/discover.py first.")
         return
 
-    print(f"\nJobDex Seed \u2014 probing {len(slugs)} YC companies across {PROBE_ORDER}")
+    print(f"\nJobDex Seed - probing {len(slugs)} YC companies across {PROBE_ORDER}")
     print(f"{'=' * 50}\n")
 
     matched = 0
@@ -71,7 +71,7 @@ async def main() -> None:
                 await asyncio.sleep(settings.CRAWL_DELAY)
 
         if not found and i % 100 == 0:
-            print(f"  ... {i}/{len(slugs)} probed \u2014 {matched} upgraded so far")
+            print(f"  ... {i}/{len(slugs)} probed, {matched} upgraded so far")
 
     print(f"\n{'=' * 50}")
     print(

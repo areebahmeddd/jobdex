@@ -2,28 +2,18 @@ import pytest
 
 
 @pytest.mark.integration
-def test_list_cities_returns_200(client):
+def test_list_cities_schema(client):
     r = client.get("/cities")
     assert r.status_code == 200
-
-
-@pytest.mark.integration
-def test_list_cities_schema(client):
-    data = client.get("/cities").json()
+    data = r.json()
     assert "cities" in data
     assert "total" in data
     assert isinstance(data["cities"], list)
-
-
-@pytest.mark.integration
-def test_list_cities_has_required_fields(client):
-    cities = client.get("/cities").json()["cities"]
-    if not cities:
-        pytest.skip("No cities in database")
-    city = cities[0]
-    assert "name" in city
-    assert "slug" in city
-    assert "country_code" in city
+    if data["cities"]:
+        city = data["cities"][0]
+        assert "name" in city
+        assert "slug" in city
+        assert "country_code" in city
 
 
 @pytest.mark.integration

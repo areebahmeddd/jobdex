@@ -9,7 +9,10 @@ import asyncio
 import sys
 import urllib.request
 
+from loguru import logger
+
 from app.config import settings
+from app.ingestion import INGESTERS
 from app.scheduler import run_discovery
 
 
@@ -31,5 +34,15 @@ def _abort_if_server_live(*, force: bool) -> None:
 
 
 if __name__ == "__main__":
+    logger.remove()
+    logger.add(sys.stdout, format="  {message}", level="INFO", colorize=sys.stdout.isatty())
+
     _abort_if_server_live(force="--force" in sys.argv)
+
+    sources = list(INGESTERS)
+    print(f"\nJobDex Discovery - scanning {len(sources)} sources: {sources}")
+    print(f"{'=' * 52}\n")
+
     asyncio.run(run_discovery())
+
+    print(f"\n{'=' * 52}\n")

@@ -112,12 +112,12 @@ Configurable via `INGEST_INTERVAL_HOURS`, `ENRICH_INTERVAL_HOURS`, and `DISCOVER
 ### Fresh Setup
 
 ```bash
-# terminal 1 — start server (runs migrations, seeds cities, starts scheduler)
-uv run uvicorn app.main:app --port 8000 --reload
+# terminal 1: start server (runs migrations, seeds cities, starts scheduler)
+ uv run uvicorn app.main:app --port 8000 --reload
 
-# terminal 2 — populate the database
+# terminal 2: populate the database
 uv run python scripts/discover.py        # register companies from all ingesters
-uv run python scripts/probe.py           # upgrade YC companies found on Greenhouse/Ashby/Lever
+uv run python scripts/probe.py           # upgrade YC companies found on Ashby/Greenhouse/Lever
 uv run python scripts/ingest.py --all    # ingest jobs for all registered companies
 uv run python scripts/enrich.py --all    # enrich all companies with Wikidata/Wikipedia
 ```
@@ -153,7 +153,7 @@ See `tests/README.md` for details.
 | Script                           | Purpose                                                              |
 | -------------------------------- | -------------------------------------------------------------------- |
 | `scripts/discover.py`            | Register companies from all ingesters (YC bulk discovery)           |
-| `scripts/probe.py`               | Probe YC companies against Greenhouse, Ashby, Lever; upgrade matches |
+| `scripts/probe.py`               | Probe YC companies against Ashby, Greenhouse, Lever; upgrade matches |
 | `scripts/ingest.py --all`        | Ingest jobs for all active companies                                 |
 | `scripts/ingest.py <ats> <slug>` | Ingest jobs for a single company                                     |
 | `scripts/enrich.py <slug>`       | Enrich a single company with Wikidata/Wikipedia                      |

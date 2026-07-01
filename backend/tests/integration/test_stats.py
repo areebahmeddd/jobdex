@@ -2,14 +2,10 @@ import pytest
 
 
 @pytest.mark.integration
-def test_stats_returns_200(client):
+def test_stats_schema(client):
     r = client.get("/stats")
     assert r.status_code == 200
-
-
-@pytest.mark.integration
-def test_stats_schema(client):
-    data = client.get("/stats").json()
+    data = r.json()
     assert isinstance(data["total_companies"], int)
     assert isinstance(data["total_jobs"], int)
     assert isinstance(data["active_jobs"], int)

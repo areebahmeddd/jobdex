@@ -2,14 +2,10 @@ import pytest
 
 
 @pytest.mark.integration
-def test_map_companies_returns_200(client):
+def test_map_companies_schema(client):
     r = client.get("/map/companies")
     assert r.status_code == 200
-
-
-@pytest.mark.integration
-def test_map_companies_schema(client):
-    data = client.get("/map/companies").json()
+    data = r.json()
     assert "companies" in data
     assert "total" in data
     assert isinstance(data["companies"], list)
@@ -38,14 +34,26 @@ def test_map_companies_cache_header(client):
 
 
 @pytest.mark.integration
-def test_map_cities_returns_200(client):
-    r = client.get("/map/cities")
+def test_map_companies_viewport_filter(client):
+    r = client.get(
+        "/map/companies",
+        params={"lat_min": 8.0, "lat_max": 37.0, "lng_min": 68.0, "lng_max": 97.0},
+    )
     assert r.status_code == 200
+    assert "companies" in r.json()
+
+
+@pytest.mark.integration
+def test_map_companies_invalid_viewport_returns_422(client):
+    r = client.get("/map/companies", params={"lat_min": 91})
+    assert r.status_code == 422
 
 
 @pytest.mark.integration
 def test_map_cities_schema(client):
-    data = client.get("/map/cities").json()
+    r = client.get("/map/cities")
+    assert r.status_code == 200
+    data = r.json()
     assert "cities" in data
     assert "total" in data
 
