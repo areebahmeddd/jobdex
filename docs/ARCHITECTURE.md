@@ -177,7 +177,7 @@ strip_html() + make_snippet()
 
 ### ATS providers
 
-**Ashby**: `POST /job-board/jobPostings` with `{jobBoardIdentifier: slug}`. Returns a paginated list. Job ID is the Ashby UUID. Location is sourced from the `locationName` field.
+**Ashby**: `GET https://api.ashbyhq.com/posting-api/job-board/{slug}`. Returns a JSON object with a `jobs` array. Job ID is the Ashby UUID. Location is sourced from the `locationName` field.
 
 **Greenhouse**: `GET /boards/{slug}/jobs?content=true`. Returns a flat list of job objects with HTML content, location, and department. Job ID is the Greenhouse numeric `id`.
 

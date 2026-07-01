@@ -1,8 +1,6 @@
-# JobDex Backend — Deep-Dive Q&A
+﻿# JobDex Backend — Deep-Dive Q&A
 
 Each question is answered with exact code and file references, cross-checked against the full codebase, and includes a **verdict** on design quality with improvement suggestions where appropriate.
-
----
 
 ## Bugs & Investigations
 
@@ -57,8 +55,6 @@ if scheduler.get_job("ingest_all") and scheduler.get_job("ingest_all").next_run_
 ```
 
 Or more practically: document that scripts should not be run while the server is up, and add a `--force` flag guard to the scripts. A full distributed lock (Redis `SET NX`, Postgres advisory lock) is only needed if you add multiple server replicas.
-
----
 
 ## Q3 — What happens if cron runs and finds the same data? `[FIXED]`
 
@@ -119,8 +115,6 @@ db.query(Job).filter(
 ```
 
 This halves write pressure when re-running within the same day, but adds complexity. At current scale it's not needed.
-
----
 
 ## Q4 — Error handling? `[FIXED]`
 
@@ -204,8 +198,6 @@ Any unhandled exception inside a `with get_session()` block rolls back the trans
 4. **`noqa: BLE001` (blind exception)**. Catching all exceptions in the per-job loop hides programmer errors (e.g., AttributeError in `build_job`) alongside data errors. Narrowing to `(KeyError, ValueError, TypeError)` would be safer.
 5. **Discovery uses `logger.error` for failures, ingestion uses `logger.warning`** — this inconsistency makes log-level-based alerting unreliable.
 
----
-
 ## Q10 — Are the time intervals logically correct? `[FIXED]`
 
 From [`backend/app/config.py`](backend/app/config.py):
@@ -267,8 +259,6 @@ scheduler.add_job(run_enrichment, "interval", hours=12, id="enrich_pending", max
 
 Option A is the better production choice as it keeps company data reasonably fresh.
 
----
-
 ## Architecture & Design
 
 ## Q2 — Is DB data deduplicated or repeated?
@@ -325,8 +315,6 @@ If the same real-world company was discovered under slug `"acme-corp"` by YC (wi
 
 **Job-level deduplication is solid and DB-enforced.** Company-level cross-ATS deduplication is absent by design — each ATS provider has its own slug namespace. For the current scope (one ATS per company) this is fine. If you ever onboard a company on multiple ATS types, a manual merge or canonical-company concept would be needed.
 
----
-
 ## Q5 — How is pagination happening? Offset vs cursor?
 
 ### Jobs endpoint — Hybrid
@@ -378,8 +366,6 @@ The cursor is a Base64-encoded JSON of `{p: posted_at_iso, i: job_id}`. It handl
 ### Verdict
 
 Cursor pagination on jobs is well-implemented and uses the right indexed columns (`ix_jobs_active_posted`). The hybrid approach is pragmatic. The search endpoint's triple-query pattern is a performance smell at scale.
-
----
 
 ## Q6 — Are there safe checks before insertion or on startup?
 
@@ -475,8 +461,6 @@ Only calls Clearbit if `latitude` is not set. Prevents re-fetching on every craw
 2. **No schema validation of ATS responses.** `fetch_raw()` returns raw dicts and `build_job()` uses `.get()` with defaults everywhere — fine for resilience, but a missing required field like `raw["id"]` (used in `extract_job_id`) will raise a `KeyError` that gets caught by the bare except. A Pydantic model for the raw ATS response would provide better error messages.
 3. **No health check for DB connection before scheduler starts.** If the DB is briefly unavailable at startup, `migrate_db()` raises and the app crashes. This is actually fine (fail-fast is correct), but there's no retry.
 
----
-
 ## Q7 — What happens with 10+ ATS? Is Kafka/queue needed?
 
 ### Current architecture
@@ -547,8 +531,6 @@ results = await asyncio.gather(*tasks, return_exceptions=True)
 **Step 2 (at scale):** Move to a task queue (Celery + Redis or ARQ) — but this adds significant operational complexity. Only justified at 1000+ companies.
 
 **Kafka is overkill** for this use case. It's designed for high-throughput event streaming, not scheduled polling of 4 ATS APIs.
-
----
 
 ## Q8 — What is ingestion doing vs discover vs enrich?
 
@@ -632,8 +614,6 @@ Enrichment (12h, one-time)
 
 Discovery and Enrichment are about **companies**. Ingestion is about **jobs**. They are independent and can run in any order.
 
----
-
 ## Q9 — Are all relevant places logging, or did we overdo it?
 
 ### What's logged
@@ -676,8 +656,6 @@ Discovery and Enrichment are about **companies**. Ingestion is about **jobs**. T
 - Router endpoints have zero logging — no way to audit what queries are hitting the DB
 
 **Not over-engineered:** No unnecessary trace/span logging. `DEBUG` is used sparingly. No structured JSON logging is set up (Loguru is text-format by default), but adding that would be a one-liner change to the Loguru config.
-
----
 
 ## Q11 — Are operations idempotent and atomic?
 
@@ -760,8 +738,6 @@ All cities are inserted in a single transaction. If one fails (e.g., an ORM erro
 ### Race condition in discovery
 
 Discovery narrows the check-then-act window by batching all inserts for one ATS into a single session (see the batching note above). A concurrent process inserting the same slug between the `IN` check and `db.commit()` would produce an `IntegrityError` on the unique `slug` constraint, which would roll back the entire batch for that ATS and be logged by the outer `try/except`. For further hardening, the insert could use `INSERT ... ON CONFLICT DO NOTHING` via `sqlalchemy.dialects.postgresql.insert(...).on_conflict_do_nothing()`.
-
----
 
 ## Q12 — How is searching and DB ops working?
 
@@ -876,8 +852,6 @@ Coverage is comprehensive. Notable gaps:
 ### Overall DB ops quality
 
 The ORM usage is clean and correct. `synchronize_session=False` on bulk UPDATEs is correctly used (the session is committed after and the objects aren't accessed again). `db.flush()` before `_backfill_company_hq` is correct (ensures the company ID is available for the sub-query). Relationships use `lazy="select"` (explicit N+1 avoidance is handled by manually joining in queries rather than relying on relationship loading).
-
----
 
 ## Summary Table
 

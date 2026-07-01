@@ -44,8 +44,8 @@ app.include_router(companies.router)
 app.include_router(cities.router)
 app.include_router(search.router)
 app.include_router(map.router)
-app.include_router(stats.router)
 app.include_router(payments.router)
+app.include_router(stats.router)
 
 
 @app.get("/health", tags=["meta"])
@@ -61,7 +61,16 @@ def root():
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "docs": "/docs",
-        "supported_ats": ["ashby", "greenhouse", "lever", "ycombinator"],
+        "supported_ats": [
+            "ashby",
+            "greenhouse",
+            "lever",
+            "pyjamahr",
+            "recruitee",
+            "smartrecruiters",
+            "workable",
+            "ycombinator",
+        ],
         "endpoints": {
             "jobs": "GET /jobs?city=&role_category=&seniority=&is_remote=&q=&cursor=",
             "companies": "GET /companies?city=&industry=&country_code=&region=",
@@ -70,6 +79,10 @@ def root():
             "map": {
                 "companies": "GET /map/companies?region=&role=&lat_min=&lat_max=&lng_min=&lng_max=",
                 "cities": "GET /map/cities?region=&role=&is_remote=",
+            },
+            "payments": {
+                "create_order": "POST /payments/orders",
+                "verify": "POST /payments/verify",
             },
             "stats": "GET /stats",
         },

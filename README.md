@@ -26,40 +26,58 @@ JobDex is a startup-focused job board built around map-first discovery. Instead 
 
 ### USA
 
-| ATS             | Endpoint                                                              | Status  |
-| --------------- | --------------------------------------------------------------------- | ------- |
-| Ashby           | `api.ashbyhq.com/posting-api/job-board/{slug}`                        | ✅      |
-| BreezyHR        | `{slug}.breezy.hr/positions.json`                                     | Planned |
-| Greenhouse      | `boards-api.greenhouse.io/v1/boards/{slug}/jobs`                      | ✅      |
-| JazzHR          | `{slug}.jazz.co/api/jobs`                                             | Planned |
-| Lever           | `api.lever.co/v0/postings/{slug}`                                     | ✅      |
-| SmartRecruiters | `api.smartrecruiters.com/v1/companies/{slug}/postings`                | ✅      |
-| Workable        | `apply.workable.com/{slug}/api/v3/jobs`                               | Planned |
-| YCombinator     | `api.ycombinator.com/v0.1/companies?q={slug}`                         | ✅      |
+| ATS             | Endpoint                                                    | Status                            |
+| --------------- | ----------------------------------------------------------- | --------------------------------- |
+| Ashby           | `api.ashbyhq.com/posting-api/job-board/{slug}`              | ✅                                |
+| Greenhouse      | `boards-api.greenhouse.io/v1/boards/{slug}/jobs`            | ✅                                |
+| Lever           | `api.lever.co/v0/postings/{slug}`                           | ✅                                |
+| SmartRecruiters | `api.smartrecruiters.com/v1/companies/{slug}/postings`      | ✅                                |
+| Workable        | `apply.workable.com/api/v3/accounts/{slug}/jobs`            | ✅                                |
+| YCombinator     | `api.ycombinator.com/v0.1/companies?q={slug}`               | ✅                                |
+| Workday         | `{company}.wd{n}.myworkdayjobs.com/en-US/{board}/jobs/data` | Planned                           |
+| BreezyHR        | `{slug}.breezy.hr/positions.json`                           | Not compatible                    |
+| JazzHR          | `{slug}.jazz.co/api/jobs`                                   | Not compatible                    |
+| Jobvite         | `jobs.jobvite.com/api/jobs`                                 | Not compatible                    |
 
 ### Europe
 
-| ATS        | Endpoint                              | Status  |
-| ---------- | ------------------------------------- | ------- |
-| Personio   | `{slug}.jobs.personio.de/xml`         | Planned |
-| Recruitee  | `{slug}.recruitee.com/api/offers`     | Planned |
-| Teamtailor | `api.teamtailor.com/v1/jobs`          | Planned |
+| ATS        | Endpoint                           | Status                         |
+| ---------- | ---------------------------------- | ------------------------------ |
+| Recruitee  | `{slug}.recruitee.com/api/offers/` | ✅                             |
+| Personio   | `{slug}.jobs.personio.de/xml`      | Planned                        |
+| Teamtailor | `api.teamtailor.com/v1/jobs`       | Planned                        |
 
 ### Middle East
 
-| ATS        | Endpoint                              | Status  |
-| ---------- | ------------------------------------- | ------- |
-| Bayt       | `bayt.com/en/company/{slug}/jobs/`    | Planned |
-| GulfTalent | `gulftalent.com/jobs`                 | Planned |
-| NaukriGulf | `naukrigulf.com/jobs-in-{country}`    | Planned |
+| ATS        | Endpoint                           | Status                            |
+| ---------- | ---------------------------------- | --------------------------------- |
+| Bayt       | `bayt.com/en/company/{slug}/jobs/` | Not compatible                    |
+| NaukriGulf | `naukrigulf.com/jobs-in-{country}` | Not compatible                    |
+| Wuzzuf     | `wuzzuf.net/api/v1/jobs`           | Not compatible                    |
+
+### Africa
+
+| ATS            | Endpoint                  | Status                         |
+| -------------- | ------------------------- | ------------------------------ |
+| BrighterMonday | `brightermonday.com/jobs` | Not compatible                 |
+| Careers24      | `careers24.com/jobs`      | Not compatible                 |
+| Jobberman      | `jobberman.com/jobs`      | Not compatible                 |
 
 ### India
 
-| ATS       | Endpoint                                                        | Status  |
-| --------- | --------------------------------------------------------------- | ------- |
-| Darwinbox | `{slug}.darwinbox.in/ms/candidate/careers`                      | Planned |
-| Freshteam | `{slug}.freshteam.com/api/open_positions`                       | Planned |
-| PyjamaHR  | `api.pyjamahr.com/api/career/jobs/?company_slug={slug}`         | ✅      |
+| ATS       | Endpoint                                                | Status                                    |
+| --------- | ------------------------------------------------------- | ----------------------------------------- |
+| PyjamaHR  | `api.pyjamahr.com/api/career/jobs/?company_slug={slug}` | ✅                                        |
+| Freshteam | `{slug}.freshteam.com/api/open_positions`               | Planned                                   |
+| Darwinbox | `{slug}.darwinbox.in/ms/candidate/careers`              | Not compatible                            |
+
+### Australia
+
+| ATS       | Endpoint                          | Status                              |
+| --------- | --------------------------------- | ----------------------------------- |
+| CareerOne | `careerone.com.au/jobs`           | Not compatible                      |
+| PageUp    | `{slug}.pageuppeople.com/careers` | Not compatible                      |
+| Seek      | `seek.com.au/jobs`                | Not compatible                      |
 
 ## Production
 
