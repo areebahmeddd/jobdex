@@ -46,7 +46,7 @@ JobDex is a startup-focused job board built around map-first discovery. Instead 
 | [Freshteam](https://freshteam.com)               | India  | Needs per-company API key                            |
 | [Teamtailor](https://teamtailor.com)             | Europe | Needs per-company API key                            |
 
-> For a full compatibility matrix including researched but incompatible platforms, see [ATS Integrations](PLAN.md#ats-integrations) in PLAN.md.
+> For a full compatibility matrix including researched but incompatible platforms, see [ATS Integrations](docs/PLAN.md#ats-integrations) in PLAN.md.
 
 ## Live Deployment (Production)
 
