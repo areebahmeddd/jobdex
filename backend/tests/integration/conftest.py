@@ -13,7 +13,7 @@ def client():
         with engine.connect():
             pass
     except OperationalError:
-        pytest.skip("Database not available — skipping integration tests")
+        pytest.skip("Database not available. skipping integration tests")
 
     with TestClient(app, raise_server_exceptions=True) as c:
         yield c

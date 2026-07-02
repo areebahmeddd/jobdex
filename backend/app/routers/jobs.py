@@ -108,7 +108,7 @@ def list_jobs(
 
     next_cursor = None
     if len(enriched) == limit:
-        last = rows[-1][0]  # Job object
+        last = rows[-1][0]
         next_cursor = _encode_cursor(last.posted_at, last.id)
 
     return PaginatedJobsResponse(

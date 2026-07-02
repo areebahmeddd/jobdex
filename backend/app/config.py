@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "JobDex API"
     APP_VERSION: str = "1.0.0"
     APP_DESCRIPTION: str = "A global index of startup hiring by city"
-    API_URL: str = "http://localhost:8000"
+    API_URL: str = "https://jobdex-api.1mindlabs.org"
     DEBUG: bool = False
 
     DATABASE_URL: str = "postgresql://localhost/jobdex"
@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: list[str] = [
         "https://jobdex-api.1mindlabs.org",
         "https://jobdex.1mindlabs.org",
+        "http://localhost:8000",
         "http://localhost:3000",
     ]
 

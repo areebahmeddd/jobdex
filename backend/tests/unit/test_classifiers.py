@@ -117,6 +117,11 @@ class TestClassifyRole:
         category, _ = classify_role("Associate", description="product management roadmap sprint")
         assert category != "other"
 
+    def test_uses_department_for_disambiguation(self):
+        # "Director" alone yields other; department string resolves the category
+        category, _ = classify_role("Director", department="Marketing")
+        assert category == "marketing"
+
 
 class TestExtractTechStack:
     def test_finds_python(self):
@@ -134,6 +139,11 @@ class TestExtractTechStack:
         # "go" should not match inside other words
         result = extract_tech_stack("django developer", "")
         assert "go" not in result
+
+    def test_standalone_keyword_matches(self):
+        # "go" should match when it appears as a whole word
+        result = extract_tech_stack("go developer", "")
+        assert "go" in result
 
     def test_finds_multiple_keywords(self):
         result = extract_tech_stack("", "react typescript postgresql redis docker")

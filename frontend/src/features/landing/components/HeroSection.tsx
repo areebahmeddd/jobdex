@@ -113,7 +113,7 @@ export function HeroSection() {
                 href={`https://github.com/${GITHUB_REPO}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label={`View JobDex on GitHub${stars !== null ? ` — ${stars} stars` : ""}`}
+                aria-label={`View JobDex on GitHub${stars !== null ? ` - ${stars} stars` : ""}`}
                 className={cn(
                   buttonVariants({ variant: "ghost", size: "sm" }),
                   "h-8 rounded-full px-3 text-xs font-medium text-gray-600 hover:bg-black hover:text-white",

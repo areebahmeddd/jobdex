@@ -12,7 +12,7 @@
 
 <br />
 
-JobDex is a startup-focused job board built around map-first discovery. Instead of starting with a search box and scrolling through pages of listings, users explore opportunities geographically, browsing jobs by city, region, or remote status on an interactive map.
+JobDex is a startup-focused job board built around map-first discovery. Instead of starting with a search box and scrolling through pages of listings, users explore opportunities geographically, browsing jobs by city, region or remote status on an interactive map. [Demo Video](https://youtube.com/watch?v=dQw4w9WgXcQ)
 
 > Open source alternative to [nextdoor.company](https://nextdoor.company)
 
@@ -69,5 +69,5 @@ docker compose up
 
 ## Documentation
 
-- `backend/README.md` - API setup, configuration, endpoints, and ingestion
-- `frontend/README.md` - Frontend setup and development
+- `backend/README.md`: API setup and configuration
+- `frontend/README.md`: Frontend setup and development

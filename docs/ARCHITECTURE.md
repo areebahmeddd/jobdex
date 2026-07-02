@@ -149,7 +149,7 @@ Raw location strings like `"Bengaluru, KA"`, `"New York, NY (Hybrid)"`, or `"Rem
 
 **Role**: title and department matched against `role_patterns.json` to produce `role_category` and `role_subcategory`. Retries against the first 400 chars of description if the title yields no match.
 
-Patterns are evaluated in order — first match wins. More specific subcategories are listed before broad catch-alls, e.g. `healthcare.medtech` (`biomedical engineer`) appears before `engineering.general` (`engineer`) to prevent misclassification. The `role_category` column is a free-text `String(100)` with no enum constraint; new categories require only a `role_patterns.json` entry and no migration.
+Patterns are evaluated in order; first match wins. More specific subcategories are listed before broad catch-alls, e.g. `healthcare.medtech` (`biomedical engineer`) appears before `engineering.general` (`engineer`) to prevent misclassification. The `role_category` column is a free-text `String(100)` with no enum constraint; new categories require only a `role_patterns.json` entry and no migration.
 
 | `role_category` | Subcategories                                                                                                                                                                                                                                                                                                   |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

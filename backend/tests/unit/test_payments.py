@@ -7,13 +7,16 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
-client = TestClient(app)
+
+@pytest.fixture(scope="module")
+def client():
+    return TestClient(app, raise_server_exceptions=True)
 
 
 class TestCreateOrder:
     @pytest.mark.parametrize("amount", [0, -1, 10_001, 99_999])
     @patch("app.routers.payments.settings")
-    def test_invalid_amounts(self, mock_settings, amount):
+    def test_invalid_amounts(self, mock_settings, amount, client):
         mock_settings.RAZORPAY_KEY_ID = "rzp_test_key"
         mock_settings.RAZORPAY_KEY_SECRET = "test_secret"
 
@@ -23,7 +26,7 @@ class TestCreateOrder:
     @pytest.mark.parametrize("amount", [1, 10_000])
     @patch("app.routers.payments._razorpay_client")
     @patch("app.routers.payments.settings")
-    def test_valid_amounts(self, mock_settings, mock_client, amount):
+    def test_valid_amounts(self, mock_settings, mock_client, amount, client):
         mock_settings.RAZORPAY_KEY_ID = "rzp_test_key"
         mock_settings.RAZORPAY_KEY_SECRET = "test_secret"
         mock_client.return_value.order.create.return_value = {
@@ -38,7 +41,7 @@ class TestCreateOrder:
         assert r.json()["key_id"] == "rzp_test_key"
 
     @patch("app.routers.payments.settings")
-    def test_unconfigured_keys(self, mock_settings):
+    def test_unconfigured_keys(self, mock_settings, client):
         mock_settings.RAZORPAY_KEY_ID = ""
         mock_settings.RAZORPAY_KEY_SECRET = ""
 
@@ -53,7 +56,7 @@ class TestVerifyPayment:
         ).hexdigest()
 
     @patch("app.routers.payments.settings")
-    def test_valid_signature(self, mock_settings):
+    def test_valid_signature(self, mock_settings, client):
         mock_settings.RAZORPAY_KEY_SECRET = "test_secret"
         order_id, payment_id = "order_abc123", "pay_xyz789"
         sig = self._signature(order_id, payment_id, "test_secret")
@@ -71,7 +74,7 @@ class TestVerifyPayment:
         assert r.json()["payment_id"] == payment_id
 
     @patch("app.routers.payments.settings")
-    def test_invalid_signature(self, mock_settings):
+    def test_invalid_signature(self, mock_settings, client):
         mock_settings.RAZORPAY_KEY_SECRET = "test_secret"
 
         r = client.post(
@@ -85,7 +88,7 @@ class TestVerifyPayment:
         assert r.status_code == 400
 
     @patch("app.routers.payments.settings")
-    def test_missing_secret(self, mock_settings):
+    def test_missing_secret(self, mock_settings, client):
         mock_settings.RAZORPAY_KEY_SECRET = ""
 
         r = client.post(

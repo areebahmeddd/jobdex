@@ -14,46 +14,63 @@
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="JobDex" />
   <meta property="og:title" content="JobDex: Map-First Job Discovery" />
   <meta property="og:description"
     content="A global index of startup hiring by city. Explore jobs on an interactive world map." />
   <meta property="og:url" content="https://jobdex.1mindlabs.org" />
-  <meta property="og:image" content="https://jobdex.1mindlabs.org/logo-light.svg" />
+  <meta property="og:image" content="https://jobdex.1mindlabs.org/og-preview.png" />
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="JobDex: Map-First Job Discovery" />
   <meta name="twitter:description"
     content="A global index of startup hiring by city. Explore jobs on an interactive world map." />
+  <meta name="twitter:image" content="https://jobdex.1mindlabs.org/og-preview.png" />
 
   <!-- Preconnect for external origins -->
   <link rel="preconnect" href="https://checkout.razorpay.com" />
-  <link rel="preconnect" href="https://cdn.simpleicons.org" />
 
-  <!-- Third-party scripts — deferred so they do not block rendering -->
+  <!-- Third-party scripts -->
   <script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
 
   <!-- Structured data -->
   <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "JobDex",
-      "url": "https://jobdex.1mindlabs.org",
-      "description": "A global index of startup hiring by city. Explore jobs on an interactive world map.",
-      "applicationCategory": "BusinessApplication",
-      "operatingSystem": "Web",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
+    [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "JobDex",
+        "url": "https://jobdex.1mindlabs.org",
+        "description": "A global index of startup hiring by city. Explore jobs on an interactive world map.",
+        "applicationCategory": "BusinessApplication",
+        "isAccessibleForFree": true,
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@type": "Organization",
+          "name": "JobDex",
+          "url": "https://github.com/areebahmeddd/jobdex"
+        }
       },
-      "author": {
-        "@type": "Person",
-        "name": "Areeb Ahmed",
-        "url": "https://github.com/areebahmeddd"
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "JobDex",
+        "url": "https://jobdex.1mindlabs.org",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://jobdex.1mindlabs.org/map?q={search_term_string}"
+          },
+          "query-input": "required name=search_term_string"
+        }
       }
-    }
+    ]
   </script>
 </head>
 
