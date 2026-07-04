@@ -139,8 +139,15 @@ export type PaginatedJobsData = {
 };
 
 export type StatsData = {
+  total_companies: number;
+  total_jobs: number;
   active_jobs: number;
+  total_cities: number;
   cities_with_jobs: number;
+  role_categories: Record<string, number>;
+  top_cities: { city: string; job_count: number }[];
+  top_regions: { region: string; job_count: number }[];
+  ats_breakdown: Record<string, number>;
 };
 
 export type PanelView =

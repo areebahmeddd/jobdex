@@ -1,4 +1,5 @@
-import React from "react";
+import { ArrowLeft, Box, Search } from "lucide-react";
+import React, { type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 const STEPS: {
@@ -104,7 +105,14 @@ const STACK: {
   slug?: string;
   color?: string;
   emoji?: string;
+  icon?: ReactNode;
 }[] = [
+  {
+    label: "Docker",
+    detail: "Containerisation",
+    slug: "docker",
+    color: "2496ED",
+  },
   {
     label: "FastAPI",
     detail: "API framework",
@@ -113,7 +121,17 @@ const STACK: {
     color: "009688",
   },
   { label: "Uvicorn", detail: "ASGI server", version: V.uvicorn, emoji: "🐍" },
-  { label: "Amazon Web Services", detail: "Hosting", emoji: "☁️" },
+  {
+    label: "Amazon Web Services",
+    detail: "API hosting",
+    icon: <Box className="size-3 shrink-0 text-gray-500" aria-hidden="true" />,
+  },
+  {
+    label: "Cloudflare",
+    detail: "Web Hosting",
+    slug: "cloudflare",
+    color: "F48120",
+  },
   {
     label: "PostgreSQL",
     detail: "Neon serverless",
@@ -122,7 +140,7 @@ const STACK: {
     color: "4169E1",
   },
   {
-    label: "SQLAlchemy 2.0",
+    label: "SQLAlchemy",
     detail: "ORM",
     version: V.sqlalchemy,
     slug: "sqlalchemy",
@@ -159,7 +177,13 @@ const STACK: {
     slug: "wikidata",
     color: "006699",
   },
-  { label: "Clearbit", detail: "Company geo lookup" },
+  {
+    label: "Clearbit",
+    detail: "Company geo lookup",
+    icon: (
+      <Search className="size-3 shrink-0 text-gray-500" aria-hidden="true" />
+    ),
+  },
   {
     label: "React",
     detail: "UI framework",
@@ -209,9 +233,13 @@ export default function HowItWorksPage() {
       <div className="mx-auto max-w-2xl px-6 py-16">
         <Link
           to="/"
-          className="text-sm text-gray-500 transition-colors hover:text-gray-700"
+          className="group inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700"
         >
-          &larr; Back to home
+          <ArrowLeft
+            className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5"
+            aria-hidden="true"
+          />
+          Back to home
         </Link>
 
         <div className="mt-10">
@@ -314,7 +342,9 @@ export default function HowItWorksPage() {
                   key={t.label}
                   className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1 text-xs text-gray-600"
                 >
-                  {t.slug ? (
+                  {t.icon ? (
+                    t.icon
+                  ) : t.slug ? (
                     <img
                       src={`https://cdn.simpleicons.org/${t.slug}/${t.color}`}
                       alt=""

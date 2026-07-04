@@ -1,3 +1,4 @@
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const DOCUMENTS: {
@@ -25,9 +26,13 @@ export default function LegalPage() {
       <div className="mx-auto max-w-2xl px-6 py-16">
         <Link
           to="/"
-          className="text-sm text-gray-500 transition-colors hover:text-gray-700"
+          className="group inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700"
         >
-          &larr; Back to home
+          <ArrowLeft
+            className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5"
+            aria-hidden="true"
+          />
+          Back to home
         </Link>
 
         <div className="mt-10">
@@ -46,10 +51,14 @@ export default function LegalPage() {
             <Link
               key={doc.href}
               to={doc.href}
-              className="group flex flex-col gap-1 rounded-xl border border-gray-200 px-5 py-4 transition-colors hover:border-gray-400"
+              className="group flex flex-col gap-1 rounded-xl border border-gray-200 px-5 py-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md"
             >
-              <span className="text-sm font-semibold text-gray-900 transition-colors group-hover:text-black">
-                {doc.title} &rarr;
+              <span className="flex items-center justify-between text-sm font-semibold text-gray-900 transition-colors group-hover:text-black">
+                {doc.title}
+                <ArrowRight
+                  className="h-3.5 w-3.5 text-gray-400 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-gray-600"
+                  aria-hidden="true"
+                />
               </span>
               <span className="text-sm text-gray-500">{doc.description}</span>
             </Link>

@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const SECTIONS: {
@@ -119,9 +120,13 @@ export default function FAQPage() {
       <div className="mx-auto max-w-2xl px-6 py-16">
         <Link
           to="/"
-          className="text-sm text-gray-500 transition-colors hover:text-gray-700"
+          className="group inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700"
         >
-          &larr; Back to home
+          <ArrowLeft
+            className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5"
+            aria-hidden="true"
+          />
+          Back to home
         </Link>
 
         <div className="mt-10">

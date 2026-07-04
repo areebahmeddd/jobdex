@@ -8,7 +8,9 @@ import {
 import { ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
-const FALLBACK_UPI = "https://razorpay.me/@1mindlabs";
+const RAZORPAY_LINK = "https://razorpay.me/@1mindlabs";
+const FALLBACK_UPI_ID = "areebahmed0709@okaxis";
+const FALLBACK_UPI_LINK = `upi://pay?pa=${FALLBACK_UPI_ID}&pn=JobDex`;
 
 const TIERS = [
   { emoji: "🍵", label: "Kadak Chai", amount: 10, desc: "Shukriya yaar" },
@@ -153,8 +155,22 @@ export function DonateModal({ open, onClose }: DonateModalProps) {
 
         {error && (
           <p className="border-t border-black/6 px-5 py-2.5 text-xs text-red-500">
-            {error} Or pay directly via UPI:{" "}
-            <span className="font-medium text-gray-700">{FALLBACK_UPI}</span>
+            {error} Pay directly via{" "}
+            <a
+              href={RAZORPAY_LINK}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900"
+            >
+              razorpay.me/@1mindlabs
+            </a>{" "}
+            or UPI:{" "}
+            <a
+              href={FALLBACK_UPI_LINK}
+              className="font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900"
+            >
+              {FALLBACK_UPI_ID}
+            </a>
           </p>
         )}
 

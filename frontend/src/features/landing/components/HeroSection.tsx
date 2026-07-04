@@ -196,6 +196,19 @@ export function HeroSection() {
               FAQ
             </Link>
           </nav>
+
+          <p className="mt-3 text-center text-xs text-gray-400">
+            A{" "}
+            <a
+              href="https://1mindlabs.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-colors hover:text-gray-600"
+            >
+              1Mind Labs
+            </a>{" "}
+            project
+          </p>
         </div>
       </section>
     </>

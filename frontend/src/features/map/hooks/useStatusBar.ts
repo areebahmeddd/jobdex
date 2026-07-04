@@ -1,20 +1,18 @@
 import { fetchStats } from "@/api/stats";
 import { API_BASE, GITHUB_REPO } from "@/lib/constants";
+import type { StatsData } from "@/types";
 import { useEffect, useState } from "react";
 
 type StatusBar = {
   connected: boolean | null;
   stars: number | null;
-  indexedStats: { jobs: number; cities: number } | null;
+  stats: StatsData | null;
 };
 
 export function useStatusBar(): StatusBar {
   const [connected, setConnected] = useState<boolean | null>(null);
   const [stars, setStars] = useState<number | null>(null);
-  const [indexedStats, setIndexedStats] = useState<{
-    jobs: number;
-    cities: number;
-  } | null>(null);
+  const [stats, setStats] = useState<StatsData | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,8 +43,7 @@ export function useStatusBar(): StatusBar {
     const ac = new AbortController();
     fetchStats(ac.signal)
       .then((d) => {
-        if (!cancelled)
-          setIndexedStats({ jobs: d.active_jobs, cities: d.cities_with_jobs });
+        if (!cancelled) setStats(d);
       })
       .catch(() => {});
     return () => {
@@ -55,5 +52,5 @@ export function useStatusBar(): StatusBar {
     };
   }, []);
 
-  return { connected, stars, indexedStats };
+  return { connected, stars, stats };
 }

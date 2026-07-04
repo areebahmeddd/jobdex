@@ -20,7 +20,7 @@ export function FilterDropdown({
   onRemoteChange,
 }: Props) {
   return (
-    <div className="w-full overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg shadow-black/8">
+    <div className="w-full overflow-hidden rounded-2xl border border-white/20 bg-white/60 shadow-lg shadow-black/8 backdrop-blur-xl">
       <div className="border-b border-black/8 px-3 py-2.5">
         <p className="text-[10px] font-medium tracking-widest text-gray-400 uppercase">
           Role

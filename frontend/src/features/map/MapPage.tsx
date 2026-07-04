@@ -26,6 +26,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
   ArrowLeft,
+  ChevronDown,
   Home,
   Minus,
   Plus,
@@ -53,12 +54,14 @@ export default function MapPage() {
   const pendingGeoRef = useRef<{ lat: number; lng: number } | null>(null);
   const cityPinsRef = useRef<CityPin[]>([]);
   const handleCityClickRef = useRef<(name: string) => void>(() => {});
+  const firstGeoRef = useRef(true);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
   const filterRefMobile = useRef<HTMLDivElement>(null);
+  const statsPillRef = useRef<HTMLDivElement>(null);
 
-  const { connected, stars, indexedStats } = useStatusBar();
+  const { connected, stars, stats } = useStatusBar();
   const {
     roleFilter,
     setRoleFilter,
@@ -69,6 +72,8 @@ export default function MapPage() {
   } = useFilters();
 
   const [panelOpen, setPanelOpen] = useState(true);
+  const [showGeoHint, setShowGeoHint] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [mapReady, setMapReady] = useState(false);
 
   const [query, setQuery] = useState("");
@@ -134,6 +139,20 @@ export default function MapPage() {
   }, [filterOpen, setFilterOpen]);
 
   useEffect(() => {
+    if (!statsOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        statsPillRef.current &&
+        !statsPillRef.current.contains(e.target as Node)
+      ) {
+        setStatsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [statsOpen]);
+
+  useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
     const map = L.map(containerRef.current, {
@@ -142,6 +161,7 @@ export default function MapPage() {
       minZoom: MAP_MIN_ZOOM,
       zoomSnap: 0.1,
       zoomControl: false,
+      wheelPxPerZoomLevel: 40,
       maxBounds: [
         [-85, -Infinity],
         [85, Infinity],
@@ -225,6 +245,11 @@ export default function MapPage() {
       }
     }
     handleCityClickRef.current(best.name);
+    if (firstGeoRef.current) {
+      firstGeoRef.current = false;
+      setPanelOpen(false);
+      setShowGeoHint(true);
+    }
   }, [cityPins]);
 
   useEffect(() => {
@@ -307,6 +332,7 @@ export default function MapPage() {
       setJobDetail(null);
       setQuery("");
       setPanelOpen(true);
+      setShowGeoHint(false);
       setPanelView("companies");
       setCompanies([]);
       setJobs([]);
@@ -340,6 +366,8 @@ export default function MapPage() {
 
       setSelectedCompany(null);
       setJobDetail(null);
+      setPanelOpen(true);
+      setShowGeoHint(false);
       setPanelView("company-detail");
       setSelectedCompanyLoading(true);
       setJobs([]);
@@ -379,6 +407,7 @@ export default function MapPage() {
     setJobDetail(null);
     setPanelView("jobs");
     setPanelOpen(true);
+    setShowGeoHint(false);
     setJobsLoading(true);
     setJobs([]);
     setNextCursor(null);
@@ -410,6 +439,8 @@ export default function MapPage() {
 
   function handleJobClick(jobId: string) {
     setJobDetail(null);
+    setPanelOpen(true);
+    setShowGeoHint(false);
     setPanelView("job-detail");
     setJobDetailLoading(true);
 
@@ -504,6 +535,11 @@ export default function MapPage() {
             }
           }
           handleCityClickRef.current(best.name);
+          if (firstGeoRef.current) {
+            firstGeoRef.current = false;
+            setPanelOpen(false);
+            setShowGeoHint(true);
+          }
         } else {
           pendingGeoRef.current = {
             lat: coords.latitude,
@@ -678,18 +714,161 @@ export default function MapPage() {
             aria-label="Interactive world map"
           />
 
-          {indexedStats && (
-            <div className="absolute top-4 left-4 z-[1000] overflow-hidden rounded-full border border-white/20 bg-white/25 px-3 py-1.5 shadow-sm shadow-black/5 backdrop-blur-md">
-              <span className="text-[10px] font-medium text-gray-700">
-                {indexedStats.jobs.toLocaleString()} jobs &middot;{" "}
-                {indexedStats.cities.toLocaleString()} cities indexed
+          <div
+            ref={statsPillRef}
+            className="absolute top-4 left-4 z-[1000] inline-block"
+          >
+            <button
+              onClick={() => stats && setStatsOpen((o) => !o)}
+              className={`flex items-center gap-1.5 overflow-hidden rounded-full border border-white/20 bg-white/25 px-3 py-1.5 shadow-sm shadow-black/5 backdrop-blur-md ${
+                stats ? "transition-colors hover:bg-white/40" : "cursor-default"
+              }`}
+            >
+              <span className="text-[10px] leading-none font-medium text-gray-700">
+                {(stats?.active_jobs ?? 0).toLocaleString()} jobs &middot;{" "}
+                {(stats?.cities_with_jobs ?? 0).toLocaleString()} cities indexed
               </span>
-            </div>
-          )}
+              {stats && (
+                <ChevronDown
+                  className={`h-2.5 w-2.5 text-gray-400 transition-transform duration-200 ${statsOpen ? "rotate-180" : ""}`}
+                  aria-hidden="true"
+                />
+              )}
+            </button>
+
+            {statsOpen && stats && (
+              <div className="no-scrollbar absolute top-full left-0 mt-2 max-h-96 w-56 overflow-y-auto rounded-2xl border border-white/20 bg-white/60 shadow-lg shadow-black/8 backdrop-blur-xl">
+                <div className="space-y-3 p-3">
+                  <div>
+                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-400 uppercase">
+                      Overview
+                    </p>
+                    <div className="space-y-1">
+                      {[
+                        ["Companies", stats.total_companies],
+                        ["Active jobs", stats.active_jobs],
+                        ["Total cities", stats.total_cities],
+                        ["Cities with jobs", stats.cities_with_jobs],
+                      ].map(([label, value]) => (
+                        <div
+                          key={label as string}
+                          className="flex justify-between text-[10px]"
+                        >
+                          <span className="text-gray-500">{label}</span>
+                          <span className="font-medium text-gray-800">
+                            {(value as number).toLocaleString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-black/5" />
+
+                  <div>
+                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-400 uppercase">
+                      Top Cities
+                    </p>
+                    <div className="space-y-1">
+                      {stats.top_cities.slice(0, 5).map((c) => (
+                        <div
+                          key={c.city}
+                          className="flex justify-between text-[10px]"
+                        >
+                          <span className="text-gray-500">{c.city}</span>
+                          <span className="font-medium text-gray-800">
+                            {c.job_count.toLocaleString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-black/5" />
+
+                  <div>
+                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-400 uppercase">
+                      Regions
+                    </p>
+                    <div className="space-y-1">
+                      {stats.top_regions.map((r) => (
+                        <div
+                          key={r.region}
+                          className="flex justify-between text-[10px]"
+                        >
+                          <span className="text-gray-500">
+                            {r.region
+                              .replace(/_/g, " ")
+                              .replace(/\b\w/g, (c) => c.toUpperCase())}
+                          </span>
+                          <span className="font-medium text-gray-800">
+                            {r.job_count.toLocaleString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-black/5" />
+
+                  <div>
+                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-400 uppercase">
+                      Roles
+                    </p>
+                    <div className="space-y-1">
+                      {Object.entries(stats.role_categories)
+                        .sort(([, a], [, b]) => b - a)
+                        .slice(0, 8)
+                        .map(([role, count]) => (
+                          <div
+                            key={role}
+                            className="flex justify-between text-[10px]"
+                          >
+                            <span className="text-gray-500 capitalize">
+                              {role}
+                            </span>
+                            <span className="font-medium text-gray-800">
+                              {count.toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-black/5" />
+
+                  <div>
+                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-400 uppercase">
+                      Sources
+                    </p>
+                    <div className="space-y-1">
+                      {Object.entries(stats.ats_breakdown)
+                        .sort(([, a], [, b]) => b - a)
+                        .map(([ats, count]) => (
+                          <div
+                            key={ats}
+                            className="flex justify-between text-[10px]"
+                          >
+                            <span className="text-gray-500 capitalize">
+                              {ats === "ycombinator"
+                                ? "Y Combinator"
+                                : ats.charAt(0).toUpperCase() + ats.slice(1)}
+                            </span>
+                            <span className="font-medium text-gray-800">
+                              {count.toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
           {zoom >= 10 && (
-            <div className="absolute top-4 left-1/2 z-[1000] -translate-x-1/2 overflow-hidden rounded-full border border-white/20 bg-white/25 px-3 py-1.5 shadow-sm shadow-black/5 backdrop-blur-md">
-              <span className="text-[10px] font-medium text-gray-700">
+            <div className="absolute top-4 right-4 z-[1000] flex items-center overflow-hidden rounded-full border border-white/20 bg-white/25 px-3 py-1.5 shadow-sm shadow-black/5 backdrop-blur-md sm:right-auto sm:left-1/2 sm:-translate-x-1/2">
+              <span className="text-[10px] leading-none font-medium text-gray-700">
                 {(activePillCity?.company_count ?? 0).toLocaleString()}{" "}
                 companies &middot;{" "}
                 {(activePillCity?.job_count ?? 0).toLocaleString()} jobs
@@ -697,7 +876,7 @@ export default function MapPage() {
             </div>
           )}
 
-          <div className="absolute bottom-4 left-4 z-[1000] flex flex-col overflow-hidden rounded-full border border-white/20 bg-white/25 shadow-sm shadow-black/5 backdrop-blur-md">
+          <div className="absolute bottom-4 left-4 z-[1000] hidden flex-col overflow-hidden rounded-full border border-white/20 bg-white/25 shadow-sm shadow-black/5 backdrop-blur-md sm:flex">
             <button
               aria-label="Zoom in"
               onClick={() => mapRef.current?.zoomIn()}
@@ -732,7 +911,11 @@ export default function MapPage() {
 
           <ResultsPanel
             open={panelOpen}
-            onToggle={() => setPanelOpen((o) => !o)}
+            onToggle={() => {
+              setPanelOpen((o) => !o);
+              if (showGeoHint) setShowGeoHint(false);
+            }}
+            showHint={showGeoHint}
             view={panelView}
             selectedCity={selectedCity}
             onClearCity={handleClearCity}

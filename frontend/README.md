@@ -1,6 +1,6 @@
 # Frontend
 
-React frontend for JobDex. Renders the landing page, interactive world map, and job discovery UI.
+React frontend for JobDex. Renders the landing page, interactive world map and job discovery UI.
 
 ## Tech Stack
 
@@ -37,7 +37,7 @@ pnpm install
 pnpm dev
 ```
 
-Available at `http://localhost:3000`.
+Available at `http://localhost:3000`
 
 ## Docker
 

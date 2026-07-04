@@ -15,6 +15,7 @@ import { JobDetailView } from "./JobDetailView";
 type Props = {
   open: boolean;
   onToggle: () => void;
+  showHint?: boolean;
   view: PanelView;
   selectedCity: string | null;
   onClearCity: () => void;
@@ -188,6 +189,7 @@ function CompaniesList({
 export function ResultsPanel({
   open,
   onToggle,
+  showHint,
   view,
   selectedCity,
   onClearCity,
@@ -208,24 +210,29 @@ export function ResultsPanel({
 }: Props) {
   return (
     <aside
-      className={`absolute top-4 right-4 z-[1000] flex w-72 flex-col overflow-hidden rounded-2xl border border-white/20 bg-white/25 shadow-sm shadow-black/5 backdrop-blur-md transition-[height] duration-300 ease-in-out ${
-        open ? "h-[calc(100%-2rem)]" : "h-12"
-      }`}
+      className={`absolute right-4 bottom-4 left-4 z-[1000] flex flex-col overflow-hidden rounded-2xl border border-white/20 bg-white/25 shadow-sm shadow-black/5 backdrop-blur-md transition-[height] duration-300 ease-in-out sm:inset-auto sm:top-4 sm:right-4 sm:w-72 ${open ? "h-64 sm:h-[calc(100%-2rem)]" : "h-12"}`}
     >
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/20 px-3">
         <span className="truncate text-xs font-medium tracking-widest text-gray-500 uppercase">
           {panelLabel(view)}
         </span>
-        <button
-          aria-label={open ? "Collapse panel" : "Expand panel"}
-          onClick={onToggle}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-white/40 hover:text-gray-700"
-        >
-          <ChevronDown
-            className={`h-3.5 w-3.5 transition-transform duration-300 ${open ? "rotate-0" : "rotate-180"}`}
-            aria-hidden="true"
-          />
-        </button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {showHint && !open && (
+            <span className="animate-pulse text-[10px] text-gray-400">
+              explore
+            </span>
+          )}
+          <button
+            aria-label={open ? "Collapse panel" : "Expand panel"}
+            onClick={onToggle}
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-white/40 hover:text-gray-700"
+          >
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform duration-300 ${open ? "rotate-0" : "rotate-180"} ${showHint && !open ? "animate-bounce" : ""}`}
+              aria-hidden="true"
+            />
+          </button>
+        </div>
       </div>
 
       {open && (

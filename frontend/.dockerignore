@@ -1,11 +1,16 @@
 # dependencies
-node_modules
+node_modules/
 
 # build output
-dist
+dist/
 
 # environment
 .env*
+
+# not needed in image
+README.md
+.prettierrc
+.dockerignore
 
 # logs
 *.log
