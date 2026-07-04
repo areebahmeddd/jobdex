@@ -37,7 +37,7 @@ def create_order(body: OrderRequest):
         )
     except Exception as exc:
         logger.error(f"[payments] order creation failed: {exc}")
-        raise HTTPException(status_code=502, detail="Payment service unavailable.") from exc
+        raise HTTPException(status_code=503, detail="Payment service unavailable.") from exc
 
     return OrderResponse(
         order_id=order["id"],

@@ -2,7 +2,7 @@ services:
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: ../docker/Dockerfile.backend
     env_file:
       - ./backend/.env
     ports:
@@ -21,13 +21,43 @@ services:
       retries: 3
     restart: unless-stopped
 
-  frontend:
+  #   # Note: deployed to Cloudflare Pages in production.
+  #   # Uncomment to run locally during development.
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: ../docker/Dockerfile.frontend
+  #   ports:
+  #     - "3000:80"
+  #   depends_on:
+  #     backend:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+
+  caddy:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/Dockerfile.caddy
     ports:
-      - "3000:80"
+      - "80:80"
+    volumes:
+      - caddy_data:/data
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+  #   # Note: Legacy nginx service, replaced by Caddy.
+  # nginx:
+  #   build:
+  #     context: .
+  #     dockerfile: docker/Dockerfile.nginx
+  #   ports:
+  #     - "80:80"
+  #   depends_on:
+  #     backend:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+
+volumes:
+  caddy_data:

@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI backend for JobDex. ATS ingestion, job normalisation, and REST API for search, companies, cities, and map discovery.
+FastAPI backend for JobDex. ATS ingestion, job normalisation and REST API for search, companies, cities and map discovery.
 
 ## Tech Stack
 
@@ -105,17 +105,21 @@ Runs in-process. No separate worker needed.
 | `enrich_pending`    | 12 h     | Enriches companies with null or stale `enriched_at`    |
 | `discover_companies`| 24 h     | Seeds new companies from ingesters with bulk discovery |
 
-Configurable via `INGEST_INTERVAL_HOURS`, `ENRICH_INTERVAL_HOURS`, and `DISCOVER_INTERVAL_HOURS`.
+Configurable via `INGEST_INTERVAL_HOURS`, `ENRICH_INTERVAL_HOURS` and `DISCOVER_INTERVAL_HOURS`.
 
 ## Database
 
 ### Fresh Setup
 
+Run each command one at a time and wait for it to complete before running the next.
+
 ```bash
 # terminal 1: start server (runs migrations, seeds cities, starts scheduler)
- uv run uvicorn app.main:app --port 8000 --reload
+uv run uvicorn app.main:app --port 8000 --reload
+```
 
-# terminal 2: populate the database
+```bash
+# terminal 2: populate the database (run one at a time, in order)
 uv run python scripts/discover.py        # register companies from all ingesters
 uv run python scripts/probe.py           # upgrade YC companies found on Ashby/Greenhouse/Lever
 uv run python scripts/ingest.py --all    # ingest jobs for all registered companies
@@ -124,7 +128,7 @@ uv run python scripts/enrich.py --all    # enrich all companies with Wikidata/Wi
 
 ### Migrations
 
-After modifying `app/models.py`:
+> **Only run these if you modified `app/models.py`.** Migrations are not needed for any other changes.
 
 ```bash
 # generate
@@ -146,7 +150,7 @@ uv run pytest               # all tests
 uv run pytest tests/unit    # unit only
 ```
 
-See `tests/README.md` for details.
+See [tests/README.md](tests/README.md) for details.
 
 ## Management Scripts
 

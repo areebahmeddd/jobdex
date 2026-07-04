@@ -1,14 +1,7 @@
-# virtual environment
-.venv/
-.env/
-venv/
-env/
-
 # python
+.venv/
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
 
 # tests
 tests/
@@ -17,18 +10,16 @@ tests/
 coverage.xml
 htmlcov/
 
-# environment variables
+# environment
 .env
+.env.example
 
-# caches & tooling
+# tooling
 .ruff_cache/
 .mypy_cache/
-.pytest_cache/
 .pre-commit-config.yaml
-
-# dev-only
-Dockerfile
 .dockerignore
+
+# not copied by Dockerfile
 scripts/
 README.md
-*.log

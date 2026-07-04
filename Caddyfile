@@ -1,0 +1,46 @@
+{
+    # SSL is terminated by Cloudflare, not Caddy
+    auto_https off
+    admin off
+}
+
+:80 {
+    rate_limit {
+        # CF-Connecting-IP is the real client IP; {remote_host} resolves to the Cloudflare edge node
+        zone api {
+            key    {http.request.header.CF-Connecting-IP}
+            events 60
+            window 1m
+        }
+
+        # /map/ - stricter rate limit for heavy DB routes
+        zone map_heavy {
+            match {
+                path /map/*
+            }
+            key    {http.request.header.CF-Connecting-IP}
+            events 15
+            window 1m
+        }
+
+        log_key
+    }
+
+    header {
+        # suppress server fingerprinting
+        -Server
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+
+    encode gzip
+
+    reverse_proxy backend:8000 {
+        header_up X-Real-IP       {http.request.header.CF-Connecting-IP}
+        header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+        health_uri      /health
+        health_interval 30s
+        health_timeout  5s
+    }
+}
