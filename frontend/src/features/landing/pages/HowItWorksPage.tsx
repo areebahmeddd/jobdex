@@ -90,8 +90,11 @@ const ATS_PROVIDERS: {
   { name: "Lever", region: "Global" },
   { name: "SmartRecruiters", region: "Global" },
   { name: "Workable", region: "Global" },
+  { name: "Workday", region: "Global" },
+  { name: "Rippling", region: "Global" },
   { name: "YCombinator", region: "USA", slug: "ycombinator", color: "FF6600" },
   { name: "Recruitee", region: "Europe" },
+  { name: "Teamtailor", region: "Europe" },
   { name: "PyjamaHR", region: "India" },
   { name: "MCF", region: "Singapore" },
 ];

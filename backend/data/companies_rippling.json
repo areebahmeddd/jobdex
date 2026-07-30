@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Rippling",
+    "slug": "rippling",
+    "ats_slug": "rippling"
+  },
+  {
+    "name": "Amyloidosis Research Consortium",
+    "slug": "amyloidosis-research-consortium",
+    "ats_slug": "arc"
+  },
+  {
+    "name": "Sentry Fire Protection Services",
+    "slug": "sentry-fire-protection-services",
+    "ats_slug": "sentry"
+  },
+  {
+    "name": "Moov",
+    "slug": "moov",
+    "ats_slug": "moov"
+  }
+]

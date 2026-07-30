@@ -43,6 +43,11 @@ Applied inside each `build_job` call using data files under `backend/data/`:
 | `extract_tech_stack` | title + first 2000 ch of desc | sorted list of matched keywords     | `tech_keywords.json`      |
 | `normalize_job_type` | raw ATS employment type       | `fulltime/parttime/contract/intern` | `tech_keywords.json`      |
 | `canonicalize_city`  | raw location string           | canonical city name                 | `cities.json`             |
+| `get_country_code_for_name` | country display name   | ISO-2 country code                  | derived from `cities.json` |
+
+`get_country_code_for_name` covers ATS that report a country as a display name with no ISO code (Workday sends `{"descriptor": "United States of America"}`). Without it, any job whose city falls outside the 135-entry city table is stored with no `country_code` and therefore no `region`, leaving it out of region filters, `/stats`, and the map. The lookup is built from the `country`/`country_code` pairs already in `cities.json`, plus a short alias table for long-form names that file does not carry (`United States of America`, `England`, `Czechia`).
+
+Measured on NVIDIA's Workday board (2000 jobs), `country_code` and `region` coverage went from 450 to 2000. City coverage is unchanged at 460 and is bounded by the city table, not the ingester; `GEOCODE_UNKNOWN_CITIES` is the existing escape hatch. It also fixed a gap in location blocking: 317 Israel-based postings resolved to `country_code = None` because their cities are not in the table, so they passed `is_blocked_location`. They now match on `IL` and are skipped.
 
 ### Enrichment Pipeline
 
@@ -112,7 +117,7 @@ Triggered by the `enrich_pending` scheduler job and the `uv run python scripts/e
 | -------------------- | -------- | ------------------------------------------------------------------------ |
 | `ingest_all`         | 6 h      | Crawl all active companies ordered by `last_crawled_at ASC NULLS FIRST`  |
 | `enrich_pending`     | 12 h     | Enrich companies where `enriched_at IS NULL` or older than 90 days       |
-| `discover_companies` | 24 h     | Call `discover()` on all ingesters; only YCombinator implements it today |
+| `discover_companies` | 24 h     | Call `discover()` on all ingesters. YCombinator crawls the live YC directory; Workday, Teamtailor, and Rippling return stubs from their `data/companies_{ats}.json` seed files |
 
 A `CRAWL_DELAY` of 0.3 s is inserted between each company during scheduled ingestion to avoid hammering ATS APIs.
 
@@ -127,8 +132,11 @@ A `CRAWL_DELAY` of 0.3 s is inserted between each company during scheduled inges
 | Lever           | Global | `api.lever.co/v0/postings/{slug}`                       | GET    | None |
 | SmartRecruiters | Global | `api.smartrecruiters.com/v1/companies/{slug}/postings`  | GET    | None |
 | Workable        | Global | `apply.workable.com/api/v3/accounts/{slug}/jobs`        | POST   | None |
+| Workday         | Global | `{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{board}/jobs` | POST | None |
+| Rippling        | Global | `api.rippling.com/platform/api/ats/v1/board/{slug}/jobs` | GET    | None |
 | YCombinator     | USA    | `api.ycombinator.com/v0.1/companies?q={slug}`           | GET    | None |
 | Recruitee       | Europe | `{slug}.recruitee.com/api/offers/`                      | GET    | None |
+| Teamtailor      | Europe | `{slug}.teamtailor.com/jobs.json`                       | GET    | None |
 | PyjamaHR        | India  | `api.pyjamahr.com/api/career/jobs/?company_slug={slug}` | GET    | None |
 | MCF             | Singapore | `api.mycareersfuture.gov.sg/v2/jobs?company={slug}`  | GET    | None |
 
@@ -136,23 +144,36 @@ A `CRAWL_DELAY` of 0.3 s is inserted between each company during scheduled inges
 
 **Recruitee**: single GET; filter on `status == "published"`. Date format is `"YYYY-MM-DD HH:MM:SS UTC"` (not ISO 8601), parsed with `strptime`. Description falls back to `translations.en.description` if the top-level field is empty. Employment codes like `"fulltime_fixed_term"` are normalized to `"fulltime"`.
 
-**YCombinator**: the only ingester with `discover()` implemented; seeds the company list from the YC company directory.
+**Workday**: the CXS endpoint needs no auth but is addressed by three per-customer values that cannot be derived from the company name: the tenant, the data-centre number (`wd1` to `wd12`), and the board name. They are packed into `ats_slug` as `tenant:wdN:board`, so no schema change is needed; `_resolve_company` is overridden to keep `Company.slug` as the bare tenant. Three API quirks shape the paging loop: `limit` above 20 returns HTTP 400, `total` is populated only on the first page and reports `0` after it, and an offset past the last page wraps around and re-serves page 0. Paging therefore stops on the first-page total, a short page, or a page with no new `externalPath`, capped at 100 pages (2000 jobs). The list payload has no description or absolute date, so each posting is followed by `GET .../{board}{externalPath}` for `jobDescription`, `timeType`, and `startDate`; the list-level `postedOn` is a relative label ("Posted Today"). Up to 5 detail requests run concurrently via `asyncio.Semaphore(5)`. Dedup uses `bulletFields[0]`, the requisition number, since `externalPath` embeds the title and changes on retitling.
+
+**Teamtailor**: the documented REST API (`api.teamtailor.com/v1/jobs`) returns 401 without a per-company token, but every career site also publishes the same postings as an unauthenticated JSON Feed at `{slug}.teamtailor.com/jobs.json`. Each item carries a schema.org `JobPosting` under `_jobposting` with a structured `PostalAddress` (`addressLocality`, `addressCountry` as ISO-2). The feed is unpaginated and complete: `?page=2` returns zero items and the count matches the RSS feed, so soft-deactivation is safe against it. No employment type or department is exposed; `job_type` falls back to the title-derived seniority.
+
+**Rippling**: single GET for the board, no pagination, then a per-job detail fetch for `description` (a `{company, role}` pair), `employmentType`, and `createdOn`. `employmentType.label` holds the machine code (`SALARIED_FT`) and `employmentType.id` the human label, the reverse of the usual convention. Locations read `"City, Country"`, so the trailing segment goes through `get_country_code_for_name` when the city is not in the city table. Board slugs are often generic words belonging to unrelated companies (`arc` is the Amyloidosis Research Consortium, `sentry` is Sentry Fire Protection Services), so seed entries take `Company.slug` from the `companyName` in the detail payload.
+
+**YCombinator**: the only ingester that overrides `discover()` with a live directory crawl. The rest inherit the base implementation, which loads `data/companies_{ats_type}.json` when present.
 
 ### Planned
 
-| ATS        | Region | Endpoint                                                    | Auth              | Blocker                                   |
-| ---------- | ------ | ----------------------------------------------------------- | ----------------- | ----------------------------------------- |
-| Freshteam  | India  | `{slug}.freshteam.com/api/open_positions`                   | Bearer token      | Needs per-company `ats_api_key` on schema |
-| Teamtailor | Europe | `api.teamtailor.com/v1/jobs`                                | Token per company | Needs per-company `ats_api_key` on schema |
-| Workday    | Global | `POST {company}.wd{n}.myworkdayjobs.com/wday/cxs/{company}/{board}/jobs` | None (unofficial) | Tenant number (`wd1`–`wd24`) and board name vary per company; must be discovered from each company's careers page URL |
+| ATS       | Region | Endpoint                                    | Auth         | Blocker                                                  |
+| --------- | ------ | ------------------------------------------- | ------------ | -------------------------------------------------------- |
+| SEEK      | AU/NZ  | `www.seek.com.au/api/jobsearch/v5/search?siteKey=AU-Main&advertiserid={id}` | None (unofficial) | Endpoint works and filters per advertiser, but sits behind Kasada bot protection and is keyed by numeric advertiser ID |
 
-Freshteam and Teamtailor both require a `company.ats_api_key` column that does not yet exist in the schema. Unblocking them means: an Alembic migration to add the column, threading the key from `Company` through `ingest()` and `fetch_raw()`, and an admin endpoint or script to register keys per company.
+SEEK is the only candidate that passed a live zero-auth test without being implemented. `GET /api/jobsearch/v5/search?siteKey=AU-Main&advertiserid={id}` returns `advertiser`, `companyName`, `locations[].countryCode`, `classifications`, `listingDate`, `workTypes`, `workArrangements`, and a `teaser`, all of which map onto `Job`. Two things hold it back. The sibling `chalice-search/v4` path returns a Kasada challenge script rather than a 404, so sustained server-side crawling is likely to be blocked and would show up as constant `crawl_error` noise. Boards are also keyed by an opaque numeric advertiser ID with no directory to enumerate, so every company needs a manual lookup. Revisit if a stable per-advertiser entry point appears.
 
 ### Not Compatible
 
 | ATS / Platform | Region      | Reason                                                                                                  |
 | -------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
+| Freshteam      | India       | End of life. Freshworks stops renewals 7 Mar 2026 and sunsets the product Apr 2027. All zero-auth paths confirmed closed: `/api/open_positions` returns 401/403/404 per tenant, `/jobs` serves an HTML SPA, and `freshworks.freshteam.com` itself is 503 |
+| iCIMS          | Global      | Career portals are server-rendered HTML with no JSON path and no embedded `JobPosting` JSON-LD; the host pattern also varies per customer (`careers-{slug}` resolved for 1 of 10 tested) |
+| Taleo (Oracle) | Global      | `{tenant}.taleo.net` no longer resolves for any of 23 tested tenants; customers have been migrated to Oracle Recruiting Cloud |
+| SAP SuccessFactors | Global  | No JSON endpoint. `career{n}.successfactors.*` and `jobs.sap.com` return HTML only; the OData API (`api{n}.sapsf.*`) is auth-gated |
+| Bullhorn       | Global      | Public career-portal REST requires a per-customer `corpToken` in the path; unknown tokens return `{"errorMessage":"Bad corp token"}` and there is no directory to resolve them |
+| Eightfold AI   | Global      | `{slug}.eightfold.ai/api/apply/v2/jobs` is zero-auth JSON with a usable schema, but only 1 of 9 tested tenants was reachable; the rest return 403 (Cloudflare) or do not resolve, and the subdomain is not derivable from the company name |
+| BambooHR       | Global      | `{slug}.bamboohr.com/careers/list` no longer returns JSON. Unknown tenants get the same 43,538-byte marketing page as known ones (verified against a deliberately invalid slug); tenants that do have a board serve an HTML SPA |
 | BreezyHR       | USA         | HTTP 403 on all endpoints; auth required                                                                |
+| Dice           | USA         | `job-search-api.svc.dhigroupinc.com` returns `{"message":"Missing Authentication Token"}`; the site API path 404s |
+| Culinary Agents | USA        | No JSON API; `/api/jobs` 404, `/search/jobs.json` and `/jobs.rss` return HTTP 406                        |
 | JazzHR         | USA         | `{slug}.jazz.co/api/jobs` serves SPA, no JSON                                                           |
 | Jobvite        | USA         | Auth required                                                                                           |
 | Wellfound      | Global      | All API endpoints 403/404; auth required                                                                |
@@ -162,6 +183,7 @@ Freshteam and Teamtailor both require a `company.ats_api_key` column that does n
 | JOIN.com       | Europe      | v1 deprecated (410); v2 requires `Authorization` header                                                 |
 | Personio       | Europe      | XML feed (`{slug}.jobs.personio.de/xml`) works for legacy customers only; newer customers use Personio's Next.js job board builder; aggressive rate limiting |
 | Bayt           | Middle East | Cloudflare 403; scraping blocked                                                                        |
+| Mihnati        | Middle East | Cloudflare interstitial (403 "Just a moment...") on every path including `/api/*`                       |
 | GulfTalent     | Middle East | No public API; Cloudflare-protected                                                                     |
 | NaukriGulf     | Middle East | DNS failure; no accessible endpoint                                                                     |
 | Talentera      | Middle East | DNS failure; domain unreachable                                                                         |
@@ -170,24 +192,29 @@ Freshteam and Teamtailor both require a `company.ats_api_key` column that does n
 | Darwinbox      | India       | Angular SPA + Cloudflare Turnstile                                                                      |
 | Keka HR        | India       | React SPA; no JSON on any `/careers/api/*` path                                                         |
 | Instahyre      | India       | No public API                                                                                           |
+| Zoho Recruit   | India       | `{slug}.zohorecruit.com/recruit/ats/GetJobs` serves HTML for any slug (including nonexistent ones); `/api/v1/jobs` returns `INVALID_URL_PATTERN`; the v2 API needs OAuth |
+| Naukri.com     | India       | `jobapi/v3/search` requires `appid`/`systemid` headers and then returns `{"message":"recaptcha required"}` |
+| Hirect         | India       | Domain no longer resolves; product discontinued                                                          |
+| JobKorea       | Asia Pacific | HTML SSR only; `/api/Recruit/List` returns 404 and `api.jobkorea.co.kr` times out                        |
 | Glints         | SEA         | 403 on all endpoints                                                                                    |
 | JobStreet      | SEA         | 403 (MY region); HTML SPA (PH region); Chalice API blocked                                              |
+| Computrabajo   | LatAm       | HTTP 403 on both the API path and ordinary listing pages                                                |
+| OCC Mundial    | LatAm       | HTTP 403 (`abuse` / Cloudflare interstitial) on all API paths                                           |
+| Catho          | LatAm       | HTTP 403 Access Denied (Akamai) on `www` and `api` hosts                                                |
+| Bumeran        | LatAm       | HTTP 403 Cloudflare on `/api/avisos/*`                                                                  |
+| Gupy           | LatAm       | Career sites are Next.js SSR; no JSON found at `{slug}.gupy.io/api/{job,jobs,v1/jobs}` or on the portal API host |
 | Fuzu           | Africa      | Job board; no per-company API                                                                           |
 | PNet           | Africa      | No public API                                                                                           |
 | MyJobMag       | Africa      | No public API                                                                                           |
 
 ## Backlog
 
-Platforms not yet researched.
+Every platform previously listed here has been probed live. Failures are recorded in the Not Compatible table, SEEK in the Planned table. Probe scripts and raw responses live under `ats/`, which is gitignored, matching the earlier per-region research. Two platforms are deferred rather than rejected, because the endpoint works and only the listings are missing:
 
-- **Global / Enterprise**: iCIMS, Taleo (Oracle), SAP SuccessFactors, Bullhorn
-- **Middle East**: Mihnati
-- **India**: Zoho Recruit, Naukri.com, Hirect
-- **Asia Pacific**: SEEK (AU/NZ), JobKorea
-- **Asia Pacific (deferred)**: Kalibrr (PH/ID): `GET /api/companies/{slug}/jobs` is zero-auth JSON and structurally compatible; skipped because no active listings found across 80+ tested company slugs; revisit if platform activity recovers
-- **Latin America**: Computrabajo, OCC Mundial, Catho, Bumeran
-- **Specialty**: Dice, Culinary Agents
-- **Healthcare**: NHS Jobs (UK): API exists at `api.jobs.nhs.uk/v1/search`; requires a free `Ocp-Apim-Subscription-Key` (Azure APIM, register at `developer.jobs.nhs.uk`). This is a single static key, not per-company, but the ingestion model is search-based rather than slug-based, which requires a fundamentally different architecture from current ingesters. All other major healthcare ATS (HealthcareSource, iCIMS, Taleo) require per-organisation auth contracts and are not feasible. Traditional clinical job boards (BioSpace, Health eCareers, Medscape Jobs) have no public JSON API.
+- **Kalibrr** (PH/ID): `GET www.kalibrr.com/api/companies/{slug}/jobs` is still zero-auth JSON and structurally compatible. Re-probed on the current company set: 4 of 10 slugs resolve, but every one reports `total_count: 0`. Unchanged from the original finding. Revisit if platform activity recovers.
+- **NHS Jobs** (UK): `api.jobs.nhs.uk/v1/search` requires a free `Ocp-Apim-Subscription-Key` (Azure APIM, register at `developer.jobs.nhs.uk`); unauthenticated GET and POST both return the APIM gateway page. The RSS paths on `www.jobs.nhs.uk` return HTML, not a feed. The key is static rather than per-company, but the ingestion model is search-based rather than slug-based and needs a different shape from `BaseIngester`. Other healthcare ATS (HealthcareSource, iCIMS, Taleo) require per-organisation auth contracts, and clinical job boards (BioSpace, Health eCareers, Medscape Jobs) have no public JSON API.
+
+Three platforms outside the original backlog were probed alongside it because they fill the same gaps. Rippling passed and is implemented. Eightfold AI and BambooHR failed and are in the Not Compatible table.
 
 ## Adding an Ingester
 
@@ -199,10 +226,18 @@ Platforms not yet researched.
 4. Add unit tests in `tests/unit/test_ingesters.py`
 5. Update README data sources table and PLAN.md implemented table
 
-### Per-company credential (Freshteam, Teamtailor)
+### Per-company credential
 
-Requires a `company.ats_api_key` column (Alembic migration needed). Thread the key from `Company` into `ingest()` and `fetch_raw()`. A registration endpoint or admin script is needed to store keys per company.
+No implemented ingester needs one. If a future ATS does, it requires a `company.ats_api_key` column (Alembic migration needed), threading the key from `Company` into `ingest()` and `fetch_raw()`, and a registration endpoint or admin script to store keys per company. Teamtailor was the last candidate here and turned out not to need it, so check for an unauthenticated public feed before adding the column.
+
+### Boards addressed by more than a slug
+
+Where one string is not enough to locate a board (Workday needs tenant, data-centre number, and board name), pack the parts into `ats_slug` with `:` separators and parse them in `fetch_raw`. This keeps the existing schema and the `run_ingestion` contract, which passes `company.ats_slug` straight to `ingest()`. Override `_resolve_company` so new stubs still get a readable `Company.slug`; see `workday.py`.
 
 ### Discovery
 
-Implement `discover()` to return unsaved `Company` stubs from the ATS company directory. Where no public directory exists, maintain a seed file at `data/companies_{ats}.json` and load it in `discover()`.
+`BaseIngester.discover()` loads `data/companies_{ats_type}.json` when the file exists, so an ATS with no public company directory needs only a seed file. Each entry is `{"name", "slug", "ats_slug"}`, where `ats_slug` defaults to `slug`. Override `discover()` only when the ATS exposes a directory to paginate (YCombinator).
+
+`run_discovery` deduplicates on `Company.slug`, and `_resolve_company` falls back to it when no `ats_slug` matches, so seed slugs must identify the real company. Boards named after generic words are the hazard: on Rippling, `arc` is the Amyloidosis Research Consortium and `sentry` is Sentry Fire Protection Services, and either would attach its jobs to an unrelated existing record. Take the slug from the company name in the payload, not the board address.
+
+Current seed files: `companies_workday.json` (20 boards), `companies_teamtailor.json` (19), `companies_rippling.json` (4). Each was built by probing a candidate list and keeping only boards that returned JSON, so every entry is verified. Rippling's is short because board slugs are not derivable from company names and there is no directory to enumerate; 4 of 39 candidates resolved. To grow a file, re-run the probe scripts under `ats/` with new candidates. No code change is needed.

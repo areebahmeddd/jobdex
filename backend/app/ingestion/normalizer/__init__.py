@@ -7,6 +7,7 @@ from app.ingestion.normalizer.classifiers import (
 from app.ingestion.normalizer.location import (
     canonicalize_city,
     get_city_data,
+    get_country_code_for_name,
     get_region_for_country,
     is_blocked_location,
     normalize_location,
@@ -19,6 +20,7 @@ __all__ = [
     "classify_seniority",
     "extract_tech_stack",
     "get_city_data",
+    "get_country_code_for_name",
     "get_region_for_country",
     "is_blocked_location",
     "make_snippet",

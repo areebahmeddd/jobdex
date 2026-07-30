@@ -120,7 +120,7 @@ uv run uvicorn app.main:app --port 8000 --reload
 
 ```bash
 # terminal 2: populate the database (run one at a time, in order)
-uv run python scripts/discover.py        # register companies from all ingesters
+uv run python scripts/discover.py        # register companies from all ingesters (incl. seed files)
 uv run python scripts/probe.py           # upgrade YC companies found on Ashby/Greenhouse/Lever
 uv run python scripts/ingest.py --all    # ingest jobs for all registered companies
 uv run python scripts/enrich.py --all    # enrich all companies with Wikidata/Wikipedia
@@ -156,7 +156,7 @@ See [tests/README.md](tests/README.md) for details.
 
 | Script                           | Purpose                                                              |
 | -------------------------------- | -------------------------------------------------------------------- |
-| `scripts/discover.py`            | Register companies from all ingesters (YC bulk discovery)           |
+| `scripts/discover.py`            | Register companies from all ingesters (YC directory + `data/companies_{ats}.json` seeds) |
 | `scripts/probe.py`               | Probe YC companies against Ashby, Greenhouse, Lever; upgrade matches |
 | `scripts/ingest.py --all`        | Ingest jobs for all active companies                                 |
 | `scripts/ingest.py <ats> <slug>` | Ingest jobs for a single company                                     |

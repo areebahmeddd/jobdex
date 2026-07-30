@@ -492,9 +492,11 @@ For N companies with average ATS latency of 1s and `CRAWL_DELAY=0.3s`:
 - 5000 companies → ~1.8 hours per run (still within 6h window, barely) ⚠
 - 20,000 companies → ~7.2 hours (**exceeds the 6h interval**) ✗
 
-### The 9 ATS providers
+### The 12 ATS providers
 
-All 9 ingesters are registered in `INGESTERS` (Ashby, Greenhouse, Lever, SmartRecruiters, Workable, YCombinator, Recruitee, PyjamaHR, MCF). `run_ingestion` processes them all sequentially based on `last_crawled_at`, regardless of which ATS they belong to. So having more ATS types doesn't change the sequential model; you'd just have more total companies.
+All 12 ingesters are registered in `INGESTERS` (Ashby, Greenhouse, Lever, SmartRecruiters, Workable, Workday, Rippling, YCombinator, Recruitee, Teamtailor, PyjamaHR, MCF). `run_ingestion` processes them all sequentially based on `last_crawled_at`, regardless of which ATS they belong to. So having more ATS types doesn't change the sequential model; you'd just have more total companies.
+
+Per-company cost is not uniform, and Workday is the outlier. It caps `limit` at 20 and carries no description in the list payload, so a full board costs `ceil(n/20)` list requests plus `n` detail requests. A measured run against NVIDIA's board (2000 jobs, the largest observed) took ~6 minutes on its own. The estimates above do not model this, so count each enterprise Workday board as roughly 100 ordinary companies when sizing the interval.
 
 ### Kafka/queue needed?
 
@@ -524,7 +526,7 @@ results = await asyncio.gather(*tasks, return_exceptions=True)
 
 **Step 2 (at scale):** Move to a task queue (Celery + Redis or ARQ), but this adds significant operational complexity. Only justified at 1000+ companies.
 
-**Kafka is overkill** for this use case. It's designed for high-throughput event streaming, not scheduled polling of 9 ATS APIs.
+**Kafka is overkill** for this use case. It's designed for high-throughput event streaming, not scheduled polling of 12 ATS APIs.
 
 ## Q5: What is ingestion doing vs discover vs enrich?
 

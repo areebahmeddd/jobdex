@@ -2,6 +2,7 @@ import pytest
 
 from app.ingestion.normalizer.location import (
     canonicalize_city,
+    get_country_code_for_name,
     get_region_for_country,
     normalize_location,
 )
@@ -116,3 +117,39 @@ class TestGetRegionForCountry:
 
     def test_unknown_returns_none(self):
         assert get_region_for_country("ZZ") is None
+
+
+class TestGetCountryCodeForName:
+    @pytest.mark.parametrize(
+        "name, expected",
+        [
+            ("United States", "US"),
+            ("Germany", "DE"),
+            ("India", "IN"),
+            ("Singapore", "SG"),
+        ],
+    )
+    def test_names_from_city_table(self, name, expected):
+        assert get_country_code_for_name(name) == expected
+
+    @pytest.mark.parametrize(
+        "name, expected",
+        [
+            ("United States of America", "US"),
+            ("USA", "US"),
+            ("England", "GB"),
+            ("United Kingdom of Great Britain and Northern Ireland", "GB"),
+            ("Czechia", "CZ"),
+            ("Republic of Korea", "KR"),
+            ("Viet Nam", "VN"),
+        ],
+    )
+    def test_long_form_aliases(self, name, expected):
+        assert get_country_code_for_name(name) == expected
+
+    def test_case_and_whitespace_insensitive(self):
+        assert get_country_code_for_name("  uNiTeD sTaTeS  ") == "US"
+
+    @pytest.mark.parametrize("name", [None, "", "   ", "Atlantis"])
+    def test_unknown_returns_none(self, name):
+        assert get_country_code_for_name(name) is None

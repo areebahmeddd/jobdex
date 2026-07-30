@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import json
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 
@@ -9,7 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from tenacity import AsyncRetrying, retry_if_exception, stop_after_attempt, wait_exponential
 
-from app.config import settings
+from app.config import DATA_DIR, settings
 from app.ingestion.normalizer import get_region_for_country, is_blocked_location
 from app.models import Company, Job
 from app.schemas import IngestResponse
@@ -284,5 +285,32 @@ class BaseIngester(ABC):
             return False
 
     async def discover(self) -> list[Company]:
-        """Return unsaved Company stubs for bulk registration. Returns empty list by default."""
-        return []
+        """Return unsaved Company stubs from the seed file. Override to crawl a directory."""
+        return self._load_seed_stubs()
+
+    def _load_seed_stubs(self) -> list[Company]:
+        """Load Company stubs from data/companies_{ats_type}.json, if present.
+
+        Each entry is {"name", "slug", "ats_slug"}. ats_slug defaults to slug and is kept
+        separate so an ATS whose board address is not the company name (Workday) can
+        still register under a readable slug.
+        """
+        path = DATA_DIR / f"companies_{self.ats_type}.json"
+        if not path.exists():
+            return []
+        try:
+            entries = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            logger.warning(f"[{self.ats_type}] unreadable seed file {path.name}: {exc}")
+            return []
+        return [
+            Company(
+                name=entry["name"],
+                slug=entry["slug"],
+                ats_type=self.ats_type,
+                ats_slug=entry.get("ats_slug") or entry["slug"],
+                is_active=True,
+            )
+            for entry in entries
+            if entry.get("name") and entry.get("slug")
+        ]

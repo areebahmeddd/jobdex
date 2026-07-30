@@ -24,27 +24,32 @@ JobDex is a startup-focused job board built around map-first discovery. Instead 
 
 ## Data Sources
 
-### Integrated (Total: 9)
+### Integrated (Total: 12)
 
-| ATS                                                              | Region    | Endpoint                                                      |
-| ---------------------------------------------------------------- | --------- | ------------------------------------------------------------- |
-| [Ashby](https://ashbyhq.com)                                     | Global    | `api.ashbyhq.com/posting-api/job-board/{slug}`                |
-| [Greenhouse](https://greenhouse.io)                              | Global    | `boards-api.greenhouse.io/v1/boards/{slug}/jobs`              |
-| [Lever](https://lever.co)                                        | Global    | `api.lever.co/v0/postings/{slug}`                             |
-| [SmartRecruiters](https://smartrecruiters.com)                   | Global    | `api.smartrecruiters.com/v1/companies/{slug}/postings`        |
-| [Workable](https://workable.com)                                 | Global    | `apply.workable.com/api/v3/accounts/{slug}/jobs`              |
-| [YCombinator](https://ycombinator.com)                           | USA       | `api.ycombinator.com/v0.1/companies?q={slug}`                 |
-| [Recruitee](https://recruitee.com)                               | Europe    | `{slug}.recruitee.com/api/offers/`                            |
-| [PyjamaHR](https://pyjamahr.com)                                 | India     | `api.pyjamahr.com/api/career/jobs/?company_slug={slug}`       |
-| [MCF](https://mycareersfuture.gov.sg)                            | Singapore | `api.mycareersfuture.gov.sg/v2/jobs?company={slug}`           |
+| ATS                                                              | Region    | Endpoint                                                         |
+| ---------------------------------------------------------------- | --------- | ---------------------------------------------------------------- |
+| [Ashby](https://ashbyhq.com)                                     | Global    | `api.ashbyhq.com/posting-api/job-board/{slug}`                   |
+| [Greenhouse](https://greenhouse.io)                              | Global    | `boards-api.greenhouse.io/v1/boards/{slug}/jobs`                 |
+| [Lever](https://lever.co)                                        | Global    | `api.lever.co/v0/postings/{slug}`                                |
+| [SmartRecruiters](https://smartrecruiters.com)                   | Global    | `api.smartrecruiters.com/v1/companies/{slug}/postings`           |
+| [Workable](https://workable.com)                                 | Global    | `apply.workable.com/api/v3/accounts/{slug}/jobs`                 |
+| [Workday](https://workday.com)                                   | Global    | `{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{board}/jobs` |
+| [Rippling](https://rippling.com)                                 | Global    | `api.rippling.com/platform/api/ats/v1/board/{slug}/jobs`         |
+| [YCombinator](https://ycombinator.com)                           | USA       | `api.ycombinator.com/v0.1/companies?q={slug}`                    |
+| [Recruitee](https://recruitee.com)                               | Europe    | `{slug}.recruitee.com/api/offers/`                               |
+| [Teamtailor](https://teamtailor.com)                             | Europe    | `{slug}.teamtailor.com/jobs.json`                                |
+| [PyjamaHR](https://pyjamahr.com)                                 | India     | `api.pyjamahr.com/api/career/jobs/?company_slug={slug}`          |
+| [MCF](https://mycareersfuture.gov.sg)                            | Singapore | `api.mycareersfuture.gov.sg/v2/jobs?company={slug}`              |
+
+Every source is zero-auth: no API key, no token, no signup.
 
 ### Planned
 
-| ATS                                              | Region | Blocker                                              |
-| ------------------------------------------------ | ------ | ---------------------------------------------------- |
-| [Workday](https://workday.com)                   | Global | Tenant and board name must be discovered per company |
-| [Freshteam](https://freshteam.com)               | India  | Needs per-company API key                            |
-| [Teamtailor](https://teamtailor.com)             | Europe | Needs per-company API key                            |
+| ATS                                              | Region | Blocker                                                                                                     |
+| ------------------------------------------------ | ------ | ----------------------------------------------------------------------------------------------------------- |
+| [SEEK](https://seek.com.au)                      | AU/NZ  | Zero-auth and filterable per advertiser, but bot-protected and keyed by an unlistable numeric advertiser ID |
+| [Kalibrr](https://kalibrr.com)                   | PH/ID  | Endpoint is zero-auth JSON and compatible, but every live board reports zero open listings                  |
+| [NHS Jobs](https://jobs.nhs.uk)                  | UK     | Needs a free Azure APIM subscription key, and its search-based model does not fit the slug-based ingester   |
 
 > For a full compatibility matrix including researched but incompatible platforms, see [ATS Integrations](docs/PLAN.md#ats-integrations) in PLAN.md.
 

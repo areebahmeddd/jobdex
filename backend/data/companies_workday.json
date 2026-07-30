@@ -1,0 +1,102 @@
+[
+  {
+    "name": "NVIDIA",
+    "slug": "nvidia",
+    "ats_slug": "nvidia:wd5:NVIDIAExternalCareerSite"
+  },
+  {
+    "name": "Salesforce",
+    "slug": "salesforce",
+    "ats_slug": "salesforce:wd12:External_Career_Site"
+  },
+  {
+    "name": "Adobe",
+    "slug": "adobe",
+    "ats_slug": "adobe:wd5:external_experienced"
+  },
+  {
+    "name": "Workday",
+    "slug": "workday",
+    "ats_slug": "workday:wd5:Workday"
+  },
+  {
+    "name": "HP",
+    "slug": "hp",
+    "ats_slug": "hp:wd5:ExternalCareerSite"
+  },
+  {
+    "name": "PayPal",
+    "slug": "paypal",
+    "ats_slug": "paypal:wd1:jobs"
+  },
+  {
+    "name": "Mastercard",
+    "slug": "mastercard",
+    "ats_slug": "mastercard:wd1:CorporateCareers"
+  },
+  {
+    "name": "Sony",
+    "slug": "sonyglobal",
+    "ats_slug": "sonyglobal:wd1:SonyGlobalCareers"
+  },
+  {
+    "name": "GSK",
+    "slug": "gsk",
+    "ats_slug": "gsk:wd5:GSKCareers"
+  },
+  {
+    "name": "Autodesk",
+    "slug": "autodesk",
+    "ats_slug": "autodesk:wd1:Ext"
+  },
+  {
+    "name": "Thermo Fisher Scientific",
+    "slug": "thermofisher",
+    "ats_slug": "thermofisher:wd5:thermofishercareers"
+  },
+  {
+    "name": "Dell Technologies",
+    "slug": "dell",
+    "ats_slug": "dell:wd1:External"
+  },
+  {
+    "name": "Zendesk",
+    "slug": "zendesk",
+    "ats_slug": "zendesk:wd1:zendesk"
+  },
+  {
+    "name": "Visa",
+    "slug": "visa",
+    "ats_slug": "visa:wd5:visa"
+  },
+  {
+    "name": "Shell",
+    "slug": "shell",
+    "ats_slug": "shell:wd3:ShellCareers"
+  },
+  {
+    "name": "Equinix",
+    "slug": "equinix",
+    "ats_slug": "equinix:wd1:External"
+  },
+  {
+    "name": "Red Hat",
+    "slug": "redhat",
+    "ats_slug": "redhat:wd5:jobs"
+  },
+  {
+    "name": "Chewy",
+    "slug": "chewy",
+    "ats_slug": "chewy:wd5:External"
+  },
+  {
+    "name": "Sanofi",
+    "slug": "sanofi",
+    "ats_slug": "sanofi:wd3:SanofiCareers"
+  },
+  {
+    "name": "Gap Inc.",
+    "slug": "gapinc",
+    "ats_slug": "gapinc:wd1:gapinc"
+  }
+]

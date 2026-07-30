@@ -205,9 +205,17 @@ strip_html() + make_snippet()
 
 **Y Combinator**: `GET /v0.1/companies?q={slug}` on `api.ycombinator.com` (no auth). Since `workatastartup.com` does not expose job listings via a public API, the ingester creates one representative job per hiring company. The job title comes from `oneLiner`, the description from`longDescription`, and the source URL points to the company's Work at a Startup page.`build_job` backfills missing company metadata, and `fetch_raw` returns `[]` when `isHiring` is false to deactivate the job automatically. `is_remote` is set when `regions` contains `"Fully Remote"`.
 
+**Workday**: `POST /wday/cxs/{tenant}/{board}/jobs` on `{tenant}.{wd}.myworkdayjobs.com` (no auth). The board is addressed by three per-customer values, so `ats_slug` packs them as `tenant:wdN:board` and `WorkdayIngester` overrides `_resolve_company` to keep `Company.slug` equal to the bare tenant. Paging is offset-based with a hard `limit` of 20. `total` appears only on the first response, and offsets past the end wrap back to page 0, so the loop also stops when a page contributes no new `externalPath`. Each posting is followed by `GET /wday/cxs/{tenant}/{board}{externalPath}` for the description, `timeType`, and `startDate`. Dedup uses `bulletFields[0]`, the requisition number.
+
+**Teamtailor**: `GET https://{slug}.teamtailor.com/jobs.json` (no auth), the career site's public JSON Feed. It is used instead of `api.teamtailor.com/v1/jobs`, which requires a per-company token. Each item embeds a schema.org `JobPosting` under `_jobposting`, and geo comes from its `jobLocation[].address` (`addressLocality` plus an ISO-2 `addressCountry`). The feed is unpaginated and complete, so soft-deactivation is safe against it.
+
+**Rippling**: `GET https://api.rippling.com/platform/api/ats/v1/board/{slug}/jobs` (no auth) returns a bare, unpaginated list. `GET .../jobs/{uuid}` adds the description (split into `company` and `role` HTML), `employmentType`, and `createdOn`. `employmentType.label` holds the machine code and `employmentType.id` the human label, the reverse of the usual convention.
+
 ### Location blocking
 
 Jobs with `country_code = IL` or a city matching `israel`, `tel aviv`, `haifa`, `beer sheva`, or `jerusalem` are skipped at insertion time and never written to the database.
+
+The check runs on the resolved `country_code`, so it only fires once one is known. Ingesters that receive a country display name rather than an ISO code (Workday, Rippling) resolve it with `get_country_code_for_name` before the Job is built, so postings in unlisted cities are matched on country instead of passing through with `country_code = None`.
 
 ## Enrichment Pipeline
 

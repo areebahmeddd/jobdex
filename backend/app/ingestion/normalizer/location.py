@@ -43,9 +43,54 @@ _BLOCKED_CITY_SUBSTRINGS: tuple[str, ...] = (
 )
 
 
+# Country name -> ISO-2, derived from the city table. Some ATS report a country name
+# but no code (Workday, Rippling), which would otherwise leave the job without a region.
+_COUNTRY_NAME_TO_CODE: dict[str, str] = {
+    data["country"].lower(): data["country_code"]
+    for data in _CITY_DATA.values()
+    if data.get("country") and data.get("country_code")
+}
+
+# Long-form and alternate names that ATS use but the city table does not carry.
+_COUNTRY_NAME_ALIASES: dict[str, str] = {
+    "united states of america": "US",
+    "usa": "US",
+    "u.s.a.": "US",
+    "us": "US",
+    "united kingdom of great britain and northern ireland": "GB",
+    "great britain": "GB",
+    "uk": "GB",
+    "england": "GB",
+    "scotland": "GB",
+    "wales": "GB",
+    "northern ireland": "GB",
+    "the netherlands": "NL",
+    "holland": "NL",
+    "republic of korea": "KR",
+    "korea, republic of": "KR",
+    "czechia": "CZ",
+    "viet nam": "VN",
+    "turkiye": "TR",
+    "türkiye": "TR",
+    "uae": "AE",
+    "hong kong sar": "HK",
+    "hong kong s.a.r.": "HK",
+    "taiwan, province of china": "TW",
+    "republic of ireland": "IE",
+}
+
+
 def get_city_data() -> dict[str, dict]:
     """Return the full city metadata dictionary keyed by canonical city name."""
     return _CITY_DATA
+
+
+def get_country_code_for_name(name: str | None) -> str | None:
+    """Return the ISO-2 code for a country name, or None if it is not recognised."""
+    if not name:
+        return None
+    key = name.strip().lower()
+    return _COUNTRY_NAME_TO_CODE.get(key) or _COUNTRY_NAME_ALIASES.get(key)
 
 
 def canonicalize_city(name: str) -> str | None:
