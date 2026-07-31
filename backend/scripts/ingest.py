@@ -16,7 +16,7 @@ import sys
 import urllib.request
 
 from app.config import settings
-from app.database import get_session
+from app.database import LOCK_INGEST, advisory_lock, get_session
 from app.ingestion import INGESTERS
 from app.scheduler import run_ingestion
 
@@ -45,7 +45,13 @@ async def main() -> None:
     _abort_if_server_live(force=force)
 
     if len(args) == 1 and args[0] == "--all":
-        await run_ingestion()
+        # batch_size=0 overrides the scheduler's per-tick cap for a full seed pass. The
+        # lock keeps this from overlapping a deployed instance crawling the same rows.
+        with advisory_lock(LOCK_INGEST) as acquired:
+            if not acquired:
+                print("Another ingestion run holds the lock. Wait for it to finish.")
+                sys.exit(1)
+            await run_ingestion(batch_size=0)
         return
 
     if len(args) == 2:

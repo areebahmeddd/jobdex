@@ -17,20 +17,23 @@
 
 ### Ingestion Pipeline
 
-Each ATS is a `BaseIngester` subclass with three required methods:
+Each ATS is a `BaseIngester` subclass with three required methods, plus one optional hook:
 
 - `fetch_raw(slug)`: call the ATS API and return raw job dicts
-- `extract_job_id(raw)`: return the stable ATS-side job identifier
+- `extract_job_id(raw)`: return the stable ATS-side job identifier, from the list payload alone
 - `build_job(raw, company, slug)`: normalize into an unsaved `Job` ORM object
+- `hydrate(raw_jobs, slug)`: optional, fetch per-job detail for postings about to be inserted
 
 The `ingest(slug, db)` method on `BaseIngester` orchestrates the full run:
 
 1. **Company resolution**: look up by `ats_slug + ats_type`; fall back to `slug`; create a stub if missing.
 2. **Geo-enrichment (Clearbit)**: on first ingest, query the Clearbit autocomplete API for HQ city, country, coordinates, and logo URL. Blocked or sanctioned locations are skipped.
 3. **Fetch with retries**: wraps `fetch_raw` in tenacity `AsyncRetrying` with exponential backoff (min 2 s, max 30 s, 3 attempts). Retries on HTTP 429/5xx and network errors.
-4. **Upsert loop**: for each raw job, compute `dedup_hash = SHA-256("{ats_type}:{slug}:{job_id}")`. New hash → `build_job` + insert. Existing hash → update `last_seen_at`.
-5. **Soft-deactivation**: hashes present in the DB but absent from the latest fetch are set to `is_active = False`. Nothing is ever deleted.
-6. **HQ backfill**: if the company still has no `city` after the run, the most common job city across its active listings is promoted to the company record.
+4. **Split**: for each raw job, compute `dedup_hash = SHA-256("{ats_type}:{slug}:{job_id}")`. Known hashes have `last_seen_at` refreshed in chunked bulk updates; a hash repeated inside one response is counted once.
+5. **Hydrate**: `hydrate()` runs over the new postings only, so per-job detail requests scale with what changed rather than board size.
+6. **Insert**: `build_job` each hydrated posting and add it. Blocked locations are dropped and excluded from the seen set, so they never look like closures.
+7. **Soft-deactivation**: hashes present in the DB but absent from the latest fetch are set to `is_active = False`. Nothing is ever deleted.
+8. **HQ backfill**: if the company still has no `city` after the run, the most common job city across its active listings is promoted to the company record.
 
 ### Normalizer
 
@@ -115,11 +118,23 @@ Triggered by the `enrich_pending` scheduler job and the `uv run python scripts/e
 
 | Job ID               | Interval | Purpose                                                                  |
 | -------------------- | -------- | ------------------------------------------------------------------------ |
-| `ingest_all`         | 6 h      | Crawl all active companies ordered by `last_crawled_at ASC NULLS FIRST`  |
+| `ingest_all`         | 15 min   | Crawl the `INGEST_BATCH_SIZE` least recently crawled companies, ordered by `last_crawled_at ASC NULLS FIRST` |
 | `enrich_pending`     | 12 h     | Enrich companies where `enriched_at IS NULL` or older than 90 days       |
 | `discover_companies` | 24 h     | Call `discover()` on all ingesters. YCombinator crawls the live YC directory; Workday, Teamtailor, and Rippling return stubs from their `data/companies_{ats}.json` seed files |
 
 A `CRAWL_DELAY` of 0.3 s is inserted between each company during scheduled ingestion to avoid hammering ATS APIs.
+
+**Bounded ticks.** Ingestion is a rotating queue rather than a full sweep. The ordering already puts the stalest company first, so a capped batch still reaches everything: companies covered per day is `(1440 / INGEST_INTERVAL_MINUTES) * INGEST_BATCH_SIZE`, or 2400/day at the defaults. A tick that dies part way through only loses its own slice, because the companies it never reached keep their old `last_crawled_at` and sort first next time. `scripts/ingest.py --all` passes `batch_size=0` for an unbounded seed run.
+
+**One runner at a time.** Each replica runs its own APScheduler, so `max_instances=1` is not enough on its own. Every scheduled job runs behind a Postgres advisory lock (`pg_try_advisory_lock`); a replica that cannot take the lock skips the tick. `migrate_db()` uses the blocking form so simultaneous boots serialise on `alembic_version` instead of racing, and `scripts/ingest.py --all` takes the same ingest lock so a local seed run cannot overlap a deployed crawler.
+
+### Hydration
+
+`build_job()` only ever runs for postings whose `dedup_hash` is not already stored; known postings just get `last_seen_at` bumped. Fetching per-job detail for the whole board therefore threw away almost all of it once a board was seeded.
+
+`BaseIngester.hydrate(raw_jobs, slug)` is called from `ingest()` after the new/known split, so the ATS that need a second request per job (Workday, Workable, PyjamaHR, Rippling) pay only for postings about to be inserted. `fetch_raw()` returns the list payload alone. All four can derive `extract_job_id` from that list payload, which is what makes the split possible. Implementations must return one entry per input in the same order; a length mismatch is logged and the un-hydrated payloads are used rather than dropping postings. The default is a no-op.
+
+Measured against GSK's Workday board (698 jobs): a full crawl was 41 s of listing plus ~107 s of detail; in steady state it is 41 s plus ~2 s.
 
 ## ATS Integrations
 
@@ -140,15 +155,15 @@ A `CRAWL_DELAY` of 0.3 s is inserted between each company during scheduled inges
 | PyjamaHR        | India  | `api.pyjamahr.com/api/career/jobs/?company_slug={slug}` | GET    | None |
 | MCF             | Singapore | `api.mycareersfuture.gov.sg/v2/jobs?company={slug}`  | GET    | None |
 
-**Workable**: cursor-based POST pagination; each subsequent page is fetched with `{"nextPage": "<cursor>"}` in the request body. The list endpoint returns minimal fields; a second request to `GET api/v2/accounts/{slug}/jobs/{shortcode}` retrieves description, requirements, and benefits. Internal jobs (`isInternal: true`) are filtered out. Up to 5 detail requests run concurrently via `asyncio.Semaphore(5)`.
+**Workable**: cursor-based POST pagination; each subsequent page is fetched with `{"nextPage": "<cursor>"}` in the request body. The list endpoint returns minimal fields; `hydrate()` issues `GET api/v2/accounts/{slug}/jobs/{shortcode}` for description, requirements, and benefits. Internal jobs (`isInternal: true`) are filtered out. Up to 5 detail requests run concurrently via `asyncio.Semaphore(5)`.
 
 **Recruitee**: single GET; filter on `status == "published"`. Date format is `"YYYY-MM-DD HH:MM:SS UTC"` (not ISO 8601), parsed with `strptime`. Description falls back to `translations.en.description` if the top-level field is empty. Employment codes like `"fulltime_fixed_term"` are normalized to `"fulltime"`.
 
-**Workday**: the CXS endpoint needs no auth but is addressed by three per-customer values that cannot be derived from the company name: the tenant, the data-centre number (`wd1` to `wd12`), and the board name. They are packed into `ats_slug` as `tenant:wdN:board`, so no schema change is needed; `_resolve_company` is overridden to keep `Company.slug` as the bare tenant. Three API quirks shape the paging loop: `limit` above 20 returns HTTP 400, `total` is populated only on the first page and reports `0` after it, and an offset past the last page wraps around and re-serves page 0. Paging therefore stops on the first-page total, a short page, or a page with no new `externalPath`, capped at 100 pages (2000 jobs). The list payload has no description or absolute date, so each posting is followed by `GET .../{board}{externalPath}` for `jobDescription`, `timeType`, and `startDate`; the list-level `postedOn` is a relative label ("Posted Today"). Up to 5 detail requests run concurrently via `asyncio.Semaphore(5)`. Dedup uses `bulletFields[0]`, the requisition number, since `externalPath` embeds the title and changes on retitling.
+**Workday**: the CXS endpoint needs no auth but is addressed by three per-customer values that cannot be derived from the company name: the tenant, the data-centre number (`wd1` to `wd12`), and the board name. They are packed into `ats_slug` as `tenant:wdN:board`, so no schema change is needed; `_resolve_company` is overridden to keep `Company.slug` as the bare tenant. Three API quirks shape the paging loop: `limit` above 20 returns HTTP 400, `total` is populated only on the first page and reports `0` after it, and an offset past the last page wraps around and re-serves page 0. Paging therefore stops on the first-page total, a short page, or a page with no new `externalPath`, capped at 100 pages (2000 jobs). The list payload has no description or absolute date, so `hydrate()` issues `GET .../{board}{externalPath}` for `jobDescription`, `timeType`, and `startDate`; the list-level `postedOn` is a relative label ("Posted Today"). Up to 5 detail requests run concurrently via `asyncio.Semaphore(5)`. Dedup uses `bulletFields[0]`, the requisition number, since `externalPath` embeds the title and changes on retitling.
 
 **Teamtailor**: the documented REST API (`api.teamtailor.com/v1/jobs`) returns 401 without a per-company token, but every career site also publishes the same postings as an unauthenticated JSON Feed at `{slug}.teamtailor.com/jobs.json`. Each item carries a schema.org `JobPosting` under `_jobposting` with a structured `PostalAddress` (`addressLocality`, `addressCountry` as ISO-2). The feed is unpaginated and complete: `?page=2` returns zero items and the count matches the RSS feed, so soft-deactivation is safe against it. No employment type or department is exposed; `job_type` falls back to the title-derived seniority.
 
-**Rippling**: single GET for the board, no pagination, then a per-job detail fetch for `description` (a `{company, role}` pair), `employmentType`, and `createdOn`. `employmentType.label` holds the machine code (`SALARIED_FT`) and `employmentType.id` the human label, the reverse of the usual convention. Locations read `"City, Country"`, so the trailing segment goes through `get_country_code_for_name` when the city is not in the city table. Board slugs are often generic words belonging to unrelated companies (`arc` is the Amyloidosis Research Consortium, `sentry` is Sentry Fire Protection Services), so seed entries take `Company.slug` from the `companyName` in the detail payload.
+**Rippling**: single GET for the board, no pagination; `hydrate()` fetches `description` (a `{company, role}` pair), `employmentType`, and `createdOn`. `employmentType.label` holds the machine code (`SALARIED_FT`) and `employmentType.id` the human label, the reverse of the usual convention. Locations read `"City, Country"`, so the trailing segment goes through `get_country_code_for_name` when the city is not in the city table. Board slugs are often generic words belonging to unrelated companies (`arc` is the Amyloidosis Research Consortium, `sentry` is Sentry Fire Protection Services), so seed entries take `Company.slug` from the `companyName` in the detail payload.
 
 **YCombinator**: the only ingester that overrides `discover()` with a live directory crawl. The rest inherit the base implementation, which loads `data/companies_{ats_type}.json` when present.
 
@@ -222,9 +237,10 @@ Three platforms outside the original backlog were probed alongside it because th
 
 1. Create `backend/app/ingestion/{ats}.py` and subclass `BaseIngester`, set `ats_type`
 2. Implement `fetch_raw`, `extract_job_id`, `build_job`
-3. Register in `app/ingestion/__init__.py` under `INGESTERS`
-4. Add unit tests in `tests/unit/test_ingesters.py`
-5. Update README data sources table and PLAN.md implemented table
+3. If the ATS needs a second request per job, put it in `hydrate()`, not `fetch_raw()`
+4. Register in `app/ingestion/__init__.py` under `INGESTERS`
+5. Add unit tests in `tests/unit/test_ingesters.py`
+6. Update README data sources table and PLAN.md implemented table
 
 ### Per-company credential
 

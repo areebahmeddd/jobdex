@@ -30,7 +30,7 @@ class PyjamaHRIngester(BaseIngester):
     ats_type = "pyjamahr"
 
     async def fetch_raw(self, slug: str) -> list[dict]:
-        """Fetch all published job listings from PyjamaHR, enriched with per-job detail data."""
+        """Fetch all published listings from PyjamaHR. Detail comes from hydrate()."""
         jobs: list[dict] = []
         page = 1
         async with httpx.AsyncClient(
@@ -47,13 +47,23 @@ class PyjamaHRIngester(BaseIngester):
                     break
                 page += 1
 
+        return jobs
+
+    async def hydrate(self, raw_jobs: list[dict], slug: str) -> list[dict]:
+        """Fetch the full description and skill list for each new job."""
+        async with httpx.AsyncClient(
+            timeout=settings.HTTP_TIMEOUT,
+            headers={"Accept": "application/json"},
+        ) as client:
             sem = asyncio.Semaphore(_DETAIL_CONCURRENCY)
             enriched = await asyncio.gather(
-                *[_fetch_detail(client, slug, job, sem) for job in jobs],
+                *[_fetch_detail(client, slug, job, sem) for job in raw_jobs],
                 return_exceptions=True,
             )
-
-        return [item for item in enriched if isinstance(item, dict)]
+        return [
+            item if isinstance(item, dict) else original
+            for item, original in zip(enriched, raw_jobs, strict=True)
+        ]
 
     def extract_job_id(self, raw: dict) -> str:
         """Extract the PyjamaHR job ID from a raw job dict."""

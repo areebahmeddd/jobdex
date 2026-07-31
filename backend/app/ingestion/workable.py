@@ -37,7 +37,7 @@ class WorkableIngester(BaseIngester):
     ats_type = "workable"
 
     async def fetch_raw(self, slug: str) -> list[dict]:
-        """Fetch all published non-internal job listings from Workable, enriched with per-job description."""
+        """Fetch all published non-internal listings. Detail comes from hydrate()."""
         url = _LIST_URL.format(slug=slug)
         jobs: list[dict] = []
         next_page: str | None = None
@@ -56,13 +56,23 @@ class WorkableIngester(BaseIngester):
                 if not next_page:
                     break
 
+        return jobs
+
+    async def hydrate(self, raw_jobs: list[dict], slug: str) -> list[dict]:
+        """Fetch description, requirements, and benefits for each new job."""
+        async with httpx.AsyncClient(
+            timeout=settings.HTTP_TIMEOUT,
+            headers={"Accept": "application/json"},
+        ) as client:
             sem = asyncio.Semaphore(_DETAIL_CONCURRENCY)
             enriched = await asyncio.gather(
-                *[_fetch_detail(client, slug, job, sem) for job in jobs],
+                *[_fetch_detail(client, slug, job, sem) for job in raw_jobs],
                 return_exceptions=True,
             )
-
-        return [item for item in enriched if isinstance(item, dict)]
+        return [
+            item if isinstance(item, dict) else original
+            for item, original in zip(enriched, raw_jobs, strict=True)
+        ]
 
     def extract_job_id(self, raw: dict) -> str:
         """Extract the Workable job shortcode from a raw job dict."""

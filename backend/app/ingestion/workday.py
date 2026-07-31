@@ -46,7 +46,7 @@ class WorkdayIngester(BaseIngester):
     ats_type = "workday"
 
     async def fetch_raw(self, slug: str) -> list[dict]:
-        """Fetch all postings from a Workday CXS board, enriched with per-job detail."""
+        """Fetch every posting from a Workday CXS board. Detail comes from hydrate()."""
         tenant, wd, board = _parse_slug(slug)
         list_url = _LIST_URL.format(tenant=tenant, wd=wd, board=board)
 
@@ -87,13 +87,24 @@ class WorkdayIngester(BaseIngester):
                     f" at {len(postings)} of {total} jobs; remainder skipped this run"
                 )
 
+        return postings
+
+    async def hydrate(self, raw_jobs: list[dict], slug: str) -> list[dict]:
+        """Fetch description, timeType, and startDate for each new posting."""
+        tenant, wd, board = _parse_slug(slug)
+        async with httpx.AsyncClient(
+            timeout=settings.HTTP_TIMEOUT,
+            headers={"Accept": "application/json", "Content-Type": "application/json"},
+        ) as client:
             sem = asyncio.Semaphore(_DETAIL_CONCURRENCY)
             enriched = await asyncio.gather(
-                *[_fetch_detail(client, tenant, wd, board, p, sem) for p in postings],
+                *[_fetch_detail(client, tenant, wd, board, p, sem) for p in raw_jobs],
                 return_exceptions=True,
             )
-
-        return [item for item in enriched if isinstance(item, dict)]
+        return [
+            item if isinstance(item, dict) else original
+            for item, original in zip(enriched, raw_jobs, strict=True)
+        ]
 
     def extract_job_id(self, raw: dict) -> str:
         """Extract the stable Workday requisition ID from a raw posting dict."""

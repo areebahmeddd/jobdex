@@ -6,7 +6,13 @@ from loguru import logger
 from sqlalchemy import or_
 
 from app.config import settings
-from app.database import get_session
+from app.database import (
+    LOCK_DISCOVER,
+    LOCK_ENRICH,
+    LOCK_INGEST,
+    advisory_lock,
+    get_session,
+)
 from app.enrichment import enrich_company
 from app.ingestion import INGESTERS
 from app.models import Company
@@ -14,21 +20,29 @@ from app.models import Company
 scheduler = AsyncIOScheduler(timezone="UTC")
 
 
-async def run_ingestion() -> None:
-    """Crawl all active companies and ingest their latest job listings."""
-    logger.info("[scheduler] ingestion run started")
+async def run_ingestion(batch_size: int | None = None) -> None:
+    """Crawl the least recently crawled batch of active companies.
+
+    Ordering by last_crawled_at makes the company table a rotating queue, so a bounded
+    batch per tick still reaches every company. A tick that dies part way through only
+    loses its own slice; untouched companies keep their old last_crawled_at and are
+    picked up first next time. Pass batch_size=0 for a full pass, as the seed scripts do.
+    """
+    limit = settings.INGEST_BATCH_SIZE if batch_size is None else batch_size
+    logger.info(f"[scheduler] ingestion run started (batch={limit or 'all'})")
     total_new = 0
     total_updated = 0
     errors = 0
 
     with get_session() as db:
-        targets = [
-            (company.ats_type, company.ats_slug, company.slug)
-            for company in db.query(Company)
+        query = (
+            db.query(Company)
             .filter(Company.is_active.is_(True), Company.ats_type.isnot(None))
             .order_by(Company.last_crawled_at.asc().nullsfirst())
-            .all()
-        ]
+        )
+        if limit:
+            query = query.limit(limit)
+        targets = [(c.ats_type, c.ats_slug, c.slug) for c in query.all()]
 
     for ats_type, ats_slug, slug in targets:
         ingester = INGESTERS.get(ats_type)
@@ -45,7 +59,8 @@ async def run_ingestion() -> None:
         await asyncio.sleep(settings.CRAWL_DELAY)
 
     logger.info(
-        f"[scheduler] ingestion complete: new={total_new} updated={total_updated} errors={errors}"
+        f"[scheduler] ingestion complete: companies={len(targets)} new={total_new} "
+        f"updated={total_updated} errors={errors}"
     )
 
 
@@ -126,32 +141,50 @@ async def run_discovery() -> None:
     logger.info(f"[scheduler] discovery complete: added={added} skipped={skipped}")
 
 
+async def _run_locked(name: str, key: int, job) -> None:
+    """Run a scheduled job only if no other replica currently holds its advisory lock.
+
+    max_instances=1 only guards against overlap inside one process. Every replica runs
+    its own scheduler, so without this each tick would fire once per replica and the
+    concurrent writes would collide on the unique dedup_hash index.
+    """
+    with advisory_lock(key) as acquired:
+        if not acquired:
+            logger.info(f"[scheduler] {name} already running elsewhere; skipping tick")
+            return
+        await job()
+
+
 def start() -> None:
     """Register scheduled jobs and start the background scheduler."""
     scheduler.add_job(
-        run_ingestion,
+        _run_locked,
         "interval",
-        hours=settings.INGEST_INTERVAL_HOURS,
+        minutes=settings.INGEST_INTERVAL_MINUTES,
+        args=["ingest", LOCK_INGEST, run_ingestion],
         id="ingest_all",
         max_instances=1,
     )
     scheduler.add_job(
-        run_enrichment,
+        _run_locked,
         "interval",
         hours=settings.ENRICH_INTERVAL_HOURS,
+        args=["enrich", LOCK_ENRICH, run_enrichment],
         id="enrich_pending",
         max_instances=1,
     )
     scheduler.add_job(
-        run_discovery,
+        _run_locked,
         "interval",
         hours=settings.DISCOVER_INTERVAL_HOURS,
+        args=["discover", LOCK_DISCOVER, run_discovery],
         id="discover_companies",
         max_instances=1,
     )
     scheduler.start()
     logger.info(
-        f"[scheduler] started: ingest every {settings.INGEST_INTERVAL_HOURS}h, "
+        f"[scheduler] started: ingest every {settings.INGEST_INTERVAL_MINUTES}m "
+        f"({settings.INGEST_BATCH_SIZE or 'all'} companies per tick), "
         f"enrich every {settings.ENRICH_INTERVAL_HOURS}h, "
         f"discover every {settings.DISCOVER_INTERVAL_HOURS}h"
     )

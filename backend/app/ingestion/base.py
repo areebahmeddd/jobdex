@@ -19,6 +19,28 @@ from app.schemas import IngestResponse
 _TECH_EXTRACT_CHARS: int = 2000
 _DESCRIPTION_MAX_CHARS: int = 20000
 
+# Rows per UPDATE ... WHERE id IN (...) when refreshing last_seen_at.
+_UPDATE_CHUNK: int = 1000
+
+
+def _chunked(items: list, size: int):
+    """Yield successive slices of the list, at most size elements each."""
+    for start in range(0, len(items), size):
+        yield items[start : start + size]
+
+
+def _seen_since(seen_at: datetime | None, cutoff: datetime) -> bool:
+    """Return True if seen_at is at or after cutoff, tolerating a naive timestamp.
+
+    Postgres hands back timezone-aware values for these columns, but not every driver
+    does, and comparing a naive value to an aware one raises.
+    """
+    if seen_at is None:
+        return False
+    if seen_at.tzinfo is None:
+        seen_at = seen_at.replace(tzinfo=UTC)
+    return seen_at >= cutoff
+
 
 def _is_retryable(exc: BaseException) -> bool:
     """Return True for transient HTTP/network errors that warrant a retry."""
@@ -129,6 +151,16 @@ class BaseIngester(ABC):
         """Parse a raw job dict into an unsaved Job ORM object."""
         ...
 
+    async def hydrate(self, raw_jobs: list[dict], slug: str) -> list[dict]:
+        """Fetch per-job detail for jobs that are about to be inserted.
+
+        ingest() calls this only for postings whose dedup_hash is not already in the
+        database, so an ATS that needs a second request per job pays for new postings
+        only. Implementations must return one entry per input, in the same order.
+        Defaults to a no-op for ATS whose list endpoint is already complete.
+        """
+        return raw_jobs
+
     def make_hash(self, slug: str, job_id: str) -> str:
         """Compute a SHA-256 dedup hash from the ATS type, slug, and job ID."""
         return hashlib.sha256(f"{self.ats_type}:{slug}:{job_id}".encode()).hexdigest()
@@ -214,35 +246,67 @@ class BaseIngester(ABC):
         fresh_hashes: set[str] = {
             row.dedup_hash
             for row in existing_rows
-            if row.is_active and row.last_seen_at is not None and row.last_seen_at >= today_start
+            if row.is_active and _seen_since(row.last_seen_at, today_start)
         }
+
+        # Split into known and new before hydrating. build_job() only ever runs for new
+        # postings, so fetching per-job detail for the rest is wasted work.
+        new_raws: list[tuple[str, dict]] = []
+        touch_ids: list[str] = []
 
         for raw in raw_jobs:
             try:
-                job_id = self.extract_job_id(raw)
-                dedup_hash = self.make_hash(slug, job_id)
-                seen_hashes.add(dedup_hash)
-                if dedup_hash in existing_hash_to_id:
-                    if dedup_hash not in fresh_hashes:
-                        db.query(Job).filter(Job.id == existing_hash_to_id[dedup_hash]).update(
-                            {"last_seen_at": now, "is_active": True},
-                            synchronize_session=False,
-                        )
-                    result.updated_jobs += 1
-                else:
-                    job = self.build_job(raw, company, slug)
-                    if is_blocked_location(job.country_code, job.city):
-                        logger.info(
-                            f"[{self.ats_type}] '{slug}' skipping blocked location:"
-                            f" {job.city}, {job.country_code}"
-                        )
-                        seen_hashes.discard(dedup_hash)
-                        continue
-                    job.dedup_hash = dedup_hash
-                    job.first_seen_at = now
-                    job.last_seen_at = now
-                    db.add(job)
-                    result.new_jobs += 1
+                dedup_hash = self.make_hash(slug, self.extract_job_id(raw))
+            except (KeyError, ValueError, TypeError, AttributeError, IndexError) as exc:
+                msg = f"Error on job id={raw.get('id', '?')}: {exc}"
+                logger.warning(msg)
+                result.errors.append(msg)
+                continue
+
+            if dedup_hash in seen_hashes:
+                continue  # same posting listed twice in one response
+            seen_hashes.add(dedup_hash)
+
+            if dedup_hash in existing_hash_to_id:
+                if dedup_hash not in fresh_hashes:
+                    touch_ids.append(existing_hash_to_id[dedup_hash])
+                result.updated_jobs += 1
+            else:
+                new_raws.append((dedup_hash, raw))
+
+            await asyncio.sleep(0)
+
+        for chunk in _chunked(touch_ids, _UPDATE_CHUNK):
+            db.query(Job).filter(Job.id.in_(chunk)).update(
+                {"last_seen_at": now, "is_active": True},
+                synchronize_session=False,
+            )
+
+        if new_raws:
+            hydrated = await self.hydrate([raw for _, raw in new_raws], slug)
+            if len(hydrated) == len(new_raws):
+                new_raws = [(h, raw) for (h, _), raw in zip(new_raws, hydrated, strict=True)]
+            else:
+                logger.warning(
+                    f"[{self.ats_type}] '{slug}' hydrate returned {len(hydrated)} of"
+                    f" {len(new_raws)} jobs; using un-hydrated payloads"
+                )
+
+        for dedup_hash, raw in new_raws:
+            try:
+                job = self.build_job(raw, company, slug)
+                if is_blocked_location(job.country_code, job.city):
+                    logger.info(
+                        f"[{self.ats_type}] '{slug}' skipping blocked location:"
+                        f" {job.city}, {job.country_code}"
+                    )
+                    seen_hashes.discard(dedup_hash)
+                    continue
+                job.dedup_hash = dedup_hash
+                job.first_seen_at = now
+                job.last_seen_at = now
+                db.add(job)
+                result.new_jobs += 1
             except (KeyError, ValueError, TypeError, AttributeError, IndexError) as exc:
                 msg = f"Error on job id={raw.get('id', '?')}: {exc}"
                 logger.warning(msg)

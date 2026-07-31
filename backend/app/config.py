@@ -25,7 +25,12 @@ class Settings(BaseSettings):
     HTTP_TIMEOUT: float = 30.0
     CRAWL_DELAY: float = 0.3
 
-    INGEST_INTERVAL_HOURS: int = 6
+    # Ingestion runs as a rotating queue: every tick takes the INGEST_BATCH_SIZE least
+    # recently crawled companies. Companies covered per day is
+    # (1440 / INGEST_INTERVAL_MINUTES) * INGEST_BATCH_SIZE. Set the batch to 0 to crawl
+    # everything in one tick, which is only sensible for a local one-off run.
+    INGEST_INTERVAL_MINUTES: int = 15
+    INGEST_BATCH_SIZE: int = 25
     ENRICH_INTERVAL_HOURS: int = 12
     DISCOVER_INTERVAL_HOURS: int = 24
 

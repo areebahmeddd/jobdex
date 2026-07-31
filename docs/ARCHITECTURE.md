@@ -104,11 +104,11 @@ All jobs run in-process via APScheduler. No separate worker is needed.
 | `enrich_pending`     | 12 h     | `run_enrichment` | Enriches companies with null or stale `enriched_at`            |
 | `discover_companies` | 24 h     | `run_discovery`  | Seeds new companies from ingesters that implement `discover()` |
 
-Intervals are configurable via `INGEST_INTERVAL_HOURS`, `ENRICH_INTERVAL_HOURS`, and `DISCOVER_INTERVAL_HOURS`.
+Intervals are configurable via `INGEST_INTERVAL_MINUTES`, `ENRICH_INTERVAL_HOURS`, and `DISCOVER_INTERVAL_HOURS`. Ingestion crawls the `INGEST_BATCH_SIZE` stalest companies per tick rather than the whole table, and each job holds a Postgres advisory lock so only one replica runs it at a time.
 
 ## Ingestion Pipeline
 
-Each ATS subclass implements `fetch_raw`, `extract_job_id`, and `build_job`. `BaseIngester` handles dedup, deactivation, geo-lookup, error recording, and the scheduler integration.
+Each ATS subclass implements `fetch_raw`, `extract_job_id`, and `build_job`, and optionally `hydrate`. `BaseIngester` handles dedup, deactivation, geo-lookup, error recording, and the scheduler integration.
 
 Jobs are never hard-deleted. A SHA-256 hash of `ats_type:slug:job_id` is stored as `dedup_hash` on insert. On each crawl, any job whose hash was not seen in the latest response is marked `is_active=False`.
 
@@ -124,22 +124,32 @@ Jobs are never hard-deleted. A SHA-256 hash of `ats_type:slug:job_id` is stored 
    Only runs if company.latitude is not already set.
 
 3. fetch_raw()  [ATS API]
-   Call the provider-specific endpoint to get raw job dicts.
+   Call the provider-specific list endpoint to get raw job dicts.
 
-4. For each raw job:
+4. Split by dedup_hash, one pass over the list payload:
    a. extract_job_id()   stable ATS-side ID
    b. make_hash()        SHA-256 of "ats_type:slug:job_id" -> dedup_hash
-   c. hash exists        update last_seen_at, set is_active=True
-   d. hash is new        build_job() -> normalise -> insert
-   e. blocked location   skip silently
+   c. hash exists        collect for a chunked last_seen_at bulk update
+   d. hash is new        collect for hydration
+   e. hash repeated      counted once
 
-5. Deactivate jobs whose dedup_hash was not seen in this crawl.
+5. hydrate()  [ATS API, new postings only]
+   Second request per job for ATS whose list payload lacks the
+   description or posted date. No-op by default.
+
+6. For each new posting:
+   build_job() -> normalise -> insert
+   Blocked locations are dropped and excluded from the seen set.
+
+7. Deactivate jobs whose dedup_hash was not seen in this crawl.
    Sets is_active=False, last_seen_at=now.
 
-6. _backfill_company_hq()
+8. _backfill_company_hq()
    If the company still has no city, derive it from the most common
    city across its active jobs.
 ```
+
+Step 4 runs before step 5 on purpose. `build_job` is only ever called for new postings, so hydrating the whole board meant discarding almost every detail response once a board was seeded. Splitting first makes detail cost track how much the board changed rather than how large it is.
 
 ### Normalisation
 

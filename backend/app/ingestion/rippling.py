@@ -41,7 +41,7 @@ class RipplingIngester(BaseIngester):
     ats_type = "rippling"
 
     async def fetch_raw(self, slug: str) -> list[dict]:
-        """Fetch all open jobs from a Rippling ATS board, enriched with per-job detail."""
+        """Fetch all open jobs from a Rippling ATS board. Detail comes from hydrate()."""
         url = _LIST_URL.format(slug=slug)
         async with httpx.AsyncClient(
             timeout=settings.HTTP_TIMEOUT,
@@ -50,16 +50,24 @@ class RipplingIngester(BaseIngester):
             response = await client.get(url)
             response.raise_for_status()
             data = response.json()
-            # The board endpoint returns a bare list and is not paginated.
-            jobs = data if isinstance(data, list) else data.get("items", [])
+        # The board endpoint returns a bare list and is not paginated.
+        return data if isinstance(data, list) else data.get("items", [])
 
+    async def hydrate(self, raw_jobs: list[dict], slug: str) -> list[dict]:
+        """Fetch description, employment type, and posted date for each new job."""
+        async with httpx.AsyncClient(
+            timeout=settings.HTTP_TIMEOUT,
+            headers={"Accept": "application/json"},
+        ) as client:
             sem = asyncio.Semaphore(_DETAIL_CONCURRENCY)
             enriched = await asyncio.gather(
-                *[_fetch_detail(client, slug, job, sem) for job in jobs],
+                *[_fetch_detail(client, slug, job, sem) for job in raw_jobs],
                 return_exceptions=True,
             )
-
-        return [item for item in enriched if isinstance(item, dict)]
+        return [
+            item if isinstance(item, dict) else original
+            for item, original in zip(enriched, raw_jobs, strict=True)
+        ]
 
     def extract_job_id(self, raw: dict) -> str:
         """Extract the Rippling job UUID from a raw job dict."""

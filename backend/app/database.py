@@ -1,7 +1,8 @@
+from collections.abc import Iterator
 from contextlib import contextmanager
 
 from loguru import logger
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import settings
@@ -60,13 +61,51 @@ def get_db():
         yield db
 
 
+# Advisory lock keys. Arbitrary but must stay stable and distinct across the codebase.
+LOCK_MIGRATE = 881_100_1
+LOCK_INGEST = 881_100_2
+LOCK_ENRICH = 881_100_3
+LOCK_DISCOVER = 881_100_4
+
+
+@contextmanager
+def advisory_lock(key: int, *, wait: bool = False) -> Iterator[bool]:
+    """Hold a Postgres session-level advisory lock for the duration of the block.
+
+    Yields True when the lock is held. With wait=False a lock already held by another
+    instance yields False immediately, which is how the scheduler keeps concurrent
+    replicas from running the same job. The lock must be released explicitly because
+    closing a pooled connection returns it to the pool without ending the session.
+    """
+    conn = engine.connect()
+    acquired = False
+    try:
+        if wait:
+            conn.execute(text("SELECT pg_advisory_lock(:k)"), {"k": key})
+            acquired = True
+        else:
+            acquired = bool(
+                conn.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": key}).scalar()
+            )
+        yield acquired
+    finally:
+        if acquired:
+            conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": key})
+        conn.close()
+
+
 def migrate_db() -> None:
-    """Apply all pending Alembic migrations to head."""
+    """Apply all pending Alembic migrations to head.
+
+    Serialised behind an advisory lock so concurrent replicas booting at the same time
+    do not race on alembic_version. Whichever instance arrives second runs a no-op.
+    """
     from alembic.config import Config
 
     from alembic import command
     from app.config import BASE_DIR
 
     cfg = Config(str(BASE_DIR / "alembic.ini"))
-    command.upgrade(cfg, "head")
+    with advisory_lock(LOCK_MIGRATE, wait=True):
+        command.upgrade(cfg, "head")
     logger.info("Database migrations applied")
