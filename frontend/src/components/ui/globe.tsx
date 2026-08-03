@@ -1,5 +1,5 @@
 import createGlobe, { type COBEOptions } from "cobe";
-import { useMotionValue, useSpring } from "motion/react";
+import { useMotionValue, useReducedMotion, useSpring } from "motion/react";
 import { useLayoutEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
@@ -38,6 +38,9 @@ export function Globe({
 
   const r = useMotionValue(0);
   const rs = useSpring(r, { mass: 1, damping: 30, stiffness: 100 });
+  const prefersReducedMotion = useReducedMotion();
+  const reducedMotionRef = useRef(prefersReducedMotion);
+  reducedMotionRef.current = prefersReducedMotion;
 
   const updatePointerInteraction = (value: number | null) => {
     pointerInteracting.current = value;
@@ -77,7 +80,8 @@ export function Globe({
     let running = true;
     const animate = () => {
       if (!running) return;
-      if (!pointerInteracting.current) phiRef.current += 0.005;
+      if (!pointerInteracting.current && !reducedMotionRef.current)
+        phiRef.current += 0.005;
       globe.update({
         phi: phiRef.current + rs.get(),
         width: widthRef.current * 2,
@@ -85,8 +89,25 @@ export function Globe({
       });
       rafRef.current = requestAnimationFrame(animate);
     };
+
+    const start = () => {
+      if (running) return;
+      running = true;
+      rafRef.current = requestAnimationFrame(animate);
+    };
+    const stop = () => {
+      running = false;
+      cancelAnimationFrame(rafRef.current);
+    };
+
     rafRef.current = requestAnimationFrame(animate);
     canvas.style.opacity = "1";
+
+    const visibility = new IntersectionObserver(
+      ([entry]) => (entry?.isIntersecting ? start() : stop()),
+      { threshold: 0 },
+    );
+    visibility.observe(wrapper);
 
     const observer = new ResizeObserver((entries) => {
       const rw = Math.floor(entries[0]?.contentRect.width ?? 0);
@@ -98,8 +119,8 @@ export function Globe({
     observer.observe(wrapper);
 
     return () => {
-      running = false;
-      cancelAnimationFrame(rafRef.current);
+      stop();
+      visibility.disconnect();
       globe.destroy();
       observer.disconnect();
     };
@@ -115,6 +136,8 @@ export function Globe({
     >
       <canvas
         className="size-full opacity-0 transition-opacity duration-500"
+        role="img"
+        aria-label="Rotating globe. Drag to spin."
         ref={canvasRef}
         onPointerDown={(e) => updatePointerInteraction(e.clientX)}
         onPointerUp={() => updatePointerInteraction(null)}

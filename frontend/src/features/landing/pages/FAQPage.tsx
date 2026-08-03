@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { StaticPageLayout } from "@/features/landing/components/StaticPageLayout";
 import { Link } from "react-router-dom";
 
 const SECTIONS: {
@@ -23,7 +23,7 @@ const SECTIONS: {
     questions: [
       {
         q: "How often are listings updated?",
-        a: "The ingestion pipeline runs every six hours and crawls all active companies. When a role disappears from the source, it is marked inactive rather than deleted.",
+        a: "Ingestion runs as a rotating queue rather than one big sweep: every 15 minutes the least recently crawled companies are refreshed, so coverage cycles through continuously. When a role disappears from the source, it is marked inactive rather than deleted.",
       },
       {
         q: "Why can't I find a company I'm looking for?",
@@ -116,78 +116,62 @@ const SECTIONS: {
 
 export default function FAQPage() {
   return (
-    <main className="min-h-screen bg-white font-sans antialiased">
-      <div className="mx-auto max-w-2xl px-6 py-16">
-        <Link
-          to="/"
-          className="group inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700"
-        >
-          <ArrowLeft
-            className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5"
-            aria-hidden="true"
-          />
-          Back to home
-        </Link>
-
-        <div className="mt-10">
-          <h1 className="text-3xl font-semibold tracking-tight text-gray-900">
-            Frequently Asked Questions
-          </h1>
-          <p className="mt-2 text-sm text-gray-500">
-            Common questions about JobDex.
-          </p>
-        </div>
-
-        <div className="mt-10 space-y-10">
-          {SECTIONS.map((section) => (
-            <section key={section.heading} className="space-y-1">
-              <h2 className="mb-3 text-base font-semibold text-gray-900">
-                {section.heading}
-              </h2>
-              {section.questions.map((item) => (
-                <details
-                  key={item.q}
-                  className="group border-b border-gray-100 py-3"
-                >
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
-                    <span className="text-sm font-medium text-gray-900">
-                      {item.q}
-                    </span>
-                    <span className="shrink-0 text-sm text-gray-500 transition-transform group-open:rotate-45">
-                      +
-                    </span>
-                  </summary>
-                  <p className="mt-3 pr-6 text-sm leading-relaxed text-gray-600">
-                    {item.a}
-                  </p>
-                </details>
-              ))}
-            </section>
-          ))}
-        </div>
-
-        <div className="mt-16 border-t border-gray-100 pt-8">
-          <p className="text-sm text-gray-500">
-            Can't find what you're looking for? Email{" "}
-            <a
-              href="mailto:hi@areeb.dev"
-              className="text-gray-900 underline underline-offset-2 transition-colors hover:text-gray-600"
-            >
-              hi@areeb.dev
-            </a>{" "}
-            or{" "}
-            <a
-              href="https://github.com/areebahmeddd/jobdex/issues"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-900 underline underline-offset-2 transition-colors hover:text-gray-600"
-            >
-              open an issue on GitHub
-            </a>
-            .
-          </p>
-        </div>
+    <StaticPageLayout
+      title="Frequently Asked Questions"
+      intro="Common questions about JobDex."
+    >
+      <div className="space-y-10">
+        {SECTIONS.map((section) => (
+          <section key={section.heading}>
+            <h2 className="mb-3 text-base font-semibold text-gray-900">
+              {section.heading}
+            </h2>
+            {section.questions.map((item) => (
+              <details
+                key={item.q}
+                className="group border-b border-gray-100 py-3"
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4">
+                  <span className="text-sm font-medium text-gray-900">
+                    {item.q}
+                  </span>
+                  <span
+                    className="shrink-0 text-sm text-gray-500 transition-transform group-open:rotate-45"
+                    aria-hidden="true"
+                  >
+                    +
+                  </span>
+                </summary>
+                <p className="mt-3 pr-6 text-sm leading-relaxed text-gray-600">
+                  {item.a}
+                </p>
+              </details>
+            ))}
+          </section>
+        ))}
       </div>
-    </main>
+
+      <div className="mt-12 border-t border-gray-100 pt-8">
+        <p className="text-sm text-gray-500">
+          Can't find what you're looking for? Email{" "}
+          <a
+            href="mailto:hi@areeb.dev"
+            className="text-gray-900 underline underline-offset-2 transition-colors hover:text-gray-600"
+          >
+            hi@areeb.dev
+          </a>{" "}
+          or{" "}
+          <a
+            href="https://github.com/areebahmeddd/jobdex/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gray-900 underline underline-offset-2 transition-colors hover:text-gray-600"
+          >
+            open an issue on GitHub
+          </a>
+          .
+        </p>
+      </div>
+    </StaticPageLayout>
   );
 }

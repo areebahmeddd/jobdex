@@ -4,6 +4,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#ffffff" />
 
   <!-- Primary meta -->
   <title>JobDex: Map-First Job Discovery</title>
@@ -29,10 +31,11 @@
   <meta name="twitter:image" content="https://jobdex.1mindlabs.org/og-preview.png" />
 
   <!-- Preconnect for external origins -->
-  <link rel="preconnect" href="https://checkout.razorpay.com" />
+  <link rel="preconnect" href="https://jobdex-api.1mindlabs.org" crossorigin />
+  <link rel="preconnect" href="https://cdn.simpleicons.org" crossorigin />
 
-  <!-- Third-party scripts -->
-  <script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
+  <!-- Razorpay's checkout SDK is injected on demand when the donate modal opens -->
+  <link rel="dns-prefetch" href="https://checkout.razorpay.com" />
 
   <!-- Structured data -->
   <script type="application/ld+json">

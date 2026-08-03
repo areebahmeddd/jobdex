@@ -1,11 +1,11 @@
-import { ArrowLeft, Box, Search } from "lucide-react";
-import React, { type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { StaticPageLayout } from "@/features/landing/components/StaticPageLayout";
+import { Box, Search } from "lucide-react";
+import type { ReactNode } from "react";
 
 const STEPS: {
   number: string;
   heading: string;
-  body: React.ReactNode[];
+  body: ReactNode[];
 }[] = [
   {
     number: "01",
@@ -18,7 +18,7 @@ const STEPS: {
         same APIs companies use to publish their roles are what JobDex reads.
       </>,
 
-      "Requests are retried automatically on failure with exponential backoff, and a short delay is inserted between companies during scheduled runs to be a respectful API client. Any errors are recorded against the company without stopping the rest of the crawl.",
+      "Crawling runs as a rotating queue rather than a full sweep: each tick picks up the companies that were crawled longest ago, which keeps load on every provider bounded and coverage cycling continuously. Requests are retried automatically on failure with exponential backoff, and a short delay is inserted between companies to be a respectful API client. Any errors are recorded against the company without stopping the rest of the crawl.",
     ],
   },
   {
@@ -232,162 +232,146 @@ const STACK: {
 
 export default function HowItWorksPage() {
   return (
-    <main className="min-h-screen bg-white font-sans antialiased">
-      <div className="mx-auto max-w-2xl px-6 py-16">
-        <Link
-          to="/"
-          className="group inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-700"
-        >
-          <ArrowLeft
-            className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5"
-            aria-hidden="true"
-          />
-          Back to home
-        </Link>
-
-        <div className="mt-10">
-          <h1 className="text-3xl font-semibold tracking-tight text-gray-900">
-            How it works
-          </h1>
-          <p className="mt-2 text-sm leading-relaxed text-gray-500">
-            JobDex aggregates startup job listings from public hiring APIs and
-            plots them on an interactive world map. This page covers the full
-            pipeline from ingestion to the map.
-          </p>
-        </div>
-
-        <div className="mt-10 overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
-          <img
-            src="/architecture.png"
-            alt="JobDex system architecture diagram"
-            className="w-full"
-          />
-          <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3">
-            <span className="text-xs text-gray-500">
-              System architecture overview
-            </span>
-            <div className="flex items-center gap-4">
-              <a
-                href="https://jobdex-api.1mindlabs.org/docs"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-gray-500 underline underline-offset-2 transition-colors hover:text-gray-900"
-              >
-                Swagger API docs
-              </a>
-              <a
-                href="https://github.com/areebahmeddd/jobdex/blob/main/docs/ARCHITECTURE.md"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-gray-500 underline underline-offset-2 transition-colors hover:text-gray-900"
-              >
-                Architecture docs
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-12 space-y-12">
-          {STEPS.map((step) => (
-            <div key={step.number} className="flex gap-6">
-              <span className="mt-0.5 w-6 shrink-0 font-mono text-xs text-gray-300">
-                {step.number}
-              </span>
-              <div className="space-y-2">
-                <h2 className="text-sm font-semibold text-gray-900">
-                  {step.heading}
-                </h2>
-                {step.body.map((para, i) => (
-                  <p key={i} className="text-sm leading-relaxed text-gray-600">
-                    {para}
-                  </p>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-16 space-y-10 border-t border-gray-100 pt-10">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">
-              Supported ATS (Applicant Tracking System) providers
-            </h2>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {ATS_PROVIDERS.map((p) => (
-                <span
-                  key={p.name}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1 text-xs text-gray-600"
-                >
-                  {p.slug && (
-                    <img
-                      src={`https://cdn.simpleicons.org/${p.slug}/${p.color}`}
-                      alt=""
-                      aria-hidden="true"
-                      width={12}
-                      height={12}
-                      className="size-3 shrink-0"
-                    />
-                  )}
-                  {p.name}
-                  <span className="text-gray-500">{p.region}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">
-              Technology Stack
-            </h2>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {STACK.map((t) => (
-                <span
-                  key={t.label}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1 text-xs text-gray-600"
-                >
-                  {t.icon ? (
-                    t.icon
-                  ) : t.slug ? (
-                    <img
-                      src={`https://cdn.simpleicons.org/${t.slug}/${t.color}`}
-                      alt=""
-                      aria-hidden="true"
-                      width={12}
-                      height={12}
-                      className="size-3 shrink-0"
-                    />
-                  ) : t.emoji ? (
-                    <span className="shrink-0 leading-none" aria-hidden="true">
-                      {t.emoji}
-                    </span>
-                  ) : null}
-                  {t.label}
-                  <span className="text-gray-500">{t.detail}</span>
-                  {t.version && (
-                    <span className="font-mono text-[10px] text-gray-400">
-                      v{t.version}
-                    </span>
-                  )}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <p className="text-xs text-gray-500">
-            More providers are added regularly. For the full list including
-            planned and incompatible sources, see the{" "}
+    <StaticPageLayout
+      title="How it works"
+      intro="JobDex aggregates startup job listings from public hiring APIs and plots them on an interactive world map. This page covers the full pipeline from ingestion to the map."
+    >
+      <figure className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+        <img
+          src="/architecture.png"
+          alt="JobDex system architecture diagram: ATS ingesters feed a normalisation and enrichment pipeline, which writes to PostgreSQL and is served to the map through a public REST API."
+          width={1420}
+          height={387}
+          className="h-auto w-full"
+        />
+        <figcaption className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-gray-200 px-4 py-3">
+          <span className="text-xs text-gray-500">
+            System architecture overview
+          </span>
+          <span className="flex items-center gap-4">
             <a
-              href="https://github.com/areebahmeddd/jobdex"
+              href="https://jobdex-api.1mindlabs.org/docs"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline underline-offset-2 transition-colors hover:text-gray-700"
+              className="text-xs text-gray-500 underline underline-offset-2 transition-colors hover:text-gray-900"
             >
-              GitHub repository
+              Swagger API docs
             </a>
-            .
-          </p>
+            <a
+              href="https://github.com/areebahmeddd/jobdex/blob/main/docs/ARCHITECTURE.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-gray-500 underline underline-offset-2 transition-colors hover:text-gray-900"
+            >
+              Architecture docs
+            </a>
+          </span>
+        </figcaption>
+      </figure>
+
+      <ol className="mt-12 space-y-12">
+        {STEPS.map((step) => (
+          <li key={step.number} className="flex gap-6">
+            <span
+              className="mt-0.5 w-6 shrink-0 font-mono text-xs text-gray-400"
+              aria-hidden="true"
+            >
+              {step.number}
+            </span>
+            <div className="space-y-2">
+              <h2 className="text-sm font-semibold text-gray-900">
+                {step.heading}
+              </h2>
+              {step.body.map((para, i) => (
+                <p key={i} className="text-sm leading-relaxed text-gray-600">
+                  {para}
+                </p>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      <div className="mt-12 space-y-10 border-t border-gray-100 pt-10">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">
+            Supported ATS (Applicant Tracking System) providers
+          </h2>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {ATS_PROVIDERS.map((p) => (
+              <span
+                key={p.name}
+                className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1 text-xs text-gray-600"
+              >
+                {p.slug && (
+                  <img
+                    src={`https://cdn.simpleicons.org/${p.slug}/${p.color}`}
+                    alt=""
+                    aria-hidden="true"
+                    width={12}
+                    height={12}
+                    className="size-3 shrink-0"
+                  />
+                )}
+                {p.name}
+                <span className="text-gray-500">{p.region}</span>
+              </span>
+            ))}
+          </div>
         </div>
+
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">
+            Technology Stack
+          </h2>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {STACK.map((t) => (
+              <span
+                key={t.label}
+                className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1 text-xs text-gray-600"
+              >
+                {t.icon ? (
+                  t.icon
+                ) : t.slug ? (
+                  <img
+                    src={`https://cdn.simpleicons.org/${t.slug}/${t.color}`}
+                    alt=""
+                    aria-hidden="true"
+                    width={12}
+                    height={12}
+                    className="size-3 shrink-0"
+                  />
+                ) : t.emoji ? (
+                  <span className="shrink-0 leading-none" aria-hidden="true">
+                    {t.emoji}
+                  </span>
+                ) : null}
+                {t.label}
+                <span className="text-gray-500">{t.detail}</span>
+                {t.version && (
+                  <span className="font-mono text-[10px] text-gray-500">
+                    v{t.version}
+                  </span>
+                )}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <p className="text-xs text-gray-500">
+          More providers are added regularly. For the full list including
+          planned and incompatible sources, see the{" "}
+          <a
+            href="https://github.com/areebahmeddd/jobdex"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 transition-colors hover:text-gray-900"
+          >
+            GitHub repository
+          </a>
+          .
+        </p>
       </div>
-    </main>
+    </StaticPageLayout>
   );
 }

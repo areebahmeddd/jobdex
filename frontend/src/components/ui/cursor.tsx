@@ -1,4 +1,4 @@
-import { motion, useSpring } from "motion/react";
+import { motion, useReducedMotion, useSpring } from "motion/react";
 import { FC, useEffect, useRef, useState } from "react";
 
 interface Position {
@@ -98,8 +98,10 @@ export function Cursor({
   const lastUpdateTime = useRef(Date.now());
   const previousAngle = useRef(0);
   const accumulatedRotation = useRef(0);
-  const [isEnabled, setIsEnabled] = useState(false);
+  const [isSupported, setIsSupported] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const prefersReducedMotion = useReducedMotion();
+  const isEnabled = isSupported && !prefersReducedMotion;
 
   const cursorX = useSpring(0, springConfig);
   const cursorY = useSpring(0, springConfig);
@@ -118,10 +120,10 @@ export function Cursor({
     const mediaQuery = window.matchMedia(DESKTOP_POINTER_QUERY);
 
     const updateEnabled = () => {
-      const nextIsEnabled = mediaQuery.matches;
-      setIsEnabled(nextIsEnabled);
+      const nextIsSupported = mediaQuery.matches;
+      setIsSupported(nextIsSupported);
 
-      if (!nextIsEnabled) {
+      if (!nextIsSupported) {
         setIsVisible(false);
       }
     };

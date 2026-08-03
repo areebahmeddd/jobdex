@@ -6,8 +6,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+const RAZORPAY_SCRIPT = "https://checkout.razorpay.com/v1/checkout.js";
 const RAZORPAY_LINK = "https://razorpay.me/@1mindlabs";
 const FALLBACK_UPI_ID = "areebahmed0709@okaxis";
 const FALLBACK_UPI_LINK = `upi://pay?pa=${FALLBACK_UPI_ID}&pn=JobDex`;
@@ -30,6 +31,37 @@ const TIERS = [
   },
 ];
 
+type RazorpayCtor = new (options: unknown) => {
+  on: (event: string, cb: () => void) => void;
+  open: () => void;
+};
+
+function getRazorpay(): RazorpayCtor | undefined {
+  return (window as unknown as { Razorpay?: RazorpayCtor }).Razorpay;
+}
+
+let scriptPromise: Promise<void> | null = null;
+
+function loadRazorpay(): Promise<void> {
+  if (getRazorpay()) return Promise.resolve();
+  if (scriptPromise) return scriptPromise;
+
+  scriptPromise = new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = RAZORPAY_SCRIPT;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      scriptPromise = null;
+      script.remove();
+      reject(new Error("Could not reach the payment provider."));
+    };
+    document.head.appendChild(script);
+  });
+
+  return scriptPromise;
+}
+
 interface DonateModalProps {
   open: boolean;
   onClose: () => void;
@@ -39,11 +71,22 @@ export function DonateModal({ open, onClose }: DonateModalProps) {
   const [loadingAmount, setLoadingAmount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (open) void loadRazorpay().catch(() => {});
+  }, [open]);
+
   async function handleDonate(amount: number) {
     setError(null);
     setLoadingAmount(amount);
 
     try {
+      await loadRazorpay();
+
+      const RazorpayConstructor = getRazorpay();
+      if (!RazorpayConstructor) {
+        throw new Error("Could not reach the payment provider.");
+      }
+
       const {
         order_id,
         amount: orderAmount,
@@ -80,14 +123,7 @@ export function DonateModal({ open, onClose }: DonateModalProps) {
           },
         };
 
-        const rzp = new (
-          window as unknown as {
-            Razorpay: new (o: unknown) => {
-              on: (e: string, cb: () => void) => void;
-              open: () => void;
-            };
-          }
-        ).Razorpay(options);
+        const rzp = new RazorpayConstructor(options);
         rzp.on("payment.failed", () => reject(new Error("Payment failed.")));
         rzp.open();
       });
@@ -154,7 +190,10 @@ export function DonateModal({ open, onClose }: DonateModalProps) {
         </ul>
 
         {error && (
-          <p className="border-t border-black/6 px-5 py-2.5 text-xs text-red-500">
+          <p
+            role="alert"
+            className="border-t border-black/6 px-5 py-2.5 text-xs text-red-600"
+          >
             {error} Pay directly via{" "}
             <a
               href={RAZORPAY_LINK}

@@ -1,4 +1,4 @@
-import { useInView } from "motion/react";
+import { useInView, useReducedMotion } from "motion/react";
 import type React from "react";
 import { useLayoutEffect, useRef } from "react";
 import { annotate } from "rough-notation";
@@ -37,6 +37,7 @@ export function Highlighter({
   isView = false,
 }: HighlighterProps) {
   const elementRef = useRef<HTMLSpanElement>(null);
+  const prefersReducedMotion = useReducedMotion();
 
   const isInView = useInView(elementRef, {
     once: true,
@@ -44,6 +45,7 @@ export function Highlighter({
   });
 
   const shouldShow = !isView || isInView;
+  const duration = prefersReducedMotion ? 0 : animationDuration;
 
   useLayoutEffect(() => {
     const element = elementRef.current;
@@ -55,7 +57,7 @@ export function Highlighter({
         type: action,
         color,
         strokeWidth,
-        animationDuration,
+        animationDuration: duration,
         iterations,
         padding,
         multiline,
@@ -85,7 +87,7 @@ export function Highlighter({
     action,
     color,
     strokeWidth,
-    animationDuration,
+    duration,
     iterations,
     padding,
     multiline,
