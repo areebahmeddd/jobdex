@@ -3,10 +3,10 @@ import react from '@vitejs/plugin-react';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'path';
 import { defineConfig, type Plugin } from 'vite';
-import { canonicalFor, ROUTE_META, SITE_URL } from './src/lib/routeMeta';
+import { canonicalFor, ROUTE_META, SITE_URL } from './src/lib/routeMeta.ts';
 
 const pkg = JSON.parse(
-  readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'),
+  readFileSync(path.resolve(import.meta.dirname, 'package.json'), 'utf-8'),
 ) as { dependencies: Record<string, string>; devDependencies: Record<string, string> };
 
 const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
@@ -24,7 +24,7 @@ function routeShells(): Plugin {
     name: 'jobdex:route-shells',
     apply: 'build',
     closeBundle() {
-      const outDir = path.resolve(__dirname, 'dist');
+      const outDir = path.resolve(import.meta.dirname, 'dist');
       const shell = path.join(outDir, 'index.html');
       if (!existsSync(shell)) return;
 
@@ -107,7 +107,7 @@ function parsePyVersions(content: string): Record<string, string> {
 export default defineConfig(async () => {
   let pyVersions: Record<string, string> = {};
 
-  const pyprojectPath = path.resolve(__dirname, '../backend/pyproject.toml');
+  const pyprojectPath = path.resolve(import.meta.dirname, '../backend/pyproject.toml');
   if (existsSync(pyprojectPath)) {
     pyVersions = parsePyVersions(readFileSync(pyprojectPath, 'utf-8'));
   } else {
@@ -142,7 +142,7 @@ export default defineConfig(async () => {
     },
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, 'src'),
+        '@': path.resolve(import.meta.dirname, 'src'),
       },
     },
     server: {

@@ -1,0 +1,6 @@
+minimumReleaseAgeExclude:
+  - framer-motion@13.1.0
+  - motion-dom@13.1.0
+  - motion-utils@13.1.0
+  - motion@13.1.0
+  - shadcn@4.18.0

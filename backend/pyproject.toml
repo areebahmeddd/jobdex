@@ -4,24 +4,24 @@ version = "1.0.0"
 description = "A global index of startup hiring by city"
 requires-python = ">=3.13"
 dependencies = [
-    "alembic>=1.18.5",
+    "alembic>=1.19.1",
     "apscheduler>=3.11.3",
     "fastapi[standard]>=0.141.1",
-    "httpx2>=2.9.1",
+    "httpx2>=2.10.0",
     "loguru>=0.7.3",
     "psycopg2-binary>=2.9.12",
     "tenacity>=9.1.4",
     "pydantic>=2.13.4",
-    "pydantic-settings>=2.14.2",
+    "pydantic-settings>=2.15.0",
     "rapidfuzz>=3.14.5",
     "razorpay>=2.0.1",
-    "sqlalchemy>=2.0.51",
-    "uvicorn[standard]>=0.52.0",
+    "sqlalchemy>=2.0.52",
+    "uvicorn[standard]>=0.52.3",
 ]
 
 [dependency-groups]
 dev = [
-    "pre-commit>=4.6.1",
+    "pre-commit>=4.6.2",
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
 ]
