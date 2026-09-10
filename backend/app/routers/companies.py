@@ -5,13 +5,13 @@ from sqlalchemy.orm import Query as OrmQuery
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.ingestion.normalizer import canonicalize_city
 from app.models import Company, Job
 from app.routers._builders import (
     build_company_detail_response,
     build_company_response,
     build_job_response,
 )
+from app.routers._filters import JobFilters
 from app.schemas import (
     CompanyBriefResponse,
     CompanyDetailResponse,
@@ -40,28 +40,41 @@ def _bulk_categories(company_ids: list[str], db: Session) -> dict[str, list[str]
     return result
 
 
-def _company_query_with_counts(db: Session, city: str | None = None) -> OrmQuery:
-    """Return a base query joining Company with active job counts via a subquery."""
+def _company_query_with_counts(
+    db: Session, filters: JobFilters | None = None, *, narrowed: bool = False
+) -> OrmQuery:
+    """Return a base query joining Company with active job counts via a subquery.
+
+    A narrowed query joins inner, so companies with no matching job drop out.
+    """
     job_count_q = db.query(Job.company_id, func.count(Job.id).label("job_count")).filter(
         Job.is_active.is_(True)
     )
-    if city:
-        job_count_q = job_count_q.filter(Job.city == city)
+    if filters is not None:
+        job_count_q = filters.apply(job_count_q)
     job_count_sq = job_count_q.group_by(Job.company_id).subquery()
     query = db.query(Company, func.coalesce(job_count_sq.c.job_count, 0).label("job_count"))
-    if city:
+    if narrowed:
         return query.join(job_count_sq, job_count_sq.c.company_id == Company.id)
     return query.outerjoin(job_count_sq, job_count_sq.c.company_id == Company.id)
 
 
 @router.get("", response_model=PaginatedCompaniesResponse)
 def list_companies(
-    city: str | None = Query(None),
-    country_code: str | None = Query(None),
-    region: str | None = Query(None),
+    city: str | None = Query(None, description="Only companies hiring in this city"),
+    role_category: list[str] | None = Query(
+        None, description="Repeatable; only companies with an open role in these categories"
+    ),
+    seniority: list[str] | None = Query(None, description="Repeatable open-role seniority"),
+    job_type: list[str] | None = Query(None, description="Repeatable open-role employment type"),
+    work_mode: list[str] | None = Query(None, description="Repeatable: remote, hybrid, onsite"),
+    is_remote: bool | None = Query(None, description="Legacy remote filter; prefer work_mode"),
+    posted_within: int | None = Query(None, ge=1, le=365, description="Open-role recency in days"),
+    country_code: str | None = Query(None, description="Company HQ country"),
+    region: str | None = Query(None, description="Company HQ region"),
     industry: str | None = Query(None),
     stage: str | None = Query(None),
-    ats_type: str | None = Query(None),
+    ats_type: list[str] | None = Query(None, description="Repeatable ATS source"),
     has_errors: bool | None = Query(
         None, description="true = only companies with a crawl error; false = only error-free"
     ),
@@ -70,10 +83,21 @@ def list_companies(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    canonical_city = canonicalize_city(city) if city else None
-    effective_city = canonical_city or city if city else None
-
-    base = _company_query_with_counts(db, city=effective_city).filter(Company.is_active.is_(True))
+    """Return a paginated company list, optionally narrowed to companies with matching open roles."""
+    # Job-level params describe a company's open roles, so they filter the count
+    # subquery, not the company row.
+    job_filters = JobFilters(
+        city=city,
+        role_category=role_category,
+        seniority=seniority,
+        job_type=job_type,
+        work_mode=work_mode,
+        is_remote=is_remote,
+        posted_within=posted_within,
+    )
+    base = _company_query_with_counts(db, job_filters, narrowed=job_filters.has_job_scope).filter(
+        Company.is_active.is_(True)
+    )
 
     if country_code:
         base = base.filter(Company.country_code == country_code.upper())
@@ -82,7 +106,7 @@ def list_companies(
     if stage:
         base = base.filter(Company.stage == stage.lower())
     if ats_type:
-        base = base.filter(Company.ats_type == ats_type.lower())
+        base = base.filter(Company.ats_type.in_([t.lower() for t in ats_type]))
     if has_errors is True:
         base = base.filter(Company.crawl_error.isnot(None))
     elif has_errors is False:
@@ -158,36 +182,27 @@ def get_company(slug: str, db: Session = Depends(get_db)):
 @router.get("/{slug}/jobs", response_model=CompanyJobsResponse)
 def list_company_jobs(
     slug: str,
-    city: str | None = Query(None),
-    country_code: str | None = Query(None),
-    role_category: str | None = Query(None),
-    seniority: str | None = Query(None),
-    is_remote: bool | None = Query(None),
+    filters: JobFilters = Depends(),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    """Return paginated active jobs for a company, with optional city, role, and seniority filters."""
+    """Return paginated active jobs for a company under the shared job filter set."""
     company = db.query(Company).filter(Company.slug == slug).first()
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
 
-    query = db.query(Job).filter(Job.company_id == company.id, Job.is_active.is_(True))
-
-    if city:
-        canonical = canonicalize_city(city) or city
-        query = query.filter(Job.city == canonical)
-    if country_code:
-        query = query.filter(Job.country_code == country_code.upper())
-    if role_category:
-        query = query.filter(Job.role_category == role_category.lower())
-    if seniority:
-        query = query.filter(Job.seniority == seniority.lower())
-    if is_remote is not None:
-        query = query.filter(Job.is_remote.is_(is_remote))
+    query = filters.apply(
+        db.query(Job).filter(Job.company_id == company.id, Job.is_active.is_(True))
+    )
 
     total = query.count()
-    jobs = query.order_by(Job.posted_at.desc()).offset(offset).limit(limit).all()
+    jobs = (
+        query.order_by(Job.posted_at.desc().nullslast(), Job.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
     return CompanyJobsResponse(
         company=CompanyBriefResponse.model_validate(company),

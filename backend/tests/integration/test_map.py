@@ -82,3 +82,30 @@ def test_map_company_offices_valid(client):
 def test_map_company_offices_not_found(client):
     r = client.get("/map/companies/nonexistent-xyz/offices")
     assert r.status_code == 404
+
+
+@pytest.mark.integration
+def test_map_cities_respects_the_search_term(client):
+    """The map is a result surface, so a search term must narrow the pins too."""
+    everything = client.get("/map/cities").json()["total"]
+    searched = client.get("/map/cities", params={"q": "rust"}).json()
+    assert searched["total"] <= everything
+    for city in searched["cities"]:
+        assert city["job_count"] > 0
+
+
+@pytest.mark.integration
+def test_map_companies_respects_the_source_filter(client):
+    data = client.get("/map/companies", params={"ats_type": "lever"}).json()
+    for pin in data["companies"]:
+        assert pin["job_count"] > 0
+
+
+@pytest.mark.integration
+def test_map_companies_role_filter_narrows_counts(client):
+    everything = client.get("/map/companies").json()
+    scoped = client.get("/map/companies", params={"role_category": "design"}).json()
+    baseline = {p["slug"]: p["job_count"] for p in everything["companies"]}
+    for pin in scoped["companies"]:
+        if pin["slug"] in baseline:
+            assert pin["job_count"] <= baseline[pin["slug"]]

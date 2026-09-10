@@ -76,13 +76,17 @@ def root():
             "mcf",
         ],
         "endpoints": {
-            "jobs": "GET /jobs?city=&role_category=&seniority=&is_remote=&q=&cursor=",
-            "companies": "GET /companies?city=&industry=&country_code=&region=",
+            "jobs": (
+                "GET /jobs?q=&city=&country_code=&region=&role_category=&seniority="
+                "&job_type=&ats_type=&work_mode=&posted_within=&sort=&cursor="
+            ),
+            "job_facets": "GET /jobs/facets (same filters; returns per-option counts)",
+            "companies": "GET /companies?city=&role_category=&industry=&country_code=&region=",
             "cities": "GET /cities?region=&country_code=",
             "search": "GET /search?city=&role=&industry=&country_code=&region=",
             "map": {
-                "companies": "GET /map/companies?region=&role=&lat_min=&lat_max=&lng_min=&lng_max=",
-                "cities": "GET /map/cities?region=&role=&is_remote=",
+                "companies": "GET /map/companies?<job filters>&lat_min=&lat_max=&lng_min=&lng_max=",
+                "cities": "GET /map/cities?<job filters>&lat_min=&lat_max=&lng_min=&lng_max=",
             },
             "payments": {
                 "create_order": "POST /payments/orders",

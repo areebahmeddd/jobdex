@@ -51,3 +51,28 @@ def test_search_country_code_filter(client):
     assert len(data["jobs"]) > 0
     for job in data["jobs"]:
         assert job["country_code"] == "IN"
+
+
+@pytest.mark.integration
+def test_search_accepts_a_text_query(client):
+    r = client.get("/search", params={"q": "engineer", "limit": 5})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total_jobs"] <= client.get("/search", params={"limit": 1}).json()["total_jobs"]
+
+
+@pytest.mark.integration
+def test_search_accepts_multi_value_filters(client):
+    data = client.get(
+        "/search",
+        params=[("role_category", "engineering"), ("role_category", "design"), ("limit", 20)],
+    ).json()
+    for job in data["jobs"]:
+        assert job["role_category"] in {"engineering", "design"}
+
+
+@pytest.mark.integration
+def test_search_role_alias_matches_role_category(client):
+    alias = client.get("/search", params={"role": "design", "limit": 1}).json()
+    explicit = client.get("/search", params={"role_category": "design", "limit": 1}).json()
+    assert alias["total_jobs"] == explicit["total_jobs"]

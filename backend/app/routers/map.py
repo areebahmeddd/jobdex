@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import City, Company, Job
+from app.routers._filters import JobFilters
 from app.schemas import CompanyOfficesResponse, MapCitiesResponse, MapCompaniesResponse
 
 router = APIRouter(prefix="/map", tags=["map"])
@@ -15,13 +16,7 @@ def map_companies(
     lat_max: float | None = Query(None, ge=-90, le=90, description="North bound of viewport"),
     lng_min: float | None = Query(None, ge=-180, le=180, description="West bound of viewport"),
     lng_max: float | None = Query(None, ge=-180, le=180, description="East bound of viewport"),
-    region: str | None = Query(None, description="e.g. south_asia, north_america, europe"),
-    country_code: str | None = Query(None, description="ISO-2 country code: IN, AE, US..."),
-    role: str | None = Query(
-        None,
-        description="Role category: engineering, design, product, data, marketing, sales, finance, operations, healthcare...",
-    ),
-    is_remote: bool | None = Query(None),
+    filters: JobFilters = Depends(),
     response: Response = None,
     db: Session = Depends(get_db),
 ):
@@ -60,11 +55,11 @@ def map_companies(
     resolved_cc = func.coalesce(Company.country_code, best_loc.c.country_code)
     resolved_region = func.coalesce(Company.region, best_loc.c.region)
 
-    filtered_jobs_q = db.query(Job.id, Job.company_id).filter(Job.is_active.is_(True))
-    if role:
-        filtered_jobs_q = filtered_jobs_q.filter(Job.role_category == role.lower())
-    if is_remote is not None:
-        filtered_jobs_q = filtered_jobs_q.filter(Job.is_remote.is_(is_remote))
+    # A pin's job count must match what the panel lists. Location dimensions are
+    # dropped here; they constrain the pin's own coordinates below.
+    filtered_jobs_q = filters.without("city", "country_code", "region").apply(
+        db.query(Job.id, Job.company_id).filter(Job.is_active.is_(True))
+    )
     filtered_jobs = filtered_jobs_q.subquery("filtered_jobs")
 
     q = (
@@ -106,10 +101,11 @@ def map_companies(
     if lng_max is not None:
         q = q.filter(resolved_lng <= lng_max)
 
-    if region:
-        q = q.filter(resolved_region == region.lower())
-    if country_code:
-        q = q.filter(resolved_cc == country_code.upper())
+    # These narrow the pin's own resolved location, not its jobs.
+    if filters.region:
+        q = q.filter(resolved_region == filters.region)
+    if filters.country_code:
+        q = q.filter(resolved_cc == filters.country_code)
 
     rows = q.order_by(func.count(filtered_jobs.c.id).desc()).limit(500).all()
 
@@ -143,18 +139,13 @@ def map_cities(
     lat_max: float | None = Query(None, ge=-90, le=90, description="North bound of viewport"),
     lng_min: float | None = Query(None, ge=-180, le=180, description="West bound of viewport"),
     lng_max: float | None = Query(None, ge=-180, le=180, description="East bound of viewport"),
-    region: str | None = Query(None),
-    country_code: str | None = Query(None),
-    role: str | None = Query(
-        None,
-        description="Count only jobs with this role category: engineering, design, product, data, marketing, sales, finance, operations, healthcare...",
-    ),
-    is_remote: bool | None = Query(None),
+    filters: JobFilters = Depends(),
     response: Response = None,
     db: Session = Depends(get_db),
 ):
     """Return city cluster pins with aggregated job and company counts for the map UI."""
-    job_agg_q = (
+    # A city pin is what selecting that city would return, so its own filter is dropped.
+    job_agg_q = filters.without("city", "country_code", "region").apply(
         db.query(
             City.id.label("city_id"),
             func.count(Job.id).label("job_count"),
@@ -163,10 +154,6 @@ def map_cities(
         .join(Job, Job.city == City.name)
         .filter(Job.is_active.is_(True), City.latitude.isnot(None))
     )
-    if role:
-        job_agg_q = job_agg_q.filter(Job.role_category == role.lower())
-    if is_remote is not None:
-        job_agg_q = job_agg_q.filter(Job.is_remote.is_(is_remote))
 
     job_agg = job_agg_q.group_by(City.id).subquery("job_agg")
 
@@ -180,10 +167,10 @@ def map_cities(
         .filter(City.latitude.isnot(None), job_agg.c.job_count > 0)
     )
 
-    if region:
-        city_q = city_q.filter(City.region == region.lower())
-    if country_code:
-        city_q = city_q.filter(City.country_code == country_code.upper())
+    if filters.region:
+        city_q = city_q.filter(City.region == filters.region)
+    if filters.country_code:
+        city_q = city_q.filter(City.country_code == filters.country_code)
 
     if lat_min is not None:
         city_q = city_q.filter(City.latitude >= lat_min)

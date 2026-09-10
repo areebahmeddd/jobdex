@@ -3,14 +3,26 @@ import json
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, or_, text
+from sqlalchemy import String, and_, cast, func, literal, null, or_, select, text, union_all
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.ingestion.normalizer import canonicalize_city
 from app.models import Company, Job
 from app.routers._builders import build_job_detail_response, build_job_response
-from app.schemas import JobDetailResponse, PaginatedJobsResponse
+from app.routers._filters import (
+    FTS_VECTOR_SQL,
+    SORT_OPTIONS,
+    SORT_RECENT,
+    SORT_RELEVANCE,
+    WORK_MODE_EXPR,
+    JobFilters,
+)
+from app.schemas import (
+    FacetBucket,
+    JobDetailResponse,
+    JobFacetsResponse,
+    PaginatedJobsResponse,
+)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -33,51 +45,43 @@ def _decode_cursor(cursor: str) -> tuple[datetime | None, str] | None:
 
 @router.get("", response_model=PaginatedJobsResponse)
 def list_jobs(
-    city: str | None = Query(None),
-    country_code: str | None = Query(None),
-    region: str | None = Query(None, description="e.g. south_asia, middle_east, europe"),
-    role_category: str | None = Query(None),
-    role_subcategory: str | None = Query(None),
-    seniority: str | None = Query(None),
-    is_remote: bool | None = Query(None),
-    q: str | None = Query(None, description="Full-text search on title, snippet, and role"),
+    filters: JobFilters = Depends(),
+    sort: str = Query(SORT_RECENT, description="recent (default) or relevance"),
     cursor: str | None = Query(None, description="Opaque cursor for keyset pagination"),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
     """Return a paginated list of active jobs with optional filters and keyset or offset pagination."""
-    query = (
+    base = (
         db.query(Job, Company)
         .join(Company, Job.company_id == Company.id)
         .filter(Job.is_active.is_(True))
     )
+    query = filters.apply(base)
 
-    if city:
-        canonical = canonicalize_city(city) or city
-        query = query.filter(Job.city == canonical)
-    if country_code:
-        query = query.filter(Job.country_code == country_code.upper())
-    if region:
-        query = query.filter(Job.region == region.lower())
-    if role_category:
-        query = query.filter(Job.role_category == role_category.lower())
-    if role_subcategory:
-        query = query.filter(Job.role_subcategory == role_subcategory.lower())
-    if seniority:
-        query = query.filter(Job.seniority == seniority.lower())
-    if is_remote is not None:
-        query = query.filter(Job.is_remote.is_(is_remote))
+    # Relevance needs a search term and cannot be keyset-paged, so it uses offsets.
+    sort = sort if sort in SORT_OPTIONS else SORT_RECENT
+    by_relevance = sort == SORT_RELEVANCE and filters.q is not None
 
-    if q:
-        query = query.filter(
-            text(
-                "to_tsvector('english',"
-                " coalesce(jobs.title,'') || ' ' ||"
-                " coalesce(jobs.description_snippet,'') || ' ' ||"
-                " coalesce(jobs.role_category,''))"
-                " @@ websearch_to_tsquery('english', :q)"
-            ).bindparams(q=q)
+    if by_relevance:
+        rank_desc = text(
+            f"ts_rank_cd({FTS_VECTOR_SQL}, websearch_to_tsquery('english', :rank_q)) DESC"
+        ).bindparams(rank_q=filters.q)
+        total = query.count()
+        rows = (
+            query.order_by(rank_desc, Job.posted_at.desc().nullslast(), Job.id.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        return PaginatedJobsResponse(
+            jobs=[build_job_response(j, c) for j, c in rows],
+            total=total,
+            limit=limit,
+            offset=offset,
+            sort=SORT_RELEVANCE,
+            next_cursor=None,
         )
 
     if cursor:
@@ -85,10 +89,13 @@ def list_jobs(
         if decoded:
             cursor_posted_at, cursor_id = decoded
             if cursor_posted_at:
+                # NULLS LAST puts undated jobs after the cursor, but posted_at <
+                # :cursor never matches NULL, so they need admitting explicitly.
                 query = query.filter(
                     or_(
                         Job.posted_at < cursor_posted_at,
                         and_(Job.posted_at == cursor_posted_at, Job.id < cursor_id),
+                        Job.posted_at.is_(None),
                     )
                 )
             else:
@@ -116,8 +123,62 @@ def list_jobs(
         total=total,
         limit=limit,
         offset=offset if not cursor else None,
+        sort=SORT_RECENT,
         next_cursor=next_cursor,
     )
+
+
+_FACET_DIMENSIONS = {
+    "ats_type": Job.ats_type,
+    "role_category": Job.role_category,
+    "seniority": Job.seniority,
+    "job_type": Job.job_type,
+    "work_mode": WORK_MODE_EXPR,
+}
+_FACET_TOTAL = "total"
+
+
+def _facet_select(filters: JobFilters, dimension: str, column):
+    """Count jobs per value of one dimension, ignoring that dimension's own selection."""
+    stmt = select(
+        literal(dimension).label("dimension"),
+        cast(column, String).label("value"),
+        func.count(Job.id).label("count"),
+    ).filter(Job.is_active.is_(True))
+    return filters.apply(stmt, skip=dimension).group_by(column)
+
+
+@router.get("/facets", response_model=JobFacetsResponse)
+def job_facets(filters: JobFilters = Depends(), db: Session = Depends(get_db)):
+    """Return per-option job counts for every filter dimension.
+
+    Counts are disjunctive: a dimension ignores its own selection, so picking one
+    option does not zero out the rest. All dimensions ship as one UNION ALL.
+    """
+    total_stmt = filters.apply(
+        select(
+            literal(_FACET_TOTAL).label("dimension"),
+            cast(null(), String).label("value"),
+            func.count(Job.id).label("count"),
+        ).filter(Job.is_active.is_(True))
+    )
+    stmt = union_all(
+        total_stmt,
+        *(_facet_select(filters, dim, col) for dim, col in _FACET_DIMENSIONS.items()),
+    )
+
+    buckets: dict[str, list[FacetBucket]] = {dim: [] for dim in _FACET_DIMENSIONS}
+    total = 0
+    for row in db.execute(stmt):
+        if row.dimension == _FACET_TOTAL:
+            total = row.count
+        elif row.value is not None:
+            buckets[row.dimension].append(FacetBucket(value=row.value, count=row.count))
+
+    for values in buckets.values():
+        values.sort(key=lambda b: (-b.count, b.value))
+
+    return JobFacetsResponse(total=total, **buckets)
 
 
 @router.get("/{job_id}", response_model=JobDetailResponse)

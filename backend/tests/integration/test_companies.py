@@ -70,3 +70,43 @@ def test_list_company_jobs(client):
     data = r.json()
     assert "jobs" in data
     assert "total" in data
+
+
+@pytest.mark.integration
+def test_list_companies_role_filter_narrows_and_rescopes_counts(client):
+    """A role filter must be applied in SQL, and job_count must reflect it."""
+    city = "Bangalore"
+    unscoped = client.get("/companies", params={"city": city, "limit": 100}).json()
+    if unscoped["total"] == 0:
+        pytest.skip("No companies in this city")
+    scoped = client.get(
+        "/companies", params={"city": city, "role_category": "design", "limit": 100}
+    ).json()
+
+    assert scoped["total"] <= unscoped["total"]
+    by_slug = {c["slug"]: c["job_count"] for c in unscoped["companies"]}
+    for company in scoped["companies"]:
+        assert company["job_count"] > 0
+        assert company["job_count"] <= by_slug.get(company["slug"], company["job_count"])
+
+
+@pytest.mark.integration
+def test_list_companies_unfiltered_keeps_companies_without_open_roles(client):
+    everything = client.get("/companies", params={"limit": 1}).json()["total"]
+    hiring = client.get("/companies", params={"role_category": "engineering", "limit": 1}).json()
+    assert hiring["total"] <= everything
+
+
+@pytest.mark.integration
+def test_company_jobs_accept_the_shared_filter_set(client):
+    companies = client.get(
+        "/companies", params={"role_category": "engineering", "limit": 1}
+    ).json()["companies"]
+    if not companies:
+        pytest.skip("No hiring companies in database")
+    slug = companies[0]["slug"]
+    data = client.get(
+        f"/companies/{slug}/jobs", params={"role_category": "engineering", "limit": 20}
+    ).json()
+    for job in data["jobs"]:
+        assert job["role_category"] == "engineering"

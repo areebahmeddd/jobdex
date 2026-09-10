@@ -60,7 +60,24 @@ class PaginatedJobsResponse(BaseModel):
     total: int | None = None
     limit: int
     offset: int | None = None
+    sort: str = "recent"
     next_cursor: str | None = None
+
+
+class FacetBucket(BaseModel):
+    value: str
+    count: int
+
+
+class JobFacetsResponse(BaseModel):
+    """Per-option job counts for every filter dimension."""
+
+    total: int = 0
+    ats_type: list[FacetBucket] = []
+    role_category: list[FacetBucket] = []
+    seniority: list[FacetBucket] = []
+    job_type: list[FacetBucket] = []
+    work_mode: list[FacetBucket] = []
 
 
 # Companies
