@@ -106,13 +106,15 @@ Triggered by the `enrich_pending` scheduler job and the `uv run python scripts/e
 
 | Router    | Prefix       | Notes                                                                         |
 | --------- | ------------ | ----------------------------------------------------------------------------- |
-| jobs      | `/jobs`      | Filter by city, country_code, region, role, seniority, remote; keyset cursor pagination |
+| jobs      | `/jobs`      | Shared filter set; keyset cursor pagination, plus `/jobs/facets` for per-option counts |
 | companies | `/companies` | List, detail; ingest and enrich are triggered via scripts and the scheduler   |
-| search    | `/search`    | Combinable filters (city, role, industry, region, remote) across jobs and companies |
-| map       | `/map`       | Lat/lon points for companies and job clusters; supports viewport bounding box |
+| search    | `/search`    | Shared filter set plus `industry`, across jobs and companies                 |
+| map       | `/map`       | Lat/lon points for companies and job clusters; shared filter set and viewport bounding box |
 | cities    | `/cities`    | City list for dropdown/autocomplete                                           |
 | stats     | `/stats`     | Counts by region, role category, seniority                                    |
 | payments  | `/payments`  | `POST /orders` + `POST /verify` via Razorpay                                  |
+
+Job filters (`city`, `country_code`, `region`, `role_category`, `role_subcategory`, `seniority`, `job_type`, `ats_type`, `work_mode`, `posted_within`, `q`) are parsed once by `JobFilters` in `app/routers/_filters.py` and shared across the job, company, search and map routers. See [ARCHITECTURE.md](ARCHITECTURE.md#shared-job-filters).
 
 ### Background Jobs
 
@@ -126,7 +128,7 @@ A `CRAWL_DELAY` of 0.3 s is inserted between each company during scheduled inges
 
 **Bounded ticks.** Ingestion is a rotating queue rather than a full sweep. The ordering already puts the stalest company first, so a capped batch still reaches everything: companies covered per day is `(1440 / INGEST_INTERVAL_MINUTES) * INGEST_BATCH_SIZE`, or 2400/day at the defaults. A tick that dies part way through only loses its own slice, because the companies it never reached keep their old `last_crawled_at` and sort first next time. `scripts/ingest.py --all` passes `batch_size=0` for an unbounded seed run.
 
-**One runner at a time.** Each replica runs its own APScheduler, so `max_instances=1` is not enough on its own. Every scheduled job runs behind a Postgres advisory lock (`pg_try_advisory_lock`); a replica that cannot take the lock skips the tick. `migrate_db()` uses the blocking form so simultaneous boots serialise on `alembic_version` instead of racing, and `scripts/ingest.py --all` takes the same ingest lock so a local seed run cannot overlap a deployed crawler.
+**One runner at a time.** Each replica runs its own APScheduler, so `max_instances=1` is not enough on its own. Every scheduled job runs behind a Postgres advisory lock (`pg_try_advisory_lock`); a replica that cannot take the lock skips the tick. `migrate_db()` uses the blocking form so simultaneous boots serialize on `alembic_version` instead of racing, and `scripts/ingest.py --all` takes the same ingest lock so a local seed run cannot overlap a deployed crawler.
 
 ### Hydration
 
@@ -227,7 +229,7 @@ SEEK is the only candidate that passed a live zero-auth test without being imple
 Every platform previously listed here has been probed live. Failures are recorded in the Not Compatible table, SEEK in the Planned table. Probe scripts and raw responses live under `ats/`, which is gitignored, matching the earlier per-region research. Two platforms are deferred rather than rejected, because the endpoint works and only the listings are missing:
 
 - **Kalibrr** (PH/ID): `GET www.kalibrr.com/api/companies/{slug}/jobs` is still zero-auth JSON and structurally compatible. Re-probed on the current company set: 4 of 10 slugs resolve, but every one reports `total_count: 0`. Unchanged from the original finding. Revisit if platform activity recovers.
-- **NHS Jobs** (UK): `api.jobs.nhs.uk/v1/search` requires a free `Ocp-Apim-Subscription-Key` (Azure APIM, register at `developer.jobs.nhs.uk`); unauthenticated GET and POST both return the APIM gateway page. The RSS paths on `www.jobs.nhs.uk` return HTML, not a feed. The key is static rather than per-company, but the ingestion model is search-based rather than slug-based and needs a different shape from `BaseIngester`. Other healthcare ATS (HealthcareSource, iCIMS, Taleo) require per-organisation auth contracts, and clinical job boards (BioSpace, Health eCareers, Medscape Jobs) have no public JSON API.
+- **NHS Jobs** (UK): `api.jobs.nhs.uk/v1/search` requires a free `Ocp-Apim-Subscription-Key` (Azure APIM, register at `developer.jobs.nhs.uk`); unauthenticated GET and POST both return the APIM gateway page. The RSS paths on `www.jobs.nhs.uk` return HTML, not a feed. The key is static rather than per-company, but the ingestion model is search-based rather than slug-based and needs a different shape from `BaseIngester`. Other healthcare ATS (HealthcareSource, iCIMS, Taleo) require per-organization auth contracts, and clinical job boards (BioSpace, Health eCareers, Medscape Jobs) have no public JSON API.
 
 Three platforms outside the original backlog were probed alongside it because they fill the same gaps. Rippling passed and is implemented. Eightfold AI and BambooHR failed and are in the Not Compatible table.
 

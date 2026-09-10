@@ -8,12 +8,30 @@ Each question includes exact code references and a verdict with notes on open is
 
 ### What exists
 
-APScheduler registers three jobs in [`backend/app/scheduler.py`](backend/app/scheduler.py):
+APScheduler registers three jobs in [`backend/app/scheduler.py`](../backend/app/scheduler.py):
 
 ```python
-scheduler.add_job(run_ingestion,  "interval", hours=settings.INGEST_INTERVAL_HOURS,  id="ingest_all",         max_instances=1)
-scheduler.add_job(run_enrichment, "interval", hours=settings.ENRICH_INTERVAL_HOURS,  id="enrich_pending",     max_instances=1)
-scheduler.add_job(run_discovery,  "interval", hours=settings.DISCOVER_INTERVAL_HOURS,id="discover_companies", max_instances=1)
+scheduler.add_job(
+    run_ingestion,
+    "interval",
+    hours=settings.INGEST_INTERVAL_HOURS,
+    id="ingest_all",
+    max_instances=1,
+)
+scheduler.add_job(
+    run_enrichment,
+    "interval",
+    hours=settings.ENRICH_INTERVAL_HOURS,
+    id="enrich_pending",
+    max_instances=1,
+)
+scheduler.add_job(
+    run_discovery,
+    "interval",
+    hours=settings.DISCOVER_INTERVAL_HOURS,
+    id="discover_companies",
+    max_instances=1,
+)
 ```
 
 The manual scripts (`scripts/ingest.py`, `scripts/discover.py`, `scripts/enrich.py`) call the exact same functions (`run_ingestion`, `run_discovery`, `run_enrichment`). `max_instances=1` only prevents the APScheduler trigger from firing the same job twice concurrently; it has no effect on the manual script process.
@@ -60,7 +78,7 @@ Or more practically: document that scripts should not be run while the server is
 
 ### The exact flow
 
-From [`backend/app/ingestion/base.py`](backend/app/ingestion/base.py):
+From [`backend/app/ingestion/base.py`](../backend/app/ingestion/base.py):
 
 ```python
 active_hashes: set[str] = {row.dedup_hash for row in existing_rows if row.is_active}
@@ -200,7 +218,7 @@ Any unhandled exception inside a `with get_session()` block rolls back the trans
 
 ## Q4: Are the time intervals logically correct? `[FIXED]`
 
-From [`backend/app/config.py`](backend/app/config.py):
+From [`backend/app/config.py`](../backend/app/config.py):
 
 ```python
 INGEST_INTERVAL_HOURS: int = 6
@@ -211,7 +229,7 @@ DISCOVER_INTERVAL_HOURS: int = 24
 And the delays:
 
 ```python
-CRAWL_DELAY: float = 0.3           # Between companies in ingestion
+CRAWL_DELAY: float = 0.3  # Between companies in ingestion
 ENRICHMENT_STEP_DELAY: float = 0.5  # Between API calls in enrichment
 ```
 
@@ -249,7 +267,9 @@ New companies don't appear on YC's hiring list that frequently. 24h is appropria
 
 ```python
 # Option B (not used): run once then remove the job
-scheduler.add_job(run_enrichment, "interval", hours=12, id="enrich_pending", max_instances=1)
+scheduler.add_job(
+    run_enrichment, "interval", hours=12, id="enrich_pending", max_instances=1
+)
 # Add a check in run_enrichment: if slugs is empty, scheduler.remove_job("enrich_pending")
 ```
 
@@ -259,7 +279,7 @@ scheduler.add_job(run_enrichment, "interval", hours=12, id="enrich_pending", max
 
 ### The dedup mechanism
 
-In [`backend/app/models.py`](backend/app/models.py):
+In [`backend/app/models.py`](../backend/app/models.py):
 
 ```python
 dedup_hash: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
@@ -267,7 +287,7 @@ dedup_hash: Mapped[str | None] = mapped_column(String(64), unique=True, index=Tr
 
 This is a database-level `UNIQUE` constraint (Alembic generates it from `unique=True`), not just an application-level check.
 
-The hash is computed in [`backend/app/ingestion/base.py`](backend/app/ingestion/base.py):
+The hash is computed in [`backend/app/ingestion/base.py`](../backend/app/ingestion/base.py):
 
 ```python
 def make_hash(self, slug: str, job_id: str) -> str:
@@ -296,7 +316,11 @@ Company records can be duplicated if `_resolve_company` creates a stub using `sl
 
 ```python
 # backend/app/ingestion/base.py
-company = db.query(Company).filter(Company.ats_slug == slug, Company.ats_type == self.ats_type).first()
+company = (
+    db.query(Company)
+    .filter(Company.ats_slug == slug, Company.ats_type == self.ats_type)
+    .first()
+)
 if company is None:
     company = db.query(Company).filter(Company.slug == slug).first()
 if company is None:
@@ -313,7 +337,7 @@ If the same real-world company was discovered under slug `"acme-corp"` by YC (wi
 
 ### Jobs endpoint: Hybrid
 
-[`backend/app/routers/jobs.py`](backend/app/routers/jobs.py) implements both modes simultaneously:
+[`backend/app/routers/jobs.py`](../backend/app/routers/jobs.py) implements both modes simultaneously:
 
 **Cursor (keyset) pagination:**
 
@@ -321,6 +345,7 @@ If the same real-world company was discovered under slug `"acme-corp"` by YC (wi
 def _encode_cursor(posted_at: datetime | None, job_id: str) -> str:
     payload = {"p": posted_at.isoformat() if posted_at else "", "i": job_id}
     return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+
 
 # In the route:
 if cursor:
@@ -331,9 +356,14 @@ if cursor:
             or_(
                 Job.posted_at < cursor_posted_at,
                 and_(Job.posted_at == cursor_posted_at, Job.id < cursor_id),
+                Job.posted_at.is_(None),  # added later; see the note below
             )
         )
-    rows = query.order_by(Job.posted_at.desc().nullslast(), Job.id.desc()).limit(limit).all()
+    rows = (
+        query.order_by(Job.posted_at.desc().nullslast(), Job.id.desc())
+        .limit(limit)
+        .all()
+    )
     total = None  # not computed for cursor pages
 ```
 
@@ -345,7 +375,9 @@ else:
     rows = query.order_by(Job.posted_at.desc().nullslast(), Job.id.desc()).offset(offset).limit(limit).all()
 ```
 
-The cursor is a Base64-encoded JSON of `{p: posted_at_iso, i: job_id}`. It handles `NULL posted_at` by treating it as the lowest value (pushed to the end via `nullslast`).
+The cursor is a Base64-encoded JSON of `{p: posted_at_iso, i: job_id}`.
+
+> **Correction `[FIXED]`.** This section originally claimed the cursor handled `NULL posted_at` by treating it as the lowest value via `nullslast`. It did not. `nullslast` sorts undated jobs last, but `posted_at < :cursor` never matches `NULL`, so the first cursor page whose last row had a date returned an empty next page and every undated job was unreachable. 1,497 active jobs were affected. The predicate now admits `posted_at IS NULL` explicitly.
 
 **Other endpoints (companies, cities, search):** Offset only.
 
@@ -365,11 +397,11 @@ Cursor pagination on jobs is well-implemented and uses the right indexed columns
 
 ### Startup sequence
 
-[`backend/app/main.py`](backend/app/main.py):
+[`backend/app/main.py`](../backend/app/main.py):
 
 ```python
 async def lifespan(app: FastAPI):
-    migrate_db()   # 1. Alembic upgrade head
+    migrate_db()  # 1. Alembic upgrade head
     seed_cities()  # 2. Upsert cities from cities.json
     _scheduler.start()  # 3. Start background jobs
 ```
@@ -381,6 +413,7 @@ async def lifespan(app: FastAPI):
 def migrate_db() -> None:
     from alembic.config import Config
     from alembic import command
+
     cfg = Config(str(BASE_DIR / "alembic.ini"))
     command.upgrade(cfg, "head")
 ```
@@ -403,7 +436,11 @@ Idempotent but uses an **N+1 pattern**: one SELECT per city in `cities.json`. If
 
 ```python
 # backend/app/ingestion/base.py
-company = db.query(Company).filter(Company.ats_slug == slug, Company.ats_type == self.ats_type).first()
+company = (
+    db.query(Company)
+    .filter(Company.ats_slug == slug, Company.ats_type == self.ats_type)
+    .first()
+)
 if company is None:
     company = db.query(Company).filter(Company.slug == slug).first()
 if company is None:
@@ -426,7 +463,9 @@ Pre-flight hash map built from DB before the insert loop. Backed by a DB-level u
 
 ```python
 if is_blocked_location(job.country_code, job.city):
-    logger.info(f"[{self.ats_type}] '{slug}' skipping blocked location: {job.city}, {job.country_code}")
+    logger.info(
+        f"[{self.ats_type}] '{slug}' skipping blocked location: {job.city}, {job.country_code}"
+    )
     seen_hashes.discard(dedup_hash)
     continue
 ```
@@ -448,7 +487,11 @@ Only calls Clearbit if `latitude` is not set. Prevents re-fetching on every craw
 
    ```python
    existing_slugs = {r.slug for r in db.query(City.slug).all()}
-   new_cities = [City(...) for name, info in city_data.items() if _slugify(name) not in existing_slugs]
+   new_cities = [
+       City(...)
+       for name, info in city_data.items()
+       if _slugify(name) not in existing_slugs
+   ]
    db.bulk_save_objects(new_cities)
    ```
 
@@ -459,7 +502,7 @@ Only calls Clearbit if `latitude` is not set. Prevents re-fetching on every craw
 
 ### Current architecture
 
-[`backend/app/scheduler.py`](backend/app/scheduler.py):
+[`backend/app/scheduler.py`](../backend/app/scheduler.py):
 
 ```python
 async def run_ingestion() -> None:
@@ -515,12 +558,16 @@ Per-company cost is not uniform, and Workday is the outlier. It caps `limit` at 
 ```python
 sem = asyncio.Semaphore(3)  # 3 concurrent requests per ATS
 
+
 async def ingest_with_sem(ingester, slug, sem):
     async with sem:
         async with get_session() as db:
             return await ingester.ingest(slug, db)
 
-tasks = [ingest_with_sem(INGESTERS[ats_type], slug, sem) for ats_type, slug, _ in targets]
+
+tasks = [
+    ingest_with_sem(INGESTERS[ats_type], slug, sem) for ats_type, slug, _ in targets
+]
 results = await asyncio.gather(*tasks, return_exceptions=True)
 ```
 
@@ -757,7 +804,9 @@ This uses PostgreSQL's native FTS with `websearch_to_tsquery` (supports quoted p
 # backend/app/models.py
 Index(
     "ix_jobs_fts_gin",
-    text("to_tsvector('english', coalesce(title,'') || ' ' || coalesce(description_snippet,'') || ' ' || coalesce(role_category,''))"),
+    text(
+        "to_tsvector('english', coalesce(title,'') || ' ' || coalesce(description_snippet,'') || ' ' || coalesce(role_category,''))"
+    ),
     postgresql_using="gin",
     postgresql_where=text("is_active = TRUE"),
 )
@@ -789,7 +838,7 @@ if industry:
 `Company.industry` is already of type `JSONB` in the ORM (`Mapped[list[str] | None] = mapped_column(JSONB)`), so `.cast(JSONB)` is redundant but harmless. The `contains([industry.lower()])` translates to `industry @> '["fintech"]'::jsonb`, which uses the GIN index:
 
 ```python
-Index("ix_companies_industry_gin", "industry", postgresql_using="gin"),
+(Index("ix_companies_industry_gin", "industry", postgresql_using="gin"),)
 ```
 
 ✓ This is correct and efficient.
@@ -802,9 +851,12 @@ Index("ix_companies_industry_gin", "industry", postgresql_using="gin"),
 loc_counts = loc_counts_q.group_by(...).subquery("loc_counts")
 
 # Subquery 2: pick the best (most common) location per company
-best_loc = db.query(loc_counts.c.company_id, ...).distinct(loc_counts.c.company_id).order_by(
-    loc_counts.c.company_id, loc_counts.c.loc_cnt.desc()
-).subquery("best_loc")
+best_loc = (
+    db.query(loc_counts.c.company_id, ...)
+    .distinct(loc_counts.c.company_id)
+    .order_by(loc_counts.c.company_id, loc_counts.c.loc_cnt.desc())
+    .subquery("best_loc")
+)
 
 # Main query: resolve company coordinates with fallback to job locations
 resolved_lat = func.coalesce(Company.latitude, best_loc.c.latitude)

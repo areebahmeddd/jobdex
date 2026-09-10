@@ -74,5 +74,12 @@ docker compose up
 
 ## Documentation
 
-- [backend/README.md](backend/README.md): API setup and configuration
-- [frontend/README.md](frontend/README.md): Frontend setup and development
+| Document                                       | Contents                                                        |
+| ---------------------------------------------- | --------------------------------------------------------------- |
+| [backend/README.md](backend/README.md)         | Backend setup, endpoints, scripts, Docker                       |
+| [frontend/README.md](frontend/README.md)       | Frontend setup and development                                  |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)   | API reference, filters, pipelines, schema, configuration        |
+| [docs/PLAN.md](docs/PLAN.md)                   | Design decisions and the full ATS compatibility matrix          |
+| [docs/QA.md](docs/QA.md)                       | Investigation log for past bugs and design questions            |
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)   | Setup, code conventions, testing, pull requests                 |
+| [docs/SECURITY.md](docs/SECURITY.md)           | Reporting a vulnerability                                       |

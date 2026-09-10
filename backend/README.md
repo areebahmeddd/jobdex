@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI backend for JobDex. ATS ingestion, job normalisation and REST API for search, companies, cities and map discovery.
+FastAPI backend for JobDex. ATS ingestion, job normalization and REST API for search, companies, cities and map discovery.
 
 ## Tech Stack
 
@@ -64,6 +64,7 @@ API: `http://localhost:8000` | Docs: `http://localhost:8000/docs`
 | `GET`  | `/stats`                        | Platform statistics        |
 | `GET`  | `/search`                       | Cross-entity search        |
 | `GET`  | `/jobs`                         | Paginated jobs             |
+| `GET`  | `/jobs/facets`                  | Per-filter job counts      |
 | `GET`  | `/jobs/{id}`                    | Job detail                 |
 | `GET`  | `/companies`                    | Company listing            |
 | `GET`  | `/companies/{slug}`             | Company detail             |
@@ -78,34 +79,23 @@ API: `http://localhost:8000` | Docs: `http://localhost:8000/docs`
 
 All read endpoints are public. Payment endpoints require valid Razorpay API keys.
 
-### Search Filters
+### Filters
+
+`/jobs`, `/jobs/facets`, `/companies`, `/companies/{slug}/jobs`, `/search`, `/map/companies` and `/map/cities` share one filter set, so a filter means the same thing on every endpoint.
 
 ```http
-GET /search?city=Bangalore&role=engineering&region=south_asia&is_remote=false
+GET /jobs?q=rust&city=Bangalore&role_category=engineering&work_mode=remote&sort=relevance
 ```
 
-| Parameter      | Values                                                 |
-| -------------- | ------------------------------------------------------ |
-| `city`         | `Bangalore`, `New York`, `London`                      |
-| `role`         | `engineering`, `design`, `product`, `marketing`        |
-| `industry`     | `fintech`, `devtools`, `healthcare`                    |
-| `country_code` | `IN`, `US`, `GB`                                       |
-| `region`       | `south_asia`, `north_america`, `europe`, `middle_east` |
-| `is_remote`    | `true`, `false`                                        |
-| `limit`        | `20` (max `100`)                                       |
-| `offset`       | `0`                                                    |
+`role_category`, `role_subcategory`, `seniority`, `job_type`, `ats_type` and `work_mode` are repeatable: values within a filter are ORed, filters are ANDed together. `/jobs` also takes `sort` (`recent` or `relevance`) and `cursor` for keyset pages.
+
+Full parameter reference: [ARCHITECTURE.md](../docs/ARCHITECTURE.md#shared-job-filters).
 
 ## Scheduler
 
-Runs in-process. No separate worker needed.
+Runs in-process via APScheduler. No separate worker needed. Ingestion ticks every 15 minutes over a rotating batch of companies; enrichment every 12 hours; discovery every 24 hours.
 
-| Job                 | Interval | Description                                            |
-| ------------------- | -------- | ------------------------------------------------------ |
-| `ingest_all`        | 6 h      | Crawls active companies, oldest-first                  |
-| `enrich_pending`    | 12 h     | Enriches companies with null or stale `enriched_at`    |
-| `discover_companies`| 24 h     | Seeds new companies from ingesters with bulk discovery |
-
-Configurable via `INGEST_INTERVAL_HOURS`, `ENRICH_INTERVAL_HOURS` and `DISCOVER_INTERVAL_HOURS`.
+See [ARCHITECTURE.md](../docs/ARCHITECTURE.md#background-jobs) for the job table and [Configuration](../docs/ARCHITECTURE.md#configuration) for every setting.
 
 ## Database
 

@@ -97,7 +97,7 @@ def advisory_lock(key: int, *, wait: bool = False) -> Iterator[bool]:
 def migrate_db() -> None:
     """Apply all pending Alembic migrations to head.
 
-    Serialised behind an advisory lock so concurrent replicas booting at the same time
+    Serialized behind an advisory lock so concurrent replicas booting at the same time
     do not race on alembic_version. Whichever instance arrives second runs a no-op.
     """
     from alembic.config import Config

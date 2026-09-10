@@ -86,7 +86,7 @@ def get_city_data() -> dict[str, dict]:
 
 
 def get_country_code_for_name(name: str | None) -> str | None:
-    """Return the ISO-2 code for a country name, or None if it is not recognised."""
+    """Return the ISO-2 code for a country name, or None if it is not recognized."""
     if not name:
         return None
     key = name.strip().lower()

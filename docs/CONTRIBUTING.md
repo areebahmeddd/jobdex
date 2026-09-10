@@ -31,12 +31,16 @@ uv run ruff format .
 - Follow the existing SQLAlchemy `Mapped[]` style for model definitions.
 - Keep business logic out of routers. Routers build responses; ingestion and enrichment logic live in their own modules.
 - New ingestion sources must subclass `BaseIngester` and implement `fetch_raw`, `extract_job_id`, and `build_job`.
+- Every function gets a one-line docstring. Add a paragraph below it only when the behavior is not obvious from the code.
+- Inline comments explain why, not what. Most functions need none.
 
 **Frontend (TypeScript)**
 
 - Use named exports for components.
 - Keep map-specific logic in `features/map/`. Landing page content goes in `features/landing/`.
 - Shared UI primitives belong in `components/ui/`.
+- No comments. Name things so the code reads on its own, and put anything that needs explaining in the docs.
+- Filter dimensions are declared once in `lib/filters.ts`; add an entry there and the matching API parameter instead of editing each component.
 
 ## Testing
 
