@@ -44,12 +44,12 @@ function DetailHeader({
     <div className="flex shrink-0 items-center gap-2 border-b border-black/8 px-3 py-2">
       <button
         onClick={onBack}
-        className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-black/5 hover:text-gray-700"
+        className="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-black/5 hover:text-gray-700"
         aria-label="Back to results"
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
-      <span className="truncate text-[11px] text-gray-400">{label}</span>
+      <span className="truncate text-[11px] text-gray-500">{label}</span>
     </div>
   );
 }
@@ -100,7 +100,7 @@ export function JobDetailView({ job, loading, failed, onBack }: Props) {
             size={40}
           />
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] text-gray-400">{job.company_name}</p>
+            <p className="text-[11px] text-gray-500">{job.company_name}</p>
             <h3 className="mt-0.5 text-sm leading-snug font-semibold text-gray-900">
               {job.title}
             </h3>
@@ -163,11 +163,11 @@ export function JobDetailView({ job, loading, failed, onBack }: Props) {
         <div className="mt-auto flex flex-col gap-2">
           {job.posted_at && (
             <div className="flex items-center gap-1.5 rounded-lg border border-black/8 bg-gray-50/60 px-2.5 py-2">
-              <Clock className="h-3 w-3 shrink-0 text-gray-400" />
+              <Clock className="h-3 w-3 shrink-0 text-gray-500" />
               <p className="text-[11px] text-gray-500">
-                <span className="text-gray-400">Last updated:</span>{" "}
+                <span className="text-gray-500">Last updated:</span>{" "}
                 {formatAbsoluteDate(job.posted_at)}{" "}
-                <span className="text-gray-400">
+                <span className="text-gray-500">
                   ({relativeTime(job.posted_at)})
                 </span>
               </p>

@@ -273,7 +273,7 @@ export default function HowItWorksPage() {
         {STEPS.map((step) => (
           <li key={step.number} className="flex gap-6">
             <span
-              className="mt-0.5 w-6 shrink-0 font-mono text-xs text-gray-400"
+              className="mt-0.5 w-6 shrink-0 font-mono text-xs text-gray-500"
               aria-hidden="true"
             >
               {step.number}

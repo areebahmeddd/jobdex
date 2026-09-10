@@ -111,7 +111,7 @@ function OptionRow({
       </span>
       <span className="flex-1 truncate text-xs text-gray-700">{label}</span>
       {count !== null && (
-        <span className="shrink-0 text-[10px] text-gray-400 tabular-nums">
+        <span className="shrink-0 text-[10px] text-gray-500 tabular-nums">
           {count.toLocaleString()}
         </span>
       )}
@@ -285,7 +285,7 @@ export function FilterPanel({
                 className={`ml-auto min-w-0 truncate text-[11px] ${
                   section.selectedCount > 0
                     ? "font-medium text-gray-900"
-                    : "text-gray-400"
+                    : "text-gray-500"
                 }`}
               >
                 {section.summary}

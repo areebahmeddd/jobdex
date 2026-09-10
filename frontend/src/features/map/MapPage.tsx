@@ -752,7 +752,7 @@ export default function MapPage() {
               </span>
               {stats && (
                 <ChevronDown
-                  className={`h-2.5 w-2.5 text-gray-400 transition-transform duration-200 ${statsOpen ? "rotate-180" : ""}`}
+                  className={`h-2.5 w-2.5 text-gray-500 transition-transform duration-200 ${statsOpen ? "rotate-180" : ""}`}
                   aria-hidden="true"
                 />
               )}
@@ -762,7 +762,7 @@ export default function MapPage() {
               <div className="no-scrollbar absolute top-full left-0 mt-2 max-h-96 w-56 overflow-y-auto rounded-2xl border border-white/20 bg-white/60 shadow-lg shadow-black/8 backdrop-blur-xl">
                 <div className="space-y-3 p-3">
                   <div>
-                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-400 uppercase">
+                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-500 uppercase">
                       Overview
                     </p>
                     <div className="space-y-1">
@@ -788,7 +788,7 @@ export default function MapPage() {
                   <div className="h-px bg-black/5" />
 
                   <div>
-                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-400 uppercase">
+                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-500 uppercase">
                       Top Cities
                     </p>
                     <div className="space-y-1">
@@ -813,7 +813,7 @@ export default function MapPage() {
                   <div className="h-px bg-black/5" />
 
                   <div>
-                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-400 uppercase">
+                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-500 uppercase">
                       Regions
                     </p>
                     <div className="space-y-1">
@@ -838,7 +838,7 @@ export default function MapPage() {
                   <div className="h-px bg-black/5" />
 
                   <div>
-                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-400 uppercase">
+                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-500 uppercase">
                       Roles
                     </p>
                     <div className="space-y-1">
@@ -868,7 +868,7 @@ export default function MapPage() {
                   <div className="h-px bg-black/5" />
 
                   <div>
-                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-400 uppercase">
+                    <p className="mb-1.5 text-[9px] font-medium tracking-widest text-gray-500 uppercase">
                       Sources
                     </p>
                     <div className="space-y-1">

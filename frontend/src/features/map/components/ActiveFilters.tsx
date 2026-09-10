@@ -24,13 +24,13 @@ function Chip({
   return (
     <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-black/10 bg-white/90 py-1 pr-1 pl-2 text-[11px] whitespace-nowrap text-gray-700 shadow-sm shadow-black/5">
       {icon}
-      {group && <span className="text-gray-400">{group}</span>}
+      {group && <span className="text-gray-500">{group}</span>}
       {label}
       <button
         type="button"
         onClick={onRemove}
         aria-label={removeLabel}
-        className="flex h-4 w-4 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-black/5 hover:text-gray-700"
+        className="flex h-4 w-4 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-black/5 hover:text-gray-700"
       >
         <X className="h-2.5 w-2.5" aria-hidden="true" />
       </button>
@@ -46,7 +46,7 @@ export function ActiveFilters({ city, onClearCity, chips, onClearAll }: Props) {
       {city && (
         <Chip
           icon={
-            <MapPin className="h-2.5 w-2.5 text-gray-400" aria-hidden="true" />
+            <MapPin className="h-2.5 w-2.5 text-gray-500" aria-hidden="true" />
           }
           label={city}
           onRemove={onClearCity}

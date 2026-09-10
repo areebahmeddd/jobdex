@@ -81,7 +81,7 @@ function MetaRow({
 }) {
   return (
     <div className="flex gap-2">
-      <span className="mt-px shrink-0 text-gray-400">{icon}</span>
+      <span className="mt-px shrink-0 text-gray-500">{icon}</span>
       <p className="text-[11px] leading-snug text-gray-600">
         <span className="text-gray-500">{label}:</span> {value}
       </p>
@@ -111,7 +111,7 @@ function FounderCard({ founder }: { founder: Founder }) {
           {founder.name}
         </p>
         {founder.title && (
-          <p className="text-[10px] text-gray-400 capitalize">
+          <p className="text-[10px] text-gray-500 capitalize">
             {founder.title}
           </p>
         )}
@@ -123,7 +123,7 @@ function FounderCard({ founder }: { founder: Founder }) {
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`${founder.name} on LinkedIn`}
-            className="flex h-6 w-6 items-center justify-center rounded border border-black/8 bg-white text-gray-400 transition-colors hover:bg-black hover:text-white"
+            className="flex h-6 w-6 items-center justify-center rounded border border-black/8 bg-white text-gray-500 transition-colors hover:bg-black hover:text-white"
           >
             <SocialIcon platform="linkedin" className="h-3 w-3" />
           </a>
@@ -134,7 +134,7 @@ function FounderCard({ founder }: { founder: Founder }) {
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`${founder.name} on X`}
-            className="flex h-6 w-6 items-center justify-center rounded border border-black/8 bg-white text-gray-400 transition-colors hover:bg-black hover:text-white"
+            className="flex h-6 w-6 items-center justify-center rounded border border-black/8 bg-white text-gray-500 transition-colors hover:bg-black hover:text-white"
           >
             <SocialIcon platform="x" className="h-3 w-3" />
           </a>
@@ -164,12 +164,12 @@ export function CompanyDetailView({
         <div className="flex shrink-0 items-center gap-2 border-b border-black/8 px-3 py-2">
           <button
             onClick={onBack}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-black/5 hover:text-gray-700"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-black/5 hover:text-gray-700"
             aria-label="Back to results"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <span className="text-[11px] text-gray-400">Not available</span>
+          <span className="text-[11px] text-gray-500">Not available</span>
         </div>
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
           <p className="text-sm font-medium text-gray-700">
@@ -192,7 +192,7 @@ export function CompanyDetailView({
         <div className="flex shrink-0 items-center gap-2 border-b border-black/8 px-3 py-2">
           <button
             onClick={onBack}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-black/5 hover:text-gray-700"
+            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-black/5 hover:text-gray-700"
             aria-label="Back"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -251,7 +251,7 @@ export function CompanyDetailView({
       <div className="flex shrink-0 items-center gap-2 border-b border-black/8 px-3 py-2">
         <button
           onClick={onBack}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-black/5 hover:text-gray-700"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 hover:bg-black/5 hover:text-gray-700"
           aria-label="Back to companies"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -388,7 +388,7 @@ export function CompanyDetailView({
         {company.description && (
           <div className="flex flex-col gap-1.5 border-b border-black/8 px-3 py-3">
             <div className="flex items-center gap-2">
-              <FileText className="h-3 w-3 shrink-0 text-gray-400" />
+              <FileText className="h-3 w-3 shrink-0 text-gray-500" />
               <span className="text-[11px] text-gray-500">About</span>
             </div>
             <p
@@ -412,7 +412,7 @@ export function CompanyDetailView({
         {founders.length > 0 && (
           <div className="flex flex-col gap-2 border-b border-black/8 px-3 py-3">
             <div className="flex items-center gap-2">
-              <User className="h-3 w-3 shrink-0 text-gray-400" />
+              <User className="h-3 w-3 shrink-0 text-gray-500" />
               <span className="text-[11px] text-gray-500">
                 Founders ({founders.length})
               </span>
@@ -428,7 +428,7 @@ export function CompanyDetailView({
         {investors.length > 0 && (
           <div className="flex flex-col gap-1.5 border-b border-black/8 px-3 py-3">
             <div className="flex items-center gap-2">
-              <DollarSign className="h-3 w-3 shrink-0 text-gray-400" />
+              <DollarSign className="h-3 w-3 shrink-0 text-gray-500" />
               <span className="text-[11px] text-gray-500">Key investors</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -447,7 +447,7 @@ export function CompanyDetailView({
         <div className="flex flex-col">
           <div className="border-b border-black/8 px-3 py-3">
             <div className="flex items-center gap-2">
-              <Briefcase className="h-3 w-3 text-gray-400" />
+              <Briefcase className="h-3 w-3 text-gray-500" />
               <span className="text-[11px] text-gray-500">
                 Open positions
                 {company.job_count > 0 ? ` (${company.job_count})` : ""}

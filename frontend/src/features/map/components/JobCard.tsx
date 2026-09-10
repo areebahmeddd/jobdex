@@ -21,11 +21,11 @@ export function JobCard({ job, onClick }: Props) {
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-1">
-            <p className="truncate text-[11px] text-gray-400">
+            <p className="truncate text-[11px] text-gray-500">
               {job.company_name}
             </p>
             {job.posted_at && (
-              <span className="shrink-0 text-[10px] text-gray-400">
+              <span className="shrink-0 text-[10px] text-gray-500">
                 {relativeTime(job.posted_at)}
               </span>
             )}
@@ -35,7 +35,7 @@ export function JobCard({ job, onClick }: Props) {
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1">
             {job.location_display && (
-              <span className="text-[10px] text-gray-400">
+              <span className="text-[10px] text-gray-500">
                 {job.location_display}
               </span>
             )}

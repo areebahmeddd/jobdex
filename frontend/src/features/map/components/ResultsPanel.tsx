@@ -155,7 +155,7 @@ export function ResultsPanel({
         </span>
         <div className="flex shrink-0 items-center gap-1.5">
           {showHint && !open && (
-            <span className="animate-pulse text-[10px] text-gray-400">
+            <span className="animate-pulse text-[10px] text-gray-500">
               explore
             </span>
           )}
@@ -163,7 +163,7 @@ export function ResultsPanel({
             aria-label={open ? "Collapse panel" : "Expand panel"}
             aria-expanded={open}
             onClick={onToggle}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-white/40 hover:text-gray-700"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-white/40 hover:text-gray-700"
           >
             <ChevronDown
               className={`h-3.5 w-3.5 transition-transform duration-300 ${open ? "rotate-0" : "rotate-180"} ${showHint && !open ? "animate-bounce" : ""}`}

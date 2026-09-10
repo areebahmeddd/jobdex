@@ -215,7 +215,7 @@ export function DonateModal({ open, onClose }: DonateModalProps) {
 
         <div className="flex items-center justify-center gap-1.5 border-t border-black/6 px-5 py-2.5">
           <ShieldCheck
-            className="size-3 shrink-0 text-gray-400"
+            className="size-3 shrink-0 text-gray-500"
             aria-hidden="true"
           />
           <span className="text-xs text-gray-500">Secured by Razorpay</span>

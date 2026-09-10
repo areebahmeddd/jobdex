@@ -41,7 +41,7 @@ export function SearchBar({
         Search jobs, companies, and roles
       </label>
       <Search
-        className="pointer-events-none absolute top-1/2 left-3.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
+        className="pointer-events-none absolute top-1/2 left-3.5 h-3.5 w-3.5 -translate-y-1/2 text-gray-500"
         aria-hidden="true"
       />
       <input
@@ -53,7 +53,7 @@ export function SearchBar({
         onKeyDown={handleKeyDown}
         autoComplete="off"
         placeholder="Search jobs, companies, roles..."
-        className="w-full rounded-full border border-black/10 bg-white py-2.5 pr-16 pl-10 text-sm text-gray-900 shadow-sm shadow-black/5 outline-none placeholder:text-gray-400 focus:border-black/20"
+        className="w-full rounded-full border border-black/10 bg-white py-2.5 pr-16 pl-10 text-sm text-gray-900 shadow-sm shadow-black/5 outline-none placeholder:text-gray-500 focus:border-black/20"
       />
 
       <div className="absolute top-1/2 right-2.5 flex -translate-y-1/2 items-center gap-1">
@@ -62,7 +62,7 @@ export function SearchBar({
             type="button"
             onClick={onClear}
             aria-label="Clear search"
-            className="flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-black/5 hover:text-gray-700"
+            className="flex h-5 w-5 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-black/5 hover:text-gray-700"
           >
             <X className="h-3 w-3" aria-hidden="true" />
           </button>
@@ -77,7 +77,7 @@ export function SearchBar({
           className={`relative flex h-6 items-center gap-1 rounded-full px-1.5 transition-colors ${
             activeCount > 0 || filterOpen
               ? "bg-black text-white"
-              : "text-gray-400 hover:bg-black/5 hover:text-gray-700"
+              : "text-gray-500 hover:bg-black/5 hover:text-gray-700"
           }`}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />

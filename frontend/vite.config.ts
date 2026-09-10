@@ -19,6 +19,17 @@ const strip = (v: string) => v.replace(/^[\^~>=<*]+/, '').trim();
 const escapeHtml = (v: string) =>
   v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
+const DEFAULT_SITEMAP_HINT = { changefreq: 'monthly', priority: '0.6' };
+const SITEMAP_HINTS: Record<string, { changefreq: string; priority: string }> = {
+  '/': { changefreq: 'weekly', priority: '1.0' },
+  '/map': { changefreq: 'daily', priority: '0.9' },
+  '/how-it-works': { changefreq: 'monthly', priority: '0.6' },
+  '/faq': { changefreq: 'monthly', priority: '0.6' },
+  '/legal': { changefreq: 'yearly', priority: '0.3' },
+  '/privacy-policy': { changefreq: 'yearly', priority: '0.3' },
+  '/terms-of-service': { changefreq: 'yearly', priority: '0.3' },
+};
+
 function routeShells(): Plugin {
   return {
     name: 'jobdex:route-shells',
@@ -83,12 +94,44 @@ function routeShells(): Plugin {
           `${rules}\n${'/*'.padEnd(20)} /index.html         200\n`,
       );
 
+      const lastmod = new Date().toISOString().slice(0, 10);
+      const entries = Object.keys(ROUTE_META).map((route) => {
+        const hint = SITEMAP_HINTS[route] ?? DEFAULT_SITEMAP_HINT;
+        return [
+          '  <url>',
+          `    <loc>${canonicalFor(route)}</loc>`,
+          `    <lastmod>${lastmod}</lastmod>`,
+          `    <changefreq>${hint.changefreq}</changefreq>`,
+          `    <priority>${hint.priority}</priority>`,
+          '  </url>',
+        ].join('\n');
+      });
+
+      writeFileSync(
+        path.join(outDir, 'sitemap.xml'),
+        [
+          '<?xml version="1.0" encoding="UTF-8"?>',
+          '<!-- Generated at build time from src/lib/routeMeta.ts - do not edit by hand. -->',
+          '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+          ...entries,
+          '</urlset>',
+          '',
+        ].join('\n'),
+      );
+
       const probe = readFileSync(path.join(outDir, 'faq', 'index.html'), 'utf-8');
       if (!probe.includes(`${SITE_URL}/faq`)) {
         this.error('route-shells: canonical substitution did not apply');
       }
       if (!probe.includes(`content="FAQ | JobDex"`)) {
         this.error('route-shells: social tag substitution did not apply');
+      }
+
+      const sitemap = readFileSync(path.join(outDir, 'sitemap.xml'), 'utf-8');
+      for (const route of Object.keys(ROUTE_META)) {
+        if (!sitemap.includes(`<loc>${canonicalFor(route)}</loc>`)) {
+          this.error(`route-shells: ${route} missing from sitemap`);
+        }
       }
     },
   };
