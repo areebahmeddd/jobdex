@@ -1,4 +1,5 @@
 import type {
+  ApiParams,
   CompanyDetail,
   CompanyJobsData,
   PaginatedCompaniesData,
@@ -6,7 +7,7 @@ import type {
 import { apiFetch } from "./client";
 
 export function fetchCompanies(
-  params: Record<string, string>,
+  params: ApiParams,
   signal?: AbortSignal,
 ): Promise<PaginatedCompaniesData> {
   return apiFetch<PaginatedCompaniesData>("/companies", params, signal);
@@ -25,7 +26,7 @@ export function fetchCompanyDetail(
 
 export function fetchCompanyJobs(
   slug: string,
-  params: Record<string, string>,
+  params: ApiParams,
   signal?: AbortSignal,
 ): Promise<CompanyJobsData> {
   return apiFetch<CompanyJobsData>(

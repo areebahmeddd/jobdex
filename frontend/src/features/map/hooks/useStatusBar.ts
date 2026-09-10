@@ -1,7 +1,10 @@
+import { onApiReachability } from "@/api/client";
 import { fetchStats } from "@/api/stats";
 import { API_BASE, GITHUB_REPO } from "@/lib/constants";
 import type { StatsData } from "@/types";
 import { useEffect, useState } from "react";
+
+const HEALTH_TIMEOUT_MS = 4000;
 
 type StatusBar = {
   connected: boolean | null;
@@ -16,15 +19,21 @@ export function useStatusBar(): StatusBar {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(4000) })
+    const unsubscribe = onApiReachability((reachable) => {
+      if (!cancelled) setConnected(reachable);
+    });
+
+    fetch(`${API_BASE}/health`, {
+      signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
+    })
       .then((r) => {
         if (!cancelled) setConnected(r.ok);
       })
-      .catch(() => {
-        if (!cancelled) setConnected(false);
-      });
+      .catch(() => {});
+
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 

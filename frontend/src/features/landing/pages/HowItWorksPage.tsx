@@ -239,7 +239,7 @@ export default function HowItWorksPage() {
       <figure className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
         <img
           src="/architecture.png"
-          alt="JobDex system architecture diagram: ATS ingesters feed a normalisation and enrichment pipeline, which writes to PostgreSQL and is served to the map through a public REST API."
+          alt="JobDex system architecture diagram: ATS ingesters feed a normalization and enrichment pipeline, which writes to PostgreSQL and is served to the map through a public REST API."
           width={1420}
           height={387}
           className="h-auto w-full"

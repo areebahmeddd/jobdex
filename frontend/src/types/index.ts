@@ -1,3 +1,5 @@
+export type ApiParams = Record<string, string | string[] | undefined>;
+
 export type CityPin = {
   name: string;
   slug: string;
@@ -135,6 +137,7 @@ export type PaginatedJobsData = {
   total: number | null;
   limit: number;
   offset: number | null;
+  sort: string;
   next_cursor: string | null;
 };
 
@@ -148,6 +151,20 @@ export type StatsData = {
   top_cities: { city: string; job_count: number }[];
   top_regions: { region: string; job_count: number }[];
   ats_breakdown: Record<string, number>;
+};
+
+export type FacetBucket = {
+  value: string;
+  count: number;
+};
+
+export type JobFacets = {
+  total: number;
+  ats_type: FacetBucket[];
+  role_category: FacetBucket[];
+  seniority: FacetBucket[];
+  job_type: FacetBucket[];
+  work_mode: FacetBucket[];
 };
 
 export type PanelView =

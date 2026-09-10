@@ -29,23 +29,58 @@ function formatAbsoluteDate(iso: string): string {
 type Props = {
   job: JobDetail | null;
   loading: boolean;
+  failed: boolean;
   onBack: () => void;
 };
 
-export function JobDetailView({ job, loading, onBack }: Props) {
+function DetailHeader({
+  label,
+  onBack,
+}: {
+  label: string;
+  onBack: () => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-2 border-b border-black/8 px-3 py-2">
+      <button
+        onClick={onBack}
+        className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-black/5 hover:text-gray-700"
+        aria-label="Back to results"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <span className="truncate text-[11px] text-gray-400">{label}</span>
+    </div>
+  );
+}
+
+export function JobDetailView({ job, loading, failed, onBack }: Props) {
+  if (failed && !job) {
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <DetailHeader label="Not available" onBack={onBack} />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
+          <p className="text-sm font-medium text-gray-700">
+            This job is no longer listed
+          </p>
+          <p className="text-xs text-gray-500">
+            It was filled or withdrawn since the link was shared.
+          </p>
+          <button
+            onClick={onBack}
+            className="rounded-full bg-black px-3 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-gray-800"
+          >
+            Back to results
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (loading || !job) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex shrink-0 items-center gap-2 border-b border-black/8 px-3 py-2">
-          <button
-            onClick={onBack}
-            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-black/5 hover:text-gray-700"
-            aria-label="Back"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="text-xs text-gray-400">Loading...</span>
-        </div>
+        <DetailHeader label="Loading..." onBack={onBack} />
         <div className="flex flex-1 items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-gray-300" />
         </div>
@@ -55,18 +90,7 @@ export function JobDetailView({ job, loading, onBack }: Props) {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex shrink-0 items-center gap-2 border-b border-black/8 px-3 py-2">
-        <button
-          onClick={onBack}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-black/5 hover:text-gray-700"
-          aria-label="Back to results"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <span className="truncate text-[11px] text-gray-400">
-          {job.company_name}
-        </span>
-      </div>
+      <DetailHeader label={job.company_name} onBack={onBack} />
 
       <div className="no-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto p-3">
         <div className="flex items-start gap-3">

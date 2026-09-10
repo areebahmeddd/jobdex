@@ -36,6 +36,7 @@ type Investor = {
 type Props = {
   company: CompanyDetail | null;
   loading: boolean;
+  failed: boolean;
   jobs: Job[];
   jobsLoading: boolean;
   nextCursor: string | null;
@@ -146,6 +147,7 @@ function FounderCard({ founder }: { founder: Founder }) {
 export function CompanyDetailView({
   company,
   loading,
+  failed,
   jobs,
   jobsLoading,
   nextCursor,
@@ -155,6 +157,34 @@ export function CompanyDetailView({
   onBack,
 }: Props) {
   const [descExpanded, setDescExpanded] = useState(false);
+
+  if (failed && !company) {
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center gap-2 border-b border-black/8 px-3 py-2">
+          <button
+            onClick={onBack}
+            className="flex h-7 w-7 items-center justify-center rounded-full text-gray-400 hover:bg-black/5 hover:text-gray-700"
+            aria-label="Back to results"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="text-[11px] text-gray-400">Not available</span>
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
+          <p className="text-sm font-medium text-gray-700">
+            This company is no longer listed
+          </p>
+          <button
+            onClick={onBack}
+            className="rounded-full bg-black px-3 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-gray-800"
+          >
+            Back to results
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading || !company) {
     return (
