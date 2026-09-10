@@ -32,8 +32,8 @@ _EMPLOYMENT_TYPE_MAP: dict[str, str] = {
     "HOURLY_FT": "fulltime",
     "HOURLY_PT": "parttime",
     "CONTRACTOR": "contract",
-    "TEMP": "temporary",
-    "INTERN": "intern",
+    "TEMP": "contract",
+    "INTERN": "internship",
 }
 
 

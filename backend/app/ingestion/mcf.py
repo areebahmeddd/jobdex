@@ -23,7 +23,7 @@ _EMPLOYMENT_TYPE_MAP: dict[str, str] = {
     "Full Time": "fulltime",
     "Part Time": "parttime",
     "Contract": "contract",
-    "Internship": "intern",
+    "Internship": "internship",
     "Temporary": "contract",
     "Freelance": "contract",
 }
@@ -149,7 +149,7 @@ class MCFIngester(BaseIngester):
             latitude=lat,
             longitude=lng,
             is_remote=False,
-            remote_type=None,
+            remote_type="onsite",
             job_type=job_type or "fulltime",
             seniority=seniority,
             role_category=category,

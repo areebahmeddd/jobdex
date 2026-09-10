@@ -66,7 +66,7 @@ class YCombinatorIngester(BaseIngester):
         yc_regions = raw.get("regions") or []
         if any(r.lower() == "fully remote" for r in yc_regions) and not loc["is_remote"]:
             loc["is_remote"] = True
-            loc["remote_type"] = "fully_remote"
+            loc["remote_type"] = "fully-remote"
 
         category, subcategory = classify_role(title, plain, "")
         seniority = classify_seniority(title)

@@ -38,7 +38,7 @@ _TIME_TYPE_MAP: dict[str, str] = {
     "full time": "fulltime",
     "part time": "parttime",
     "fixed term": "contract",
-    "intern": "intern",
+    "intern": "internship",
 }
 
 

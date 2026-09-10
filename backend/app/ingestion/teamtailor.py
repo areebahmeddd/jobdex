@@ -98,7 +98,7 @@ class TeamtailorIngester(BaseIngester):
             is_remote=loc["is_remote"],
             remote_type=loc["remote_type"],
             # The feed carries no employment type, so fall back to the title.
-            job_type="intern" if seniority == "intern" else "fulltime",
+            job_type="internship" if seniority == "intern" else "fulltime",
             seniority=seniority,
             role_category=category,
             role_subcategory=subcategory,

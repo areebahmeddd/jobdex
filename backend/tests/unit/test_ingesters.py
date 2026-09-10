@@ -105,7 +105,7 @@ class TestTeamtailor:
         item = {**TEAMTAILOR_ITEM, "title": "Backend Engineering Intern"}
         job = teamtailor.build_job(item, company, "instabee")
         assert job.seniority == "intern"
-        assert job.job_type == "intern"
+        assert job.job_type == "internship"
 
 
 WORKDAY_JOB = {
@@ -215,6 +215,10 @@ class TestWorkday:
         )
         assert job.job_type == "parttime"
 
+    def test_intern_time_type_is_canonical(self, company):
+        job = workday.build_job({**WORKDAY_JOB, "timeType": "Intern"}, company, "nvidia:wd5:Site")
+        assert job.job_type == "internship"
+
     def test_source_url_falls_back_to_constructed_path(self, company):
         job = workday.build_job({**WORKDAY_JOB, "externalUrl": None}, company, "nvidia:wd5:Site")
         assert job.source_url == (
@@ -261,7 +265,8 @@ class TestRippling:
         for code, expected in [
             ("HOURLY_PT", "parttime"),
             ("CONTRACTOR", "contract"),
-            ("INTERN", "intern"),
+            ("INTERN", "internship"),
+            ("TEMP", "contract"),
         ]:
             job = rippling.build_job(
                 {**RIPPLING_JOB, "employmentType": {"label": code, "id": ""}},
@@ -338,3 +343,75 @@ def test_seed_stubs_load_from_data_dir():
     assert stubs
     assert all(s.ats_type == "workday" for s in stubs)
     assert all(":" in s.ats_slug and ":" not in s.slug for s in stubs)
+
+
+class TestYCombinator:
+    def test_fully_remote_region_uses_the_canonical_remote_type(self, company):
+        from app.ingestion import ycombinator
+        from app.ingestion.normalizer import normalize_location
+
+        raw = {
+            "id": 42,
+            "name": "PostHog",
+            "slug": "posthog",
+            "oneLiner": "Product analytics",
+            "longDescription": "<p>Open source analytics.</p>",
+            "locations": ["San Francisco"],
+            "regions": ["United States of America", "Remote", "Fully Remote"],
+        }
+        job = ycombinator.build_job(raw, company, "posthog")
+        assert job.is_remote is True
+        # The override must land on the same value normalize_location produces.
+        assert job.remote_type == normalize_location("Remote")["remote_type"]
+        assert job.remote_type == "fully-remote"
+
+    def test_non_remote_region_keeps_the_normalized_value(self, company):
+        from app.ingestion import ycombinator
+
+        raw = {
+            "id": 43,
+            "name": "Mintlify",
+            "slug": "mintlify",
+            "oneLiner": "Docs",
+            "longDescription": "<p>Documentation.</p>",
+            "locations": ["San Francisco"],
+            "regions": ["United States of America"],
+        }
+        job = ycombinator.build_job(raw, company, "mintlify")
+        assert job.is_remote is False
+        assert job.remote_type == "onsite"
+
+
+class TestJobTypeVocabulary:
+    """Ingesters that use a local map directly must emit canonical job_type values."""
+
+    def test_direct_use_maps_emit_canonical_values(self):
+        from app.ingestion.mcf import _EMPLOYMENT_TYPE_MAP as MCF_MAP
+        from app.ingestion.normalizer._loader import _load
+        from app.ingestion.rippling import _EMPLOYMENT_TYPE_MAP as RIPPLING_MAP
+        from app.ingestion.workday import _TIME_TYPE_MAP as WORKDAY_MAP
+
+        canonical = set(_load("tech_keywords.json")["job_type_map"].values())
+        # These three read their map as `_MAP.get(x) or normalize_job_type(x)`, so a hit
+        # short-circuits the normalizer and whatever the map holds is stored as-is.
+        for name, mapping in [
+            ("workday", WORKDAY_MAP),
+            ("rippling", RIPPLING_MAP),
+            ("mcf", MCF_MAP),
+        ]:
+            off_vocabulary = set(mapping.values()) - canonical
+            assert not off_vocabulary, f"{name} emits {sorted(off_vocabulary)}"
+
+    def test_pass_through_maps_resolve_to_canonical(self):
+        from app.ingestion.normalizer import normalize_job_type
+        from app.ingestion.normalizer._loader import _load
+        from app.ingestion.recruitee import _JOB_TYPE_MAP as RECRUITEE_MAP
+        from app.ingestion.workable import _JOB_TYPE_MAP as WORKABLE_MAP
+
+        canonical = set(_load("tech_keywords.json")["job_type_map"].values())
+        # These feed their map output through normalize_job_type, which may also return
+        # None for a type JobDex does not model; the caller then defaults to fulltime.
+        for name, mapping in [("workable", WORKABLE_MAP), ("recruitee", RECRUITEE_MAP)]:
+            for value in mapping.values():
+                resolved = normalize_job_type(value)
+                assert resolved is None or resolved in canonical, f"{name}: {value}"
