@@ -85,8 +85,8 @@ def root():
             "cities": "GET /cities?region=&country_code=",
             "search": "GET /search?city=&role=&industry=&country_code=&region=",
             "map": {
-                "companies": "GET /map/companies?<job filters>&lat_min=&lat_max=&lng_min=&lng_max=",
-                "cities": "GET /map/cities?<job filters>&lat_min=&lat_max=&lng_min=&lng_max=",
+                "companies": "GET /map/companies?job_filters&lat_min=&lat_max=&lng_min=&lng_max=",
+                "cities": "GET /map/cities?job_filters&lat_min=&lat_max=&lng_min=&lng_max=",
             },
             "payments": {
                 "create_order": "POST /payments/orders",

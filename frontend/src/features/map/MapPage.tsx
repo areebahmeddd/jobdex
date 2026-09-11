@@ -29,7 +29,6 @@ import "leaflet/dist/leaflet.css";
 import { ArrowLeft, ChevronDown, Home, Minus, Plus, Star } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ActiveFilters } from "./components/ActiveFilters";
 import { FilterPanel } from "./components/FilterPanel";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { SearchBar } from "./components/SearchBar";
@@ -77,7 +76,6 @@ export default function MapPage() {
     sort,
     view,
     activeCount,
-    chips,
     jobParams,
     setQuery,
     setCity,
@@ -221,16 +219,16 @@ export default function MapPage() {
       maxBoundsViscosity: 1.0,
     });
 
-    L.tileLayer(
-      `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png${
-        CARTO_KEY ? `?key=${CARTO_KEY}` : ""
-      }`,
-      {
-        maxZoom: MAP_MAX_ZOOM,
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-      },
-    ).addTo(map);
+    const cartoTileUrl =
+      CARTO_KEY && window.location.hostname === "jobdex.1mindlabs.org"
+        ? `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`
+        : "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+
+    L.tileLayer(cartoTileUrl, {
+      maxZoom: MAP_MAX_ZOOM,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+    }).addTo(map);
 
     map.on("zoomend moveend", () => {
       setZoom(map.getZoom());
@@ -719,13 +717,6 @@ export default function MapPage() {
           </SearchBar>
         </div>
       </div>
-
-      <ActiveFilters
-        city={city}
-        onClearCity={() => setCity(null)}
-        chips={chips}
-        onClearAll={clearAll}
-      />
 
       <div className="flex flex-1 overflow-hidden">
         <div className="relative flex-1 overflow-hidden rounded-2xl border border-black/10 shadow-lg shadow-black/8">

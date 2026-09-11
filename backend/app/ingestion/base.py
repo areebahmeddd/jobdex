@@ -212,18 +212,16 @@ class BaseIngester(ABC):
 
         try:
             raw_jobs = await _fetch_raw_with_retry(self, slug)
-        except httpx.HTTPStatusError as exc:
-            msg = f"HTTP {exc.response.status_code} from {self.ats_type} board '{slug}'"
+        except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+            if isinstance(exc, httpx.HTTPStatusError):
+                msg = f"HTTP {exc.response.status_code} from {self.ats_type} board '{slug}'"
+            else:
+                msg = f"Network error from {self.ats_type} board '{slug}': {exc}"
             logger.error(msg)
             result.errors.append(msg)
             company.crawl_error = msg
-            db.commit()
-            return result
-        except httpx.RequestError as exc:
-            msg = f"Network error from {self.ats_type} board '{slug}': {exc}"
-            logger.error(msg)
-            result.errors.append(msg)
-            company.crawl_error = msg
+            # Without this a dead board keeps its old timestamp and jams the queue head.
+            company.last_crawled_at = datetime.now(tz=UTC)
             db.commit()
             return result
 
@@ -341,10 +339,14 @@ class BaseIngester(ABC):
         return result
 
     async def probe(self, slug: str) -> bool:
-        """Return True if this ATS has a valid board for the given slug."""
+        """Return True if this ATS has a board with at least one posting for the slug.
+
+        Several ATS answer 200 with an empty list for a slug they do not have, so an
+        empty board is not evidence of one.
+        """
         try:
             jobs = await self.fetch_raw(slug)
-            return isinstance(jobs, list)
+            return isinstance(jobs, list) and len(jobs) > 0
         except Exception:
             return False
 

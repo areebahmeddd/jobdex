@@ -19,3 +19,4 @@ def test_root(client):
     assert "supported_ats" in data
     assert "ashby" in data["supported_ats"]
     assert "endpoints" in data
+    assert "\\u003C" not in r.text

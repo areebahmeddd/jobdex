@@ -17,6 +17,7 @@ dependencies = [
     "razorpay>=2.0.1",
     "sqlalchemy>=2.0.52",
     "uvicorn[standard]>=0.52.4",
+    "fastapi-cloud-cli>=0.26.0",
 ]
 
 [dependency-groups]

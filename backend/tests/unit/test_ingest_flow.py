@@ -4,6 +4,9 @@ These cover the parts of the crawl that no single ingester owns: dedup, the hydr
 hook firing only for new postings, soft-deactivation, and blocked locations.
 """
 
+from datetime import UTC, datetime, timedelta
+
+import httpx2 as httpx
 import pytest
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.dialects.postgresql import JSONB
@@ -240,3 +243,73 @@ async def test_hydrate_length_mismatch_falls_back_to_raw(db):
 
     assert result.new_jobs == 2, "a broken hydrate must not drop postings"
     assert db.query(Job).filter(Job.ats_job_id == "1").one().description == ""
+
+
+class FailingIngester(FakeIngester):
+    """Ingester whose board always fails, to cover the crawl error path."""
+
+    def __init__(self, exc):
+        super().__init__([])
+        self.exc = exc
+
+    async def fetch_raw(self, slug):
+        raise self.exc
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "exc",
+    [
+        httpx.HTTPStatusError(
+            "404",
+            request=httpx.Request("GET", "https://example.test"),
+            response=httpx.Response(404, request=httpx.Request("GET", "https://example.test")),
+        ),
+        httpx.ConnectError("boom"),
+    ],
+    ids=["http_error", "network_error"],
+)
+async def test_failed_crawl_still_advances_last_crawled_at(db, exc):
+    """A dead board must leave the queue head, or it is retried on every tick forever."""
+    company = make_company(db)
+    stale = datetime.now(UTC) - timedelta(days=30)
+    company.last_crawled_at = stale
+    db.commit()
+
+    result = await FailingIngester(exc).ingest("acme", db)
+
+    assert result.errors
+    assert company.crawl_error
+    # SQLite hands the timestamp back naive, so normalize it the way _seen_since does.
+    crawled = company.last_crawled_at
+    if crawled.tzinfo is None:
+        crawled = crawled.replace(tzinfo=UTC)
+    assert crawled > stale
+
+
+@pytest.mark.anyio
+async def test_successful_crawl_clears_a_previous_error(db):
+    """A board that recovers must drop its error so it stops showing as unhealthy."""
+    company = make_company(db)
+    company.crawl_error = "HTTP 404 from fake board 'acme'"
+    db.commit()
+
+    await FakeIngester([{"id": 1, "title": "Engineer"}]).ingest("acme", db)
+
+    assert company.crawl_error is None
+
+
+@pytest.mark.anyio
+async def test_probe_rejects_an_empty_board():
+    """Several ATS answer 200 with an empty list for a slug they do not have."""
+    assert await FakeIngester([]).probe("acme") is False
+
+
+@pytest.mark.anyio
+async def test_probe_accepts_a_board_with_postings():
+    assert await FakeIngester([{"id": 1, "title": "Engineer"}]).probe("acme") is True
+
+
+@pytest.mark.anyio
+async def test_probe_rejects_an_unreachable_board():
+    assert await FailingIngester(httpx.ConnectError("boom")).probe("acme") is False
