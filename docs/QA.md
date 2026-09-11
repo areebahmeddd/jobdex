@@ -391,7 +391,9 @@ The cursor is a Base64-encoded JSON of `{p: posted_at_iso, i: job_id}`.
 
 ### Verdict
 
-Cursor pagination on jobs is well-implemented and uses the right indexed columns (`ix_jobs_active_posted`). The hybrid approach is pragmatic. The search endpoint's triple-query pattern is a performance smell at scale.
+Cursor pagination on jobs is well-implemented and the hybrid approach is pragmatic. The search endpoint's triple-query pattern is a performance smell at scale.
+
+> **Correction `[FIXED]`.** This originally credited `ix_jobs_active_posted` for the cursor path. That index was ascending and could not satisfy `ORDER BY posted_at DESC NULLS LAST, id DESC`, so every page scanned all active jobs and sorted them to return twenty rows. It was replaced by `ix_jobs_active_recent`, declared in that order.
 
 ## Q3: Are there safe checks before insertion or on startup?
 
@@ -884,7 +886,7 @@ Max 5 simultaneous connections. For a single-process API this is adequate since 
 | `country_code + role_category`  | `ix_jobs_active_country_role` |
 | `is_remote`                     | `ix_jobs_active_remote`       |
 | FTS (`q=`)                      | `ix_jobs_fts_gin`             |
-| `posted_at` (sort/cursor)       | `ix_jobs_active_posted`       |
+| `posted_at` (sort/cursor)       | `ix_jobs_active_recent`       |
 | `company_id + is_active`        | `ix_jobs_company_active`      |
 | `companies.slug`                | built-in unique index         |
 | `companies.industry` JSONB      | `ix_companies_industry_gin`   |

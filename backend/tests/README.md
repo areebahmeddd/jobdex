@@ -13,7 +13,7 @@ uv run pytest --tb=short -q                              # quiet
 
 ## Coverage
 
-**283 tests: 218 unit, 65 integration | 64% overall | ~96% testable layer**
+**302 tests: 237 unit, 65 integration | 64% overall | ~96% testable layer**
 
 The overall 64% includes `app/ingestion/`, `app/enrichment/` and `app/scheduler.py` which are intentionally excluded (live HTTP to external ATSes / Wikipedia/Wikidata). The testable layer (routers, normalizer, schemas, config) sits at ~96%.
 
@@ -24,12 +24,12 @@ The overall 64% includes `app/ingestion/`, `app/enrichment/` and `app/scheduler.
 | File                         | Tests | Covers                                                                            |
 | ---------------------------- | ----- | --------------------------------------------------------------------------------- |
 | [unit/test_text.py](unit/test_text.py)                   | 12    | `strip_html`, `make_snippet`                                                      |
-| [unit/test_location.py](unit/test_location.py)           | 51    | `canonicalize_city`, `normalize_location`, `get_region_for_country`               |
+| [unit/test_location.py](unit/test_location.py)           | 64    | `canonicalize_city`, `normalize_location`, `get_region_for_country`               |
 | [unit/test_pagination.py](unit/test_pagination.py)       | 3     | `_decode_cursor` (error paths)                                                    |
 | [unit/test_filters.py](unit/test_filters.py)             | 11    | `JobFilters` parsing, capping, and `without()`                                    |
 | [unit/test_classifiers.py](unit/test_classifiers.py)     | 73    | `classify_seniority`, `classify_role`, `extract_tech_stack`, `normalize_job_type` |
 | [unit/test_ingesters.py](unit/test_ingesters.py)         | 48    | `build_job`, `extract_job_id`, and job_type vocabulary per ATS                     |
-| [unit/test_ingest_flow.py](unit/test_ingest_flow.py)     | 10    | Dedup, hydration split, and soft-deactivation in `BaseIngester`                   |
+| [unit/test_ingest_flow.py](unit/test_ingest_flow.py)     | 16    | Dedup, hydration split, soft-deactivation, crawl errors, and board probing        |
 | [unit/test_payments.py](unit/test_payments.py)           | 10    | `create_order` (validation), `verify_payment` (HMAC)                              |
 
 ### Integration

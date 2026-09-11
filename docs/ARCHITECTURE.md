@@ -52,6 +52,8 @@ An unrecognised `work_mode` is dropped, since it is a closed vocabulary. An unre
 
 `JobFilters.without(*dimensions)` returns a copy with dimensions cleared. The map layers use it to drop `city`, `country_code` and `region`, which already constrain the pin's own location.
 
+Every job-listing surface reads only jobs whose company is also active, so `/jobs`, `/jobs/facets`, `/search`, `/companies` and the map always describe the same set. A job detail for a deactivated company returns 404.
+
 #### Pagination and sorting
 
 `sort` is `recent` (default) or `relevance`. Recency uses keyset pagination: pass `cursor` (returned as `next_cursor`) for pages ordered by `posted_at DESC NULLS LAST, id DESC`. Undated jobs sort last and `posted_at < :cursor` never matches NULL, so the cursor predicate admits `posted_at IS NULL` explicitly. Without it every undated job was unreachable past the first cursor page.
@@ -147,11 +149,15 @@ All jobs run in-process via APScheduler. No separate worker is needed.
 | `enrich_pending`     | 12 h     | `run_enrichment` | Enriches companies with null or stale `enriched_at`              |
 | `discover_companies` | 24 h     | `run_discovery`  | Seeds new companies from ingesters that implement `discover()`   |
 
+Companies enter the index two ways: `discover()`, which crawls the YC directory or reads `data/companies_{ats}.json`, and `scripts/probe.py`, which tests existing slugs against the slug-addressed ATS and upgrades whichever answers. `probe()` requires at least one posting, since several ATS answer 200 with an empty list for a slug they do not have.
+
 Ingestion is a rotating queue, not a full sweep: each tick takes the 25 least recently crawled companies, so a tick that fails only loses its own slice. Companies covered per day is `(1440 / INGEST_INTERVAL_MINUTES) * INGEST_BATCH_SIZE`, or 2400 at the defaults. Each job holds a Postgres advisory lock, so only one replica runs it at a time.
 
 ## Ingestion Pipeline
 
 Each ATS subclass implements `fetch_raw`, `extract_job_id`, and `build_job`, and optionally `hydrate`. `BaseIngester` handles dedup, deactivation, geo-lookup, error recording, and the scheduler integration.
+
+A failed crawl still advances `last_crawled_at`. The company keeps its `crawl_error` and drops to the back of the rotating queue, so a board that has gone away is retried once per rotation instead of on every tick.
 
 Jobs are never hard-deleted. A SHA-256 hash of `ats_type:slug:job_id` is stored as `dedup_hash` on insert. On each crawl, any job whose hash was not seen in the latest response is marked `is_active=False`.
 
@@ -200,6 +206,10 @@ Raw location strings like `"Bengaluru, KA"`, `"New York, NY (Hybrid)"`, or `"Rem
 
 **Location**: `canonicalize_city` tries alias lookup, exact match, substring match, then fuzzy match via rapidfuzz WRatio (cutoff 90). Falls back to Nominatim if `GEOCODE_UNKNOWN_CITIES` is enabled. Remote and hybrid detection runs via regex on the raw string and is never overwritten by city resolution.
 
+Boards often prefix the place with a country or region (`US - Foster City, CA`, `Brazil - Sao Paulo`). When the whole string and its first comma segment both fail, each remaining segment is tried on its own. Segments are matched exactly, never as substrings, so a short alias cannot match inside an unrelated word.
+
+Anything still unresolved falls back to the company HQ, which is what puts a bare `Remote` on the company's pin. The fallback is skipped when the string names a country of its own: `Bogota, Colombia` at a company headquartered in Austin resolves to Colombia with no city, instead of becoming an Austin job. A city the table does not hold still inherits the HQ when the country agrees.
+
 **Role**: title and department matched against `role_patterns.json` to produce `role_category` and `role_subcategory`. Retries against the first 400 chars of description if the title yields no match.
 
 Patterns are evaluated in order; first match wins. More specific subcategories are listed before broad catch-alls, e.g. `healthcare.medtech` (`biomedical engineer`) appears before `engineering.general` (`engineer`) to prevent misclassification. The `role_category` column is a free-text `String(100)` with no enum constraint; new categories require only a `role_patterns.json` entry and no migration.
@@ -224,7 +234,7 @@ Patterns are evaluated in order; first match wins. More specific subcategories a
 
 **Seniority**: title matched against `seniority_patterns.json`. Defaults to `mid`.
 
-**Closed vocabularies**: `job_type` is one of `fulltime`, `parttime`, `contract`, `internship`; `remote_type` is one of `onsite`, `hybrid`, `fully-remote`. Most ingesters reach these through `normalize_job_type` and `normalize_location`. Workday, Rippling, and MCF read a local map directly (`_MAP.get(x) or normalize_job_type(x)`), so a hit short-circuits the normalizer and the map itself must hold canonical values. `TestJobTypeVocabulary` asserts this for every such map.
+**Closed vocabularies**: `job_type` is one of `fulltime`, `parttime`, `contract`, `internship`; `remote_type` is one of `onsite`, `hybrid`, `fully-remote`. Workday, Rippling, and MCF read a local map before the normalizer, so those maps must hold canonical values. `TestJobTypeVocabulary` asserts it.
 
 **Tech stack**: title and description scanned for whole-word matches against `tech_keywords.json`.
 
@@ -298,7 +308,7 @@ Three tables: `companies`, `jobs`, `cities`. Companies are the root entity. Jobs
 ### Connection
 
 - Driver: psycopg2 (sync)
-- Pool: `pool_size=2`, `max_overflow=3`, `pool_timeout=30s`, `pool_recycle=600s`
+- Pool: `pool_size=5`, `max_overflow=10`, `pool_timeout=30s`, `pool_recycle=600s`. One connection is pinned by the scheduler advisory lock for the length of every ingest tick.
 - `pool_pre_ping=True`: validates connections before use, required for Neon serverless
 - Sessions: context manager via `get_session()` with explicit rollback on exception
 
@@ -392,13 +402,15 @@ Reference data loaded from `data/cities.json` at startup. Used by the cities and
 
 ### Indexes
 
-Every user-facing job query filters `is_active = TRUE`, so the three composite partial indexes (`city_role`, `region_role`, `country_role`) are preferred over plain single-column indexes. The standalone indexes for `city`, `country_code`, and `role_category` on the jobs table were dropped as redundant in migration `d4e5f6a7b8c9`.
+Every user-facing job query filters `is_active = TRUE`, so the three composite partial indexes (`city_role`, `region_role`, `country_role`) are preferred over plain single-column indexes. Those serve the `total` count; `ix_jobs_active_recent` serves the page itself.
+
+`ix_jobs_active_recent` is declared descending on purpose. An ascending index cannot satisfy `ORDER BY posted_at DESC NULLS LAST, id DESC`, so the planner used to scan every active job and sort it to return twenty rows. Matching the order turns the first page into a twenty-row index read, and the same index covers the `posted_within` range.
 
 #### companies
 
 | Index                       | Columns              | Type                 |
 | --------------------------- | -------------------- | -------------------- |
-| `ix_companies_slug`         | `slug`               | Unique               |
+| `companies_slug_key`        | `slug`               | Unique constraint    |
 | `ix_companies_country_code` | `country_code`       | B-tree               |
 | `ix_companies_city_country` | `city, country_code` | B-tree               |
 | `ix_companies_region`       | `region`             | B-tree               |
@@ -408,14 +420,14 @@ Every user-facing job query filters `is_active = TRUE`, so the three composite p
 
 | Index                         | Columns                                   | Condition          | Purpose                         |
 | ----------------------------- | ----------------------------------------- | ------------------ | ------------------------------- |
-| `ix_jobs_dedup_hash`          | `dedup_hash`                              |                    | Unique; upsert lookup           |
+| `jobs_dedup_hash_key`         | `dedup_hash`                              |                    | Unique constraint; upsert lookup |
 | `ix_jobs_is_active`           | `is_active`                               |                    | Global active-job count queries |
 | `ix_jobs_seniority`           | `seniority`                               |                    | Seniority filter                |
 | `ix_jobs_company_active`      | `company_id, is_active`                   |                    | Per-company job queries         |
 | `ix_jobs_active_city_role`    | `city, role_category`                     | `is_active = TRUE` | Primary filter for job listings |
 | `ix_jobs_active_region_role`  | `region, role_category`                   | `is_active = TRUE` | Region-filtered listings        |
 | `ix_jobs_active_country_role` | `country_code, role_category`             | `is_active = TRUE` | Country-filtered listings       |
-| `ix_jobs_active_posted`       | `posted_at`                               | `is_active = TRUE` | Sort by recency                 |
+| `ix_jobs_active_recent`       | `posted_at DESC NULLS LAST, id DESC`      | `is_active = TRUE` | List order and cursor pages     |
 | `ix_jobs_active_remote`       | `is_remote`                               | `is_active = TRUE` | Remote-only filter queries      |
 | `ix_jobs_fts_gin`             | `tsvector(title, snippet, role_category)` | `is_active = TRUE` | GIN; full-text search           |
 
@@ -423,7 +435,7 @@ Every user-facing job query filters `is_active = TRUE`, so the three composite p
 
 | Index            | Columns | Type   |
 | ---------------- | ------- | ------ |
-| `ix_cities_slug` | `slug`  | Unique |
+| `cities_slug_key` | `slug`  | Unique constraint |
 
 ## Caching
 
@@ -448,8 +460,8 @@ Settings are loaded from `.env` via `pydantic-settings`. All values have default
 | ---------------------------- | ------------------------------- | ----------------------------------------------------- |
 | `DATABASE_URL`               | `postgresql://localhost/jobdex` | PostgreSQL connection string                          |
 | `DB_ECHO`                    | `false`                         | Log all SQL statements                                |
-| `DB_POOL_SIZE`               | `2`                             | SQLAlchemy pool size                                  |
-| `DB_MAX_OVERFLOW`            | `3`                             | Max overflow connections                              |
+| `DB_POOL_SIZE`               | `5`                             | SQLAlchemy pool size                                  |
+| `DB_MAX_OVERFLOW`            | `10`                            | Max overflow connections                              |
 | `DB_POOL_TIMEOUT`            | `30`                            | Connection acquisition timeout in seconds             |
 | `DB_POOL_RECYCLE`            | `600`                           | Connection max lifetime in seconds                    |
 | `HTTP_TIMEOUT`               | `30.0`                          | Timeout for ATS HTTP requests                         |

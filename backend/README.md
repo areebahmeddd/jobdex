@@ -101,20 +101,23 @@ See [ARCHITECTURE.md](../docs/ARCHITECTURE.md#background-jobs) for the job table
 
 ### Fresh Setup
 
-Run each command one at a time and wait for it to complete before running the next.
+The seed scripts exit if a server is live, since the scheduler would crawl the same boards
+at the same time. Run each command one at a time and wait for it to complete.
 
 ```bash
-# terminal 1: start server (runs migrations, seeds cities, starts scheduler)
+# terminal 1: start the server to apply migrations and seed cities, then Ctrl+C at "Ready."
 uv run uvicorn app.main:app --port 8000 --reload
 ```
 
 ```bash
-# terminal 2: populate the database (run one at a time, in order)
+# terminal 2: populate the database with the server stopped
 uv run python scripts/discover.py        # register companies from all ingesters (incl. seed files)
-uv run python scripts/probe.py           # upgrade YC companies found on Ashby/Greenhouse/Lever
+uv run python scripts/probe.py           # upgrade YC companies onto the slug-addressed ATS
 uv run python scripts/ingest.py --all    # ingest jobs for all registered companies
 uv run python scripts/enrich.py --all    # enrich all companies with Wikidata/Wikipedia
 ```
+
+Start the server again once they finish. `--force` skips the check.
 
 ### Migrations
 
@@ -147,11 +150,12 @@ See [tests/README.md](tests/README.md) for details.
 | Script                           | Purpose                                                              |
 | -------------------------------- | -------------------------------------------------------------------- |
 | `scripts/discover.py`            | Register companies from all ingesters (YC directory + `data/companies_{ats}.json` seeds) |
-| `scripts/probe.py`               | Probe YC companies against Ashby, Greenhouse, Lever; upgrade matches |
+| `scripts/probe.py`               | Probe YC companies against the slug-addressed ATS; upgrade matches   |
 | `scripts/ingest.py --all`        | Ingest jobs for all active companies                                 |
 | `scripts/ingest.py <ats> <slug>` | Ingest jobs for a single company                                     |
 | `scripts/enrich.py <slug>`       | Enrich a single company with Wikidata/Wikipedia                      |
 | `scripts/enrich.py --all`        | Enrich all unenriched companies                                      |
+| `scripts/renormalize.py`         | Re-resolve locations for stored jobs whose city never matched        |
 | `scripts/reset.py`               | Delete all jobs and reset company crawl state                        |
 | `scripts/nuke.py`                | Drop all tables (full database wipe)                                 |
 
