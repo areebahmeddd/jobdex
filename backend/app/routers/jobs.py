@@ -56,7 +56,7 @@ def list_jobs(
     base = (
         db.query(Job, Company)
         .join(Company, Job.company_id == Company.id)
-        .filter(Job.is_active.is_(True))
+        .filter(Job.is_active.is_(True), Company.is_active.is_(True))
     )
     query = filters.apply(base)
 
@@ -138,13 +138,23 @@ _FACET_DIMENSIONS = {
 _FACET_TOTAL = "total"
 
 
+def _listable_jobs(*columns):
+    """Select over the jobs the list endpoint would return, so counts match the list."""
+    return (
+        select(*columns)
+        .select_from(Job)
+        .join(Company, Job.company_id == Company.id)
+        .filter(Job.is_active.is_(True), Company.is_active.is_(True))
+    )
+
+
 def _facet_select(filters: JobFilters, dimension: str, column):
     """Count jobs per value of one dimension, ignoring that dimension's own selection."""
-    stmt = select(
+    stmt = _listable_jobs(
         literal(dimension).label("dimension"),
         cast(column, String).label("value"),
         func.count(Job.id).label("count"),
-    ).filter(Job.is_active.is_(True))
+    )
     return filters.apply(stmt, skip=dimension).group_by(column)
 
 
@@ -156,11 +166,11 @@ def job_facets(filters: JobFilters = Depends(), db: Session = Depends(get_db)):
     option does not zero out the rest. All dimensions ship as one UNION ALL.
     """
     total_stmt = filters.apply(
-        select(
+        _listable_jobs(
             literal(_FACET_TOTAL).label("dimension"),
             cast(null(), String).label("value"),
             func.count(Job.id).label("count"),
-        ).filter(Job.is_active.is_(True))
+        )
     )
     stmt = union_all(
         total_stmt,
@@ -187,7 +197,7 @@ def get_job(job_id: str, db: Session = Depends(get_db)):
     row = (
         db.query(Job, Company)
         .join(Company, Job.company_id == Company.id)
-        .filter(Job.id == job_id, Job.is_active.is_(True))
+        .filter(Job.id == job_id, Job.is_active.is_(True), Company.is_active.is_(True))
         .first()
     )
     if not row:

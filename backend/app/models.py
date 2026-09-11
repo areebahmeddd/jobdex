@@ -24,7 +24,7 @@ class Company(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     logo_url: Mapped[str | None] = mapped_column(String(500))
     description: Mapped[str | None] = mapped_column(Text)
     website: Mapped[str | None] = mapped_column(String(500))
@@ -97,7 +97,7 @@ class Job(Base):
     source_url: Mapped[str] = mapped_column(String(1000), nullable=False)
     ats_type: Mapped[str | None] = mapped_column(String(50))
     ats_job_id: Mapped[str | None] = mapped_column(String(255))
-    dedup_hash: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    dedup_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
 
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     first_seen_at: Mapped[datetime] = mapped_column(
@@ -141,9 +141,12 @@ class Job(Base):
             "role_category",
             postgresql_where=text("is_active = TRUE"),
         ),
+        # Ordered to match the list and cursor queries, or the top page becomes a sort
+        # over every active job.
         Index(
-            "ix_jobs_active_posted",
-            "posted_at",
+            "ix_jobs_active_recent",
+            text("posted_at DESC NULLS LAST"),
+            text("id DESC"),
             postgresql_where=text("is_active = TRUE"),
         ),
         Index(
@@ -159,7 +162,7 @@ class City(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     country: Mapped[str | None] = mapped_column(String(255))
     country_code: Mapped[str | None] = mapped_column(String(2))
     region: Mapped[str | None] = mapped_column(String(50))

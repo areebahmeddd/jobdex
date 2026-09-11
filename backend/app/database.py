@@ -3,6 +3,7 @@ from contextlib import contextmanager
 
 from loguru import logger
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import settings
@@ -76,6 +77,9 @@ def advisory_lock(key: int, *, wait: bool = False) -> Iterator[bool]:
     instance yields False immediately, which is how the scheduler keeps concurrent
     replicas from running the same job. The lock must be released explicitly because
     closing a pooled connection returns it to the pool without ending the session.
+
+    Do not commit inside this block. Neon's pooled endpoint is PgBouncer in transaction
+    mode, so only the open transaction keeps the lock and its release on one backend.
     """
     conn = engine.connect()
     acquired = False
@@ -90,7 +94,12 @@ def advisory_lock(key: int, *, wait: bool = False) -> Iterator[bool]:
         yield acquired
     finally:
         if acquired:
-            conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": key})
+            # A long job can outlive the connection. The lock died with the session,
+            # so a failed unlock is nothing to report.
+            try:
+                conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": key})
+            except OperationalError:
+                pass
         conn.close()
 
 
