@@ -153,3 +153,60 @@ class TestGetCountryCodeForName:
     @pytest.mark.parametrize("name", [None, "", "   ", "Atlantis"])
     def test_unknown_returns_none(self, name):
         assert get_country_code_for_name(name) is None
+
+
+class TestCountryPrefixedLocations:
+    """Boards commonly prefix the place with a country or region."""
+
+    @pytest.mark.parametrize(
+        "raw,city,country_code",
+        [
+            ("IN - Bengaluru, India", "Bangalore", "IN"),
+            ("Brazil - Sao Paulo", "São Paulo", "BR"),
+            ("Malaysia - Petaling Jaya", "Kuala Lumpur", "MY"),
+            ("US - Washington, DC", "Washington DC", "US"),
+            ("Batu Kawan, Pulau Pinang (Penang), Malaysia", "Penang", "MY"),
+        ],
+    )
+    def test_segment_resolves_the_city(self, raw, city, country_code):
+        result = normalize_location(raw)
+        assert result["city"] == city
+        assert result["country_code"] == country_code
+
+    def test_segments_match_exactly_not_as_substrings(self):
+        """A short alias must not match inside an unrelated word."""
+        assert normalize_location("Transfer Station")["city"] is None
+
+
+class TestHeadquartersFallback:
+    """The company HQ fills unresolved fields, but must not override another country."""
+
+    def test_bare_remote_inherits_the_headquarters(self):
+        result = normalize_location(
+            "Remote", fallback_city="San Francisco", fallback_country_code="US"
+        )
+        assert result["city"] == "San Francisco"
+        assert result["is_remote"] is True
+
+    def test_same_country_inherits_the_headquarters(self):
+        result = normalize_location(
+            "Remote - US", fallback_city="Austin", fallback_country_code="US"
+        )
+        assert result["city"] == "Austin"
+
+    @pytest.mark.parametrize(
+        "raw,country_code",
+        [
+            ("India", "IN"),
+            ("Philippines", "PH"),
+            ("Bogota, Colombia", "CO"),
+            ("BR - Remote - Brazil", "BR"),
+        ],
+    )
+    def test_another_country_wins_over_the_headquarters(self, raw, country_code):
+        result = normalize_location(raw, fallback_city="Austin", fallback_country_code="US")
+        assert result["city"] is None
+        assert result["country_code"] == country_code
+
+    def test_no_headquarters_leaves_the_city_empty(self):
+        assert normalize_location("Somewhere Unknown")["city"] is None

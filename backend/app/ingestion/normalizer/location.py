@@ -164,10 +164,7 @@ def normalize_location(
     elif is_remote and not _has_known_city(lowered):
         result["is_remote"] = True
         result["remote_type"] = "fully-remote"
-        _apply_city(result, fallback_city)
-        if not result["country_code"] and fallback_country_code:
-            result["country_code"] = fallback_country_code
-        return result
+        return _apply_fallback(result, raw, fallback_city, fallback_country_code)
     elif is_remote:
         result["is_remote"] = True
         result["remote_type"] = "hybrid"
@@ -193,6 +190,16 @@ def normalize_location(
         if city_name.lower() == first_lower:
             return {**result, **_city_fields(city_name)}
 
+    # Boards prefix the place with a country ("Brazil - Sao Paulo"). Exact match only,
+    # so a short alias cannot hit inside an unrelated word.
+    for segment in _segments(raw):
+        canonical = _CITY_ALIASES.get(segment)
+        if canonical and canonical in _CITY_DATA:
+            return {**result, **_city_fields(canonical)}
+        for city_name in _CITY_DATA:
+            if city_name.lower() == segment:
+                return {**result, **_city_fields(city_name)}
+
     # Fuzzy: first segment before geocoding.
     matched = _fuzzy_match_city(first_part)
     if matched:
@@ -213,14 +220,46 @@ def normalize_location(
                 "longitude": lng,
             }
 
+    return _apply_fallback(result, raw, fallback_city, fallback_country_code)
+
+
+# Private helpers
+
+
+def _segments(raw: str) -> list[str]:
+    """Split a location into lowercase parts on the separators boards use."""
+    parts = re.split(r"[,\-/|()]| – | — ", raw)
+    return [p.strip().lower() for p in parts if p.strip()]
+
+
+def _detected_country_code(raw: str) -> str | None:
+    """Return the ISO-2 code the raw string names, if it names one."""
+    for segment in _segments(raw):
+        code = get_country_code_for_name(segment)
+        if code:
+            return code
+    return None
+
+
+def _apply_fallback(
+    result: dict, raw: str, fallback_city: str | None, fallback_country_code: str | None
+) -> dict:
+    """Fill unresolved fields from the company HQ, unless the string names another country.
+
+    Right for a bare "Remote", wrong for "Bogota, Colombia" at an Austin company. When
+    the string names its own country, that country wins and the city is left empty.
+    """
+    detected = _detected_country_code(raw)
+    if detected and detected != fallback_country_code:
+        result["country_code"] = detected
+        result["region"] = get_region_for_country(detected)
+        return result
+
     _apply_city(result, fallback_city)
     if not result["country_code"] and fallback_country_code:
         result["country_code"] = fallback_country_code
         result["region"] = get_region_for_country(fallback_country_code)
     return result
-
-
-# Private helpers
 
 
 def _fuzzy_match_city(text: str, score_cutoff: int = 90) -> str | None:
