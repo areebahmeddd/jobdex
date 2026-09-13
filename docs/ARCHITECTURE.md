@@ -28,27 +28,27 @@ All endpoints are public with no authentication. Base path: `/`
 
 `app/routers/_filters.py` defines `JobFilters`, a FastAPI dependency read by `/jobs`, `/jobs/facets`, `/companies`, `/companies/{slug}/jobs`, `/search`, `/map/companies` and `/map/cities`. A filter means the same thing on every surface, so the map, the list and the facet counts cannot disagree.
 
-The city and the `posted_within` cutoff are resolved once per request, not once per `apply()` call: `/jobs/facets` applies the same filter set six times, and `canonicalize_city` can fall through to a fuzzy match. One cutoff also keeps every facet count on the same window.
+The city and the `posted_within` cutoff are resolved once per request, not once per `apply()` call: `/jobs/facets` applies the same filter set eight times, and `canonicalize_city` can fall through to a fuzzy match. One cutoff also keeps every facet count on the same window.
 
-| Parameter          | Repeatable | Notes                                                               |
-| ------------------ | ---------- | ------------------------------------------------------------------- |
-| `city`             | no         | Resolved through `canonicalize_city`, so aliases work                |
-| `country_code`     | no         | ISO-2, upper-cased                                                   |
-| `region`           | no         | e.g. `south_asia`                                                    |
-| `role_category`    | yes        | OR within the dimension, AND across dimensions                       |
+| Parameter          | Repeatable | Notes                                                                   |
+| ------------------ | ---------- | ----------------------------------------------------------------------- |
+| `city`             | no         | Resolved through `canonicalize_city`, so aliases work                   |
+| `country_code`     | no         | ISO-2, upper-cased                                                      |
+| `region`           | no         | e.g. `south_asia`                                                       |
+| `role_category`    | yes        | OR within the dimension, AND across dimensions                          |
 | `role`             | yes        | Alias merged into `role_category`, kept for existing map/search callers |
-| `role_subcategory` | yes        |                                                                      |
-| `seniority`        | yes        |                                                                      |
-| `job_type`         | yes        | `fulltime`, `parttime`, `contract`, `internship`                     |
-| `ats_type`         | yes        | Source filter: `greenhouse`, `ycombinator`, `workday`...             |
-| `work_mode`        | yes        | `remote`, `hybrid`, `onsite`                                         |
-| `is_remote`        | no         | Legacy two-state filter, kept for compatibility; `work_mode` wins    |
-| `posted_within`    | no         | Days, 1-365; excludes jobs with no known posted date                 |
-| `q`                | no         | Full-text over title, snippet, and role                              |
+| `role_subcategory` | yes        |                                                                         |
+| `seniority`        | yes        |                                                                         |
+| `job_type`         | yes        | `fulltime`, `parttime`, `contract`, `internship`                        |
+| `ats_type`         | yes        | Source filter: `greenhouse`, `ycombinator`, `workday`...                |
+| `work_mode`        | yes        | `remote`, `hybrid`, `onsite`                                            |
+| `is_remote`        | no         | Legacy two-state filter, kept for compatibility; `work_mode` wins       |
+| `posted_within`    | no         | Days, 1-365; excludes jobs with no known posted date                    |
+| `q`                | no         | Full-text over title, snippet, and role, or a company name match        |
 
 Repeated values are lower-cased, deduped and capped at 25 values of 100 characters each before reaching an `IN` clause; `q` is capped at 200. `work_mode` matches on `is_remote` plus `remote_type != 'hybrid'`, so an unknown or missing `remote_type` still counts as remote.
 
-An unrecognised `work_mode` is dropped, since it is a closed vocabulary. An unrecognised `role_category` simply matches nothing, since that column is free text and new categories need no migration. Both degrade without an error.
+An unrecognized `work_mode` is dropped, since it is a closed vocabulary. An unrecognized `role_category` simply matches nothing, since that column is free text and new categories need no migration. Both degrade without an error.
 
 `JobFilters.without(*dimensions)` returns a copy with dimensions cleared. The map layers use it to drop `city`, `country_code` and `region`, which already constrain the pin's own location.
 
@@ -64,9 +64,9 @@ The first page (no cursor) returns `total`; cursor pages do not recompute it.
 
 #### Facets
 
-`GET /jobs/facets` accepts the same filters and returns `{total, ats_type[], role_category[], seniority[], job_type[], work_mode[]}`, each a list of `{value, count}`.
+`GET /jobs/facets` accepts the same filters and returns `{total, ats_type[], role_category[], seniority[], job_type[], work_mode[], country_code[], city[]}`, each a list of `{value, count, parent}`. `parent` is the ISO-2 country for `city` buckets and null elsewhere, which is what the Location section uses to nest cities under their country.
 
-Counting is disjunctive: each dimension is counted with every other filter applied but its own selection ignored, so selecting one source still shows what the other sources hold. All five dimensions and the total ship as one `UNION ALL`, so the panel costs a single round trip however many filters are active.
+Counting is disjunctive: each dimension is counted with every other filter applied but its own selection ignored, so selecting one source still shows what the other sources hold. `country_code` and `city` form one location dimension, so both ignore `city` and `country_code` together and a selected city still lists every country. All dimensions and the total ship as one `UNION ALL`, so the panel costs a single round trip however many filters are active.
 
 ### Companies `/companies`
 
@@ -76,9 +76,9 @@ Counting is disjunctive: each dimension is counted with every other filter appli
 | `GET`  | `/companies/{slug}`      | Full company profile (active companies only) |
 | `GET`  | `/companies/{slug}/jobs` | Paginated jobs for a specific company        |
 
-Company-level filters: `country_code`, `region` (both HQ), `industry`, `stage`, `ats_type` (repeatable), `has_errors` (boolean, filters by `crawl_error` presence), `q` (name/description ILIKE), `limit`, `offset`
+Company-level filters: `industry`, `stage`, `ats_type` (repeatable), `has_errors` (boolean, filters by `crawl_error` presence), `limit`, `offset`
 
-Open-role filters: `city`, `role_category`, `seniority`, `job_type`, `work_mode`, `is_remote`, `posted_within`. These run against the job-count subquery, not the company row, so `job_count` reflects them. When any is set the join becomes inner and companies with no matching open role drop out, instead of listing with a count of zero.
+Open-role filters: `q`, `city`, `country_code`, `region`, `role_category`, `seniority`, `job_type`, `work_mode`, `is_remote`, `posted_within`. These run against the job-count subquery, not the company row, so `job_count` reflects them. When any is set the join becomes inner and companies with no matching open role drop out, instead of listing with a count of zero.
 
 `/companies/{slug}/jobs` accepts the full shared job filter set.
 
@@ -113,7 +113,7 @@ Viewport filters: `lat_min`, `lat_max` (range: -90 to 90), `lng_min`, `lng_max` 
 
 Both pin endpoints accept the full shared job filter set, so the map narrows with the same query and filters as the results list. Searching `rust` leaves only the cities holding matching jobs, and a pin's `job_count` is the count the panel would list. `region` and `country_code` constrain the pin's own resolved location, not its jobs. `city` is ignored, since a city pin is what selecting that city would return.
 
-`map_companies` resolves display coordinates from the company HQ if set, otherwise falls back to the most common job location by count.
+`map_companies` returns one pin per company per city where it is hiring, placed at the job location with that city’s job count. This uses the same definition as map_cities’s company_count, so both always agree for a viewport. The frontend pads the requested bounds by 0.05° to ensure city-centroid pins remain visible when zooming into neighbourhoods.
 
 ### Stats `/stats`
 
@@ -125,12 +125,12 @@ Response fields: `total_companies` (active), `total_jobs` (all-time), `active_jo
 
 ### Payments `/payments`
 
-| Method | Path                | Description                              |
-| ------ | ------------------- | ---------------------------------------- |
-| `POST` | `/payments/orders`  | Create a Razorpay order for a donation   |
-| `POST` | `/payments/verify`  | Verify Razorpay payment signature        |
+| Method | Path               | Description                            |
+| ------ | ------------------ | -------------------------------------- |
+| `POST` | `/payments/orders` | Create a Razorpay order for a donation |
+| `POST` | `/payments/verify` | Verify Razorpay payment signature      |
 
-Requires `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in the environment. The `key_id` is returned from `/payments/orders` and used by the frontend to initialise Razorpay Checkout. Signature verification uses HMAC-SHA256 over `order_id|payment_id` with `compare_digest` for constant-time comparison.
+Requires `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in the environment. The `key_id` is returned from `/payments/orders` and used by the frontend to initialize Razorpay Checkout. Signature verification uses HMAC-SHA256 over `order_id|payment_id` with `compare_digest` for constant-time comparison.
 
 ### Meta
 
@@ -143,11 +143,11 @@ Requires `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in the environment. The `ke
 
 All jobs run in-process via APScheduler. No separate worker is needed.
 
-| Job ID               | Interval | Function         | Description                                                      |
-| -------------------- | -------- | ---------------- | ---------------------------------------------------------------- |
-| `ingest_all`         | 15 min   | `run_ingestion`  | Crawls the `INGEST_BATCH_SIZE` stalest companies, oldest-first   |
-| `enrich_pending`     | 12 h     | `run_enrichment` | Enriches companies with null or stale `enriched_at`              |
-| `discover_companies` | 24 h     | `run_discovery`  | Seeds new companies from ingesters that implement `discover()`   |
+| Job ID               | Interval | Function         | Description                                                    |
+| -------------------- | -------- | ---------------- | -------------------------------------------------------------- |
+| `ingest_all`         | 15 min   | `run_ingestion`  | Crawls the `INGEST_BATCH_SIZE` stalest companies, oldest-first |
+| `enrich_pending`     | 12 h     | `run_enrichment` | Enriches companies with null or stale `enriched_at`            |
+| `discover_companies` | 24 h     | `run_discovery`  | Seeds new companies from ingesters that implement `discover()` |
 
 Companies enter the index two ways: `discover()`, which crawls the YC directory or reads `data/companies_{ats}.json`, and `scripts/probe.py`, which tests existing slugs against the slug-addressed ATS and upgrades whichever answers. `probe()` requires at least one posting, since several ATS answer 200 with an empty list for a slug they do not have.
 
@@ -198,7 +198,7 @@ Jobs are never hard-deleted. A SHA-256 hash of `ats_type:slug:job_id` is stored 
    city across its active jobs.
 ```
 
-Step 4 runs before step 5 on purpose. `build_job` is only ever called for new postings, so hydrating the whole board meant discarding almost every detail response once a board was seeded. Splitting first makes detail cost track how much the board changed rather than how large it is.
+Step 4 runs before step 5 on purpose. `build_job` is only ever called for new postings, so hydrating the whole board meant discarding almost every detail response once a board was seeded. Splitting first makes detail cost track how much the board changed, not how large it is.
 
 ### Normalization
 
@@ -214,23 +214,23 @@ Anything still unresolved falls back to the company HQ, which is what puts a bar
 
 Patterns are evaluated in order; first match wins. More specific subcategories are listed before broad catch-alls, e.g. `healthcare.medtech` (`biomedical engineer`) appears before `engineering.general` (`engineer`) to prevent misclassification. The `role_category` column is a free-text `String(100)` with no enum constraint; new categories require only a `role_patterns.json` entry and no migration.
 
-| `role_category` | Subcategories                                                                                                                                                                                                                                                                                                   |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `engineering`   | `backend`, `frontend`, `fullstack`, `mobile`, `data`, `ml`, `devops`, `security`, `qa`, `embedded`, `general`                                                                                                                                                                                                  |
-| `data`          | `scientist`, `analyst`, `bi`                                                                                                                                                                                                                                                                                    |
-| `design`        | `ux`, `ui`, `product`, `graphic`, `general`                                                                                                                                                                                                                                                                     |
-| `product`       | `manager`, `owner`, `general`                                                                                                                                                                                                                                                                                   |
-| `marketing`     | `growth`, `content`, `brand`, `general`                                                                                                                                                                                                                                                                         |
-| `sales`         | `ae`, `sdr`, `csm`, `general`                                                                                                                                                                                                                                                                                   |
-| `operations`    | `general`                                                                                                                                                                                                                                                                                                       |
-| `finance`       | `general`                                                                                                                                                                                                                                                                                                       |
-| `legal`         | `general`                                                                                                                                                                                                                                                                                                       |
-| `hr`            | `recruiting`, `general`                                                                                                                                                                                                                                                                                         |
-| `support`       | `general`                                                                                                                                                                                                                                                                                                       |
-| `research`      | `general`                                                                                                                                                                                                                                                                                                       |
+| `role_category` | Subcategories                                                                                                                                                                                                                                                                                                          |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `engineering`   | `backend`, `frontend`, `fullstack`, `mobile`, `data`, `ml`, `devops`, `security`, `qa`, `embedded`, `general`                                                                                                                                                                                                          |
+| `data`          | `scientist`, `analyst`, `bi`                                                                                                                                                                                                                                                                                           |
+| `design`        | `ux`, `ui`, `product`, `graphic`, `general`                                                                                                                                                                                                                                                                            |
+| `product`       | `manager`, `owner`, `general`                                                                                                                                                                                                                                                                                          |
+| `marketing`     | `growth`, `content`, `brand`, `general`                                                                                                                                                                                                                                                                                |
+| `sales`         | `ae`, `sdr`, `csm`, `general`                                                                                                                                                                                                                                                                                          |
+| `operations`    | `general`                                                                                                                                                                                                                                                                                                              |
+| `finance`       | `general`                                                                                                                                                                                                                                                                                                              |
+| `legal`         | `general`                                                                                                                                                                                                                                                                                                              |
+| `hr`            | `recruiting`, `general`                                                                                                                                                                                                                                                                                                |
+| `support`       | `general`                                                                                                                                                                                                                                                                                                              |
+| `research`      | `general`                                                                                                                                                                                                                                                                                                              |
 | `healthcare`    | `clinical` (nurses, doctors, surgeons, therapists, GPs, dentists, physiotherapists, pharmacists, paramedics, and all clinical specialties), `medtech` (biomedical engineers, medical devices), `pharma` (clinical trials, regulatory affairs, pharmacovigilance), `informatics` (health IT, EHR, clinical informatics) |
-| `hospitality`   | `culinary` (chefs, cooks, bakers, baristas, sommeliers, kitchen staff), `general` (waiters, hotel staff, concierge, catering, restaurant management, front of house) |
-| `other`         | `general` (fallback when no pattern matches)                                                                                                                                                                                                                                                                    |
+| `hospitality`   | `culinary` (chefs, cooks, bakers, baristas, sommeliers, kitchen staff), `general` (waiters, hotel staff, concierge, catering, restaurant management, front of house)                                                                                                                                                   |
+| `other`         | `general` (fallback when no pattern matches)                                                                                                                                                                                                                                                                           |
 
 **Seniority**: title matched against `seniority_patterns.json`. Defaults to `mid`.
 
@@ -280,13 +280,13 @@ strip_html() + make_snippet()
 
 Jobs with `country_code = IL` or a city matching `israel`, `tel aviv`, `haifa`, `beer sheva`, or `jerusalem` are skipped at insertion time and never written to the database.
 
-The check runs on the resolved `country_code`, so it only fires once one is known. Ingesters that receive a country display name rather than an ISO code (Workday, Rippling) resolve it with `get_country_code_for_name` before the Job is built, so postings in unlisted cities are matched on country instead of passing through with `country_code = None`.
+The check runs on the resolved `country_code`, so it only fires once one is known. Ingesters that receive a country display name instead of an ISO code (Workday, Rippling) resolve it with `get_country_code_for_name` before the Job is built, so postings in unlisted cities are matched on country instead of passing through with `country_code = None`.
 
 ## Enrichment Pipeline
 
 Processes companies where `enriched_at IS NULL` or where `enriched_at` is older than `ENRICH_REFRESH_DAYS` days (default 90), ordered oldest-first. Re-enrichment refreshes all fields.
 
-Wikidata provides structured facts: founders, key investors, total funding, funding stage, business model, headcount range, and social profile handles. Wikipedia provides the long-form company description. Social links from Wikidata are merged with any existing `social_links` rather than overwriting them.
+Wikidata provides structured facts: founders, key investors, total funding, funding stage, business model, headcount range, and social profile handles. Wikipedia provides the long-form company description. Social links from Wikidata are merged with any existing `social_links` instead of overwriting them.
 
 All external calls use a shared `httpx.AsyncClient` with `ENRICHMENT_BOT_AGENT` as the User-Agent. `ENRICHMENT_STEP_DELAY` runs between each API call to avoid rate limits.
 
@@ -373,7 +373,7 @@ One record per job posting. `location_raw` preserves the original ATS string. Al
 | `role_category`       | `String(100)`  | e.g. `engineering`, `design`                        |
 | `role_subcategory`    | `String(100)`  | e.g. `backend`, `mobile`                            |
 | `seniority`           | `String(50)`   | `junior`, `mid`, `senior`, `lead`                   |
-| `job_type`            | `String(50)`   | `full_time`, `contract`, etc.                       |
+| `job_type`            | `String(50)`   | `fulltime`, `contract`, etc.                        |
 | `department`          | `String(255)`  | Raw department string from ATS                      |
 | `tech_stack`          | `JSONB`        | Array of matched tech keywords                      |
 | `source_url`          | `String(1000)` | ATS job listing URL                                 |
@@ -418,23 +418,23 @@ Every user-facing job query filters `is_active = TRUE`, so the three composite p
 
 #### jobs
 
-| Index                         | Columns                                   | Condition          | Purpose                         |
-| ----------------------------- | ----------------------------------------- | ------------------ | ------------------------------- |
+| Index                         | Columns                                   | Condition          | Purpose                          |
+| ----------------------------- | ----------------------------------------- | ------------------ | -------------------------------- |
 | `jobs_dedup_hash_key`         | `dedup_hash`                              |                    | Unique constraint; upsert lookup |
-| `ix_jobs_is_active`           | `is_active`                               |                    | Global active-job count queries |
-| `ix_jobs_seniority`           | `seniority`                               |                    | Seniority filter                |
-| `ix_jobs_company_active`      | `company_id, is_active`                   |                    | Per-company job queries         |
-| `ix_jobs_active_city_role`    | `city, role_category`                     | `is_active = TRUE` | Primary filter for job listings |
-| `ix_jobs_active_region_role`  | `region, role_category`                   | `is_active = TRUE` | Region-filtered listings        |
-| `ix_jobs_active_country_role` | `country_code, role_category`             | `is_active = TRUE` | Country-filtered listings       |
-| `ix_jobs_active_recent`       | `posted_at DESC NULLS LAST, id DESC`      | `is_active = TRUE` | List order and cursor pages     |
-| `ix_jobs_active_remote`       | `is_remote`                               | `is_active = TRUE` | Remote-only filter queries      |
-| `ix_jobs_fts_gin`             | `tsvector(title, snippet, role_category)` | `is_active = TRUE` | GIN; full-text search           |
+| `ix_jobs_is_active`           | `is_active`                               |                    | Global active-job count queries  |
+| `ix_jobs_seniority`           | `seniority`                               |                    | Seniority filter                 |
+| `ix_jobs_company_active`      | `company_id, is_active`                   |                    | Per-company job queries          |
+| `ix_jobs_active_city_role`    | `city, role_category`                     | `is_active = TRUE` | Primary filter for job listings  |
+| `ix_jobs_active_region_role`  | `region, role_category`                   | `is_active = TRUE` | Region-filtered listings         |
+| `ix_jobs_active_country_role` | `country_code, role_category`             | `is_active = TRUE` | Country-filtered listings        |
+| `ix_jobs_active_recent`       | `posted_at DESC NULLS LAST, id DESC`      | `is_active = TRUE` | List order and cursor pages      |
+| `ix_jobs_active_remote`       | `is_remote`                               | `is_active = TRUE` | Remote-only filter queries       |
+| `ix_jobs_fts_gin`             | `tsvector(title, snippet, role_category)` | `is_active = TRUE` | GIN; full-text search            |
 
 #### cities
 
-| Index            | Columns | Type   |
-| ---------------- | ------- | ------ |
+| Index             | Columns | Type              |
+| ----------------- | ------- | ----------------- |
 | `cities_slug_key` | `slug`  | Unique constraint |
 
 ## Caching
@@ -456,30 +456,30 @@ No CDN is deployed. These headers apply browser-level HTTP caching only.
 
 Settings are loaded from `.env` via `pydantic-settings`. All values have defaults for local development.
 
-| Variable                     | Default                         | Description                                           |
-| ---------------------------- | ------------------------------- | ----------------------------------------------------- |
-| `DATABASE_URL`               | `postgresql://localhost/jobdex` | PostgreSQL connection string                          |
-| `DB_ECHO`                    | `false`                         | Log all SQL statements                                |
-| `DB_POOL_SIZE`               | `5`                             | SQLAlchemy pool size                                  |
-| `DB_MAX_OVERFLOW`            | `10`                            | Max overflow connections                              |
-| `DB_POOL_TIMEOUT`            | `30`                            | Connection acquisition timeout in seconds             |
-| `DB_POOL_RECYCLE`            | `600`                           | Connection max lifetime in seconds                    |
-| `HTTP_TIMEOUT`               | `30.0`                          | Timeout for ATS HTTP requests                         |
-| `CRAWL_DELAY`                | `0.3`                           | Delay between company crawls in seconds               |
-| `GEOCODE_UNKNOWN_CITIES`     | `false`                         | Enable Nominatim fallback for unrecognized cities     |
-| `GEOCODE_USER_AGENT`         | `JobDex/1.0`                    | User-agent string for Nominatim requests              |
-| `ENRICHMENT_BOT_AGENT`       | `JobDex/1.0`                    | User-agent string for Wikidata and Wikipedia requests |
-| `ENRICHMENT_REQUEST_TIMEOUT` | `15.0`                          | Timeout for enrichment HTTP requests                  |
-| `ENRICHMENT_STEP_DELAY`      | `0.5`                           | Delay between enrichment API calls in seconds         |
-| `INGEST_INTERVAL_MINUTES`    | `15`                            | Ingestion tick interval                               |
-| `INGEST_BATCH_SIZE`          | `25`                            | Companies per tick; `0` crawls everything at once     |
-| `ENRICH_INTERVAL_HOURS`      | `12`                            | Enrichment job interval                               |
-| `ENRICH_REFRESH_DAYS`        | `90`                            | Age at which a company is re-enriched                 |
-| `DISCOVER_INTERVAL_HOURS`    | `24`                            | Discovery job interval                                |
-| `HTTP_RETRY_ATTEMPTS`        | `3`                             | Retries per ATS request                               |
-| `HTTP_RETRY_MIN_WAIT`        | `2.0`                           | First backoff wait in seconds                         |
-| `HTTP_RETRY_MAX_WAIT`        | `30.0`                          | Backoff ceiling in seconds                            |
-| `ALLOWED_ORIGINS`            | see `config.py`                 | CORS allowlist                                        |
-| `RAZORPAY_KEY_ID`            | empty                           | Razorpay key; payments are disabled when unset        |
-| `RAZORPAY_KEY_SECRET`        | empty                           | Razorpay secret; payments are disabled when unset     |
-| `DEBUG`                      | `false`                         | FastAPI debug mode                                    |
+| Variable                     | Default                                                | Description                                           |
+| ---------------------------- | ------------------------------------------------------ | ----------------------------------------------------- |
+| `DATABASE_URL`               | `postgresql://localhost/jobdex`                        | PostgreSQL connection string                          |
+| `DB_ECHO`                    | `false`                                                | Log all SQL statements                                |
+| `DB_POOL_SIZE`               | `5`                                                    | SQLAlchemy pool size                                  |
+| `DB_MAX_OVERFLOW`            | `10`                                                   | Max overflow connections                              |
+| `DB_POOL_TIMEOUT`            | `30`                                                   | Connection acquisition timeout in seconds             |
+| `DB_POOL_RECYCLE`            | `600`                                                  | Connection max lifetime in seconds                    |
+| `HTTP_TIMEOUT`               | `30.0`                                                 | Timeout for ATS HTTP requests                         |
+| `CRAWL_DELAY`                | `0.3`                                                  | Delay between company crawls in seconds               |
+| `HTTP_RETRY_ATTEMPTS`        | `3`                                                    | Retries per ATS request                               |
+| `HTTP_RETRY_MIN_WAIT`        | `2.0`                                                  | First backoff wait in seconds                         |
+| `HTTP_RETRY_MAX_WAIT`        | `30.0`                                                 | Backoff ceiling in seconds                            |
+| `INGEST_INTERVAL_MINUTES`    | `15`                                                   | Ingestion tick interval                               |
+| `INGEST_BATCH_SIZE`          | `25`                                                   | Companies per tick; `0` crawls everything at once     |
+| `ENRICH_INTERVAL_HOURS`      | `12`                                                   | Enrichment job interval                               |
+| `DISCOVER_INTERVAL_HOURS`    | `24`                                                   | Discovery job interval                                |
+| `GEOCODE_UNKNOWN_CITIES`     | `false`                                                | Enable Nominatim fallback for unrecognized cities     |
+| `GEOCODE_USER_AGENT`         | `JobDex/1.0 (+https://github.com/areebahmeddd/jobdex)` | User-agent string for Nominatim requests              |
+| `ENRICHMENT_BOT_AGENT`       | `JobDex/1.0 (+https://github.com/areebahmeddd/jobdex)` | User-agent string for Wikidata and Wikipedia requests |
+| `ENRICHMENT_REQUEST_TIMEOUT` | `15.0`                                                 | Timeout for enrichment HTTP requests                  |
+| `ENRICHMENT_STEP_DELAY`      | `0.5`                                                  | Delay between enrichment API calls in seconds         |
+| `ENRICH_REFRESH_DAYS`        | `90`                                                   | Age at which a company is re-enriched                 |
+| `ALLOWED_ORIGINS`            | see `config.py`                                        | CORS allowlist                                        |
+| `RAZORPAY_KEY_ID`            | empty                                                  | Razorpay key; payments are disabled when unset        |
+| `RAZORPAY_KEY_SECRET`        | empty                                                  | Razorpay secret; payments are disabled when unset     |
+| `DEBUG`                      | `false`                                                | FastAPI debug mode                                    |

@@ -67,6 +67,7 @@ class PaginatedJobsResponse(BaseModel):
 class FacetBucket(BaseModel):
     value: str
     count: int
+    parent: str | None = None
 
 
 class JobFacetsResponse(BaseModel):
@@ -78,6 +79,8 @@ class JobFacetsResponse(BaseModel):
     seniority: list[FacetBucket] = []
     job_type: list[FacetBucket] = []
     work_mode: list[FacetBucket] = []
+    country_code: list[FacetBucket] = []
+    city: list[FacetBucket] = []
 
 
 # Companies

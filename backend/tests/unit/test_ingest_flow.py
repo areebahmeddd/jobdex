@@ -29,7 +29,7 @@ def db():
 
     The tables are copied into a throwaway MetaData with their indexes dropped, because
     the GIN and partial indexes on Job are Postgres-only. Dedup is asserted through the
-    ingester's own bookkeeping rather than the unique index, which is the behavior worth
+    ingester's own bookkeeping, not the unique index, which is the behavior worth
     pinning anyway.
     """
     meta = MetaData()

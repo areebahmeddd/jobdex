@@ -8,8 +8,6 @@ const FOOTER_LINKS: { label: string; to: string }[] = [
   { label: "How it works", to: "/how-it-works" },
   { label: "FAQ", to: "/faq" },
   { label: "Legal", to: "/legal" },
-  { label: "Privacy", to: "/privacy-policy" },
-  { label: "Terms", to: "/terms-of-service" },
 ];
 
 interface StaticPageLayoutProps {

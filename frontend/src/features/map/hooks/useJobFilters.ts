@@ -24,6 +24,7 @@ const MAX_VALUES_PER_GROUP = 25;
 const PARAM = {
   q: "q",
   city: "city",
+  country: "country",
   posted: "posted",
   sort: "sort",
   view: "view",
@@ -44,6 +45,10 @@ export function useJobFilters() {
 
   const q = (searchParams.get(PARAM.q) ?? "").slice(0, MAX_QUERY_LENGTH);
   const city = searchParams.get(PARAM.city) || null;
+  const countryRaw = searchParams.get(PARAM.country) || "";
+  const country = /^[A-Za-z]{2}$/.test(countryRaw)
+    ? countryRaw.toUpperCase()
+    : null;
   const jobId = searchParams.get(PARAM.job) || null;
   const companySlug = searchParams.get(PARAM.company) || null;
 
@@ -109,6 +114,23 @@ export function useJobFilters() {
         (next) => {
           if (value) next.set(PARAM.city, value);
           else next.delete(PARAM.city);
+          next.delete(PARAM.country);
+          next.delete(PARAM.job);
+          next.delete(PARAM.company);
+        },
+        { push: true },
+      );
+    },
+    [update],
+  );
+
+  const setCountry = useCallback(
+    (value: string | null) => {
+      update(
+        (next) => {
+          if (value) next.set(PARAM.country, value.toUpperCase());
+          else next.delete(PARAM.country);
+          next.delete(PARAM.city);
           next.delete(PARAM.job);
           next.delete(PARAM.company);
         },
@@ -247,17 +269,19 @@ export function useJobFilters() {
     const params: ApiParams = {};
     if (q) params.q = q;
     if (city) params.city = city;
+    else if (country) params.country_code = country;
     for (const group of FILTER_GROUPS) {
       const values = selections[group.key];
       if (values.length) params[group.param] = values;
     }
     if (posted) params.posted_within = String(posted);
     return params;
-  }, [q, city, selections, posted]);
+  }, [q, city, country, selections, posted]);
 
   return {
     q,
     city,
+    country,
     jobId,
     companySlug,
     selections,
@@ -269,6 +293,7 @@ export function useJobFilters() {
     jobParams,
     setQuery,
     setCity,
+    setCountry,
     toggle,
     clearGroup,
     setPosted,

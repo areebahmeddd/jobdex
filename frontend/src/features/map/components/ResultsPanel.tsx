@@ -22,7 +22,7 @@ type Props = {
   view: PanelView;
   mode: PanelMode;
   onModeChange: (mode: PanelMode) => void;
-  selectedCity: string | null;
+  hasLocation: boolean;
   total: number | null;
   sort: SortValue;
   onSortChange: (sort: SortValue) => void;
@@ -58,13 +58,13 @@ function panelLabel(view: PanelView): string {
 
 function EmptyResults({
   noun,
-  selectedCity,
+  hasLocation,
   hasFilters,
   onClearFilters,
   onSearchEverywhere,
 }: {
   noun: string;
-  selectedCity: string | null;
+  hasLocation: boolean;
   hasFilters: boolean;
   onClearFilters: () => void;
   onSearchEverywhere: () => void;
@@ -88,7 +88,7 @@ function EmptyResults({
             Clear filters
           </button>
         )}
-        {selectedCity && (
+        {hasLocation && (
           <button
             type="button"
             onClick={onSearchEverywhere}
@@ -117,7 +117,7 @@ export function ResultsPanel({
   view,
   mode,
   onModeChange,
-  selectedCity,
+  hasLocation,
   total,
   sort,
   onSortChange,
@@ -202,6 +202,8 @@ export function ResultsPanel({
               loading={selectedCompanyLoading}
               failed={selectedCompanyFailed}
               jobs={jobs}
+              jobsTotal={total}
+              jobsFiltered={hasQuery || hasFilters || hasLocation}
               jobsLoading={jobsLoading}
               nextCursor={hasMore ? "more" : null}
               loadingMore={loadingMore}
@@ -217,18 +219,18 @@ export function ResultsPanel({
             ) : companies.length === 0 ? (
               <EmptyResults
                 noun="companies"
-                selectedCity={selectedCity}
+                hasLocation={hasLocation}
                 hasFilters={hasFilters}
                 onClearFilters={onClearFilters}
                 onSearchEverywhere={onSearchEverywhere}
               />
             ) : (
               <div className="no-scrollbar flex flex-1 flex-col overflow-y-auto py-1">
-                {companies.map((co) => (
+                {companies.map((company) => (
                   <CompanyCard
-                    key={co.id}
-                    company={co}
-                    onClick={() => onCompanyClick(co.slug)}
+                    key={company.id}
+                    company={company}
+                    onClick={() => onCompanyClick(company.slug)}
                   />
                 ))}
               </div>
@@ -240,7 +242,7 @@ export function ResultsPanel({
             ) : jobs.length === 0 ? (
               <EmptyResults
                 noun="jobs"
-                selectedCity={selectedCity}
+                hasLocation={hasLocation}
                 hasFilters={hasFilters}
                 onClearFilters={onClearFilters}
                 onSearchEverywhere={onSearchEverywhere}

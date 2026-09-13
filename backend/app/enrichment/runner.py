@@ -29,29 +29,31 @@ async def enrich_company(slug: str, db: Session) -> EnrichResponse:
             qid = await wikidata.search_company(client, company.name)
             await asyncio.sleep(settings.ENRICHMENT_STEP_DELAY)
 
-        wd: dict = {}
+        wikidata_data: dict = {}
         if qid:
-            wd = await wikidata.fetch_company_data(client, qid)
+            wikidata_data = await wikidata.fetch_company_data(client, qid)
             await asyncio.sleep(settings.ENRICHMENT_STEP_DELAY)
 
-            if wd:
+            if wikidata_data:
                 company.wikidata_id = qid
 
                 social = {
-                    "twitter": f"https://twitter.com/{wd['twitter']}"
-                    if wd.get("twitter")
+                    "twitter": f"https://twitter.com/{wikidata_data['twitter']}"
+                    if wikidata_data.get("twitter")
                     else None,
-                    "instagram": f"https://instagram.com/{wd['instagram']}"
-                    if wd.get("instagram")
+                    "instagram": f"https://instagram.com/{wikidata_data['instagram']}"
+                    if wikidata_data.get("instagram")
                     else None,
-                    "linkedin": f"https://linkedin.com/company/{wd['linkedin']}"
-                    if wd.get("linkedin")
+                    "linkedin": f"https://linkedin.com/company/{wikidata_data['linkedin']}"
+                    if wikidata_data.get("linkedin")
                     else None,
-                    "facebook": f"https://facebook.com/{wd['facebook']}"
-                    if wd.get("facebook")
+                    "facebook": f"https://facebook.com/{wikidata_data['facebook']}"
+                    if wikidata_data.get("facebook")
                     else None,
-                    "github": f"https://github.com/{wd['github']}" if wd.get("github") else None,
-                    "website": wd.get("website"),
+                    "github": f"https://github.com/{wikidata_data['github']}"
+                    if wikidata_data.get("github")
+                    else None,
+                    "website": wikidata_data.get("website"),
                 }
                 existing_social = company.social_links or {}
                 merged_social = {k: v for k, v in {**existing_social, **social}.items() if v}
@@ -59,31 +61,31 @@ async def enrich_company(slug: str, db: Session) -> EnrichResponse:
                     company.social_links = merged_social
                     updated_fields.append("social_links")
 
-                if not company.website and wd.get("website"):
-                    company.website = wd["website"]
+                if not company.website and wikidata_data.get("website"):
+                    company.website = wikidata_data["website"]
                     updated_fields.append("website")
 
-                if not company.founded_year and wd.get("founded_year"):
-                    company.founded_year = wd["founded_year"]
+                if not company.founded_year and wikidata_data.get("founded_year"):
+                    company.founded_year = wikidata_data["founded_year"]
                     updated_fields.append("founded_year")
 
-                if not company.city and wd.get("hq"):
-                    company.city = wd["hq"]
+                if not company.city and wikidata_data.get("hq"):
+                    company.city = wikidata_data["hq"]
                     updated_fields.append("city")
 
-                if wd.get("industries"):
+                if wikidata_data.get("industries"):
                     existing_industry = company.industry or []
-                    merged = list({*existing_industry, *wd["industries"]})
+                    merged = list({*existing_industry, *wikidata_data["industries"]})
                     company.industry = merged
                     updated_fields.append("industry")
 
-                if wd.get("founders"):
-                    company.founders = wd["founders"]
+                if wikidata_data.get("founders"):
+                    company.founders = wikidata_data["founders"]
                     updated_fields.append("founders")
 
-                if not company.headcount_range and wd.get("employee_count"):
+                if not company.headcount_range and wikidata_data.get("employee_count"):
                     try:
-                        n = int(float(wd["employee_count"]))
+                        n = int(float(wikidata_data["employee_count"]))
                         company.headcount_range = _bucket_headcount(n)
                         updated_fields.append("headcount_range")
                     except (ValueError, TypeError):

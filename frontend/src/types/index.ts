@@ -156,6 +156,7 @@ export type StatsData = {
 export type FacetBucket = {
   value: string;
   count: number;
+  parent: string | null;
 };
 
 export type JobFacets = {
@@ -165,6 +166,8 @@ export type JobFacets = {
   seniority: FacetBucket[];
   job_type: FacetBucket[];
   work_mode: FacetBucket[];
+  country_code: FacetBucket[];
+  city: FacetBucket[];
 };
 
 export type PanelView =

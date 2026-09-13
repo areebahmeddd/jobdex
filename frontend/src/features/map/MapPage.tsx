@@ -43,6 +43,9 @@ const COMPANY_PAGE_SIZE = 50;
 const SEARCH_DEBOUNCE_MS = 250;
 const FILTER_SETTLE_MS = 200;
 const MIN_QUERY_LENGTH = 2;
+const PIN_BOUNDS_PAD = 0.05;
+const CITY_ZOOM = 11;
+const COUNTRY_MAX_ZOOM = 9;
 
 export default function MapPage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -56,10 +59,20 @@ export default function MapPage() {
   const cityPinsRef = useRef<CityPin[]>([]);
   const selectCityRef = useRef<(name: string) => void>(() => {});
   const firstGeoRef = useRef(true);
+  const flownLocationRef = useRef<string | null>(null);
   const listRequestRef = useRef(0);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const committedQueryRef = useRef("");
+  const listCacheRef = useRef<{
+    jobs?: {
+      key: string;
+      jobs: Job[];
+      total: number | null;
+      cursor: string | null;
+    };
+    companies?: { key: string; companies: CompanyListItem[]; total: number };
+  }>({});
   const filterRef = useRef<HTMLDivElement>(null);
   const filterRefMobile = useRef<HTMLDivElement>(null);
   const statsPillRef = useRef<HTMLDivElement>(null);
@@ -69,6 +82,7 @@ export default function MapPage() {
   const {
     q,
     city,
+    country,
     jobId,
     companySlug,
     selections,
@@ -79,6 +93,7 @@ export default function MapPage() {
     jobParams,
     setQuery,
     setCity,
+    setCountry,
     setJobId,
     setCompanySlug,
     setView,
@@ -140,7 +155,7 @@ export default function MapPage() {
     [settledParamsKey],
   );
 
-  const hasCriteria = Boolean(city || q || activeCount > 0);
+  const hasCriteria = Boolean(city || country || q || activeCount > 0);
 
   const panelView: PanelView = useMemo(() => {
     if (jobId) return "job-detail";
@@ -278,6 +293,34 @@ export default function MapPage() {
   }, [cityPins]);
 
   useEffect(() => {
+    const map = mapRef.current;
+    const target = city
+      ? `city:${city}`
+      : country
+        ? `country:${country}`
+        : null;
+    if (!target) {
+      flownLocationRef.current = null;
+      return;
+    }
+    if (!map || !mapReady || flownLocationRef.current === target) return;
+    if (city) {
+      const pin = cityPins.find((p) => p.name === city);
+      if (!pin) return;
+      flownLocationRef.current = target;
+      map.flyTo([pin.latitude, pin.longitude], CITY_ZOOM, { duration: 1.2 });
+      return;
+    }
+    const pins = cityPins.filter((p) => p.country_code === country);
+    if (pins.length === 0) return;
+    flownLocationRef.current = target;
+    map.flyToBounds(
+      L.latLngBounds(pins.map((p) => [p.latitude, p.longitude])),
+      { padding: [48, 48], maxZoom: COUNTRY_MAX_ZOOM, duration: 1.2 },
+    );
+  }, [city, country, cityPins, mapReady]);
+
+  useEffect(() => {
     if (cityPins.length === 0 || !pendingGeoRef.current) return;
     const { lat, lng } = pendingGeoRef.current;
     pendingGeoRef.current = null;
@@ -290,6 +333,7 @@ export default function MapPage() {
         best = p;
       }
     }
+    flownLocationRef.current = `city:${best.name}`;
     selectCityRef.current(best.name);
     if (firstGeoRef.current) {
       firstGeoRef.current = false;
@@ -318,10 +362,22 @@ export default function MapPage() {
     fetchMapCompanies(
       {
         ...settledParams,
-        lat_min: settledBounds.lat_min.toString(),
-        lat_max: settledBounds.lat_max.toString(),
-        lng_min: settledBounds.lng_min.toString(),
-        lng_max: settledBounds.lng_max.toString(),
+        lat_min: Math.max(
+          -90,
+          settledBounds.lat_min - PIN_BOUNDS_PAD,
+        ).toString(),
+        lat_max: Math.min(
+          90,
+          settledBounds.lat_max + PIN_BOUNDS_PAD,
+        ).toString(),
+        lng_min: Math.max(
+          -180,
+          settledBounds.lng_min - PIN_BOUNDS_PAD,
+        ).toString(),
+        lng_max: Math.min(
+          180,
+          settledBounds.lng_max + PIN_BOUNDS_PAD,
+        ).toString(),
       },
       ac.signal,
     )
@@ -353,8 +409,16 @@ export default function MapPage() {
     const ac = new AbortController();
     listAbortRef.current = ac;
     const requestId = ++listRequestRef.current;
+    const cache = listCacheRef.current;
 
     if (view === "companies") {
+      const key = settledParamsKey;
+      if (cache.companies?.key === key) {
+        setCompanies(cache.companies.companies);
+        setResultTotal(cache.companies.total);
+        setNextCursor(null);
+        return;
+      }
       setCompaniesLoading(true);
       fetchCompanies(
         { ...settledParams, limit: String(COMPANY_PAGE_SIZE) },
@@ -362,6 +426,7 @@ export default function MapPage() {
       )
         .then((d) => {
           if (requestId !== listRequestRef.current) return;
+          cache.companies = { key, companies: d.companies, total: d.total };
           setCompanies(d.companies);
           setResultTotal(d.total);
           setNextCursor(null);
@@ -373,13 +438,22 @@ export default function MapPage() {
       return () => ac.abort();
     }
 
+    const key = `${settledParamsKey}|${sort}`;
+    if (cache.jobs?.key === key) {
+      setJobs(cache.jobs.jobs);
+      setResultTotal(cache.jobs.total);
+      setNextCursor(cache.jobs.cursor);
+      return;
+    }
     setJobsLoading(true);
     fetchJobs({ ...settledParams, sort, limit: String(PAGE_SIZE) }, ac.signal)
       .then((d) => {
         if (requestId !== listRequestRef.current) return;
+        const cursor = d.next_cursor ?? null;
+        cache.jobs = { key, jobs: d.jobs, total: d.total, cursor };
         setJobs(d.jobs);
         setResultTotal(d.total);
-        setNextCursor(d.next_cursor ?? null);
+        setNextCursor(cursor);
       })
       .catch(() => {})
       .finally(() => {
@@ -387,7 +461,7 @@ export default function MapPage() {
       });
 
     return () => ac.abort();
-  }, [settledParams, view, sort, companySlug, hasCriteria]);
+  }, [settledParams, settledParamsKey, view, sort, companySlug, hasCriteria]);
 
   useEffect(() => {
     if (!companySlug) {
@@ -498,8 +572,14 @@ export default function MapPage() {
     request
       .then((d) => {
         if (requestId !== listRequestRef.current) return;
-        setJobs((prev) => [...prev, ...d.jobs]);
-        setNextCursor(d.next_cursor ?? null);
+        const cursor = d.next_cursor ?? null;
+        const merged = [...jobs, ...d.jobs];
+        setJobs(merged);
+        setNextCursor(cursor);
+        const cached = listCacheRef.current.jobs;
+        if (!companySlug && cached) {
+          listCacheRef.current.jobs = { ...cached, jobs: merged, cursor };
+        }
       })
       .catch(() => {})
       .finally(() => setLoadingMore(false));
@@ -541,6 +621,15 @@ export default function MapPage() {
     [setCity],
   );
 
+  const selectCountry = useCallback(
+    (code: string) => {
+      setCountry(code);
+      setPanelOpen(true);
+      setShowGeoHint(false);
+    },
+    [setCountry],
+  );
+
   useEffect(() => {
     selectCityRef.current = selectCity;
   }, [selectCity]);
@@ -573,6 +662,7 @@ export default function MapPage() {
               best = p;
             }
           }
+          flownLocationRef.current = `city:${best.name}`;
           selectCityRef.current(best.name);
           if (firstGeoRef.current) {
             firstGeoRef.current = false;
@@ -598,12 +688,17 @@ export default function MapPage() {
     <FilterPanel
       selections={selections}
       posted={posted}
+      city={city}
+      country={country}
       facets={facets}
       facetsLoading={facetsLoading}
       activeCount={activeCount}
       onToggle={toggle}
       onClearGroup={clearGroup}
       onPostedChange={setPosted}
+      onPickCity={selectCity}
+      onPickCountry={selectCountry}
+      onClearLocation={() => setCity(null)}
       onClearAll={clearAll}
       onClose={() => setFilterOpen(false)}
     />
@@ -783,18 +878,18 @@ export default function MapPage() {
                       Top Cities
                     </p>
                     <div className="space-y-1">
-                      {stats.top_cities.slice(0, 5).map((c) => (
+                      {stats.top_cities.slice(0, 5).map((cityStat) => (
                         <button
-                          key={c.city}
+                          key={cityStat.city}
                           onClick={() => {
-                            selectCity(c.city);
+                            selectCity(cityStat.city);
                             setStatsOpen(false);
                           }}
                           className="flex w-full justify-between rounded px-1 py-0.5 text-[10px] transition-colors hover:bg-black/5"
                         >
-                          <span className="text-gray-500">{c.city}</span>
+                          <span className="text-gray-500">{cityStat.city}</span>
                           <span className="font-medium text-gray-800">
-                            {c.job_count.toLocaleString()}
+                            {cityStat.job_count.toLocaleString()}
                           </span>
                         </button>
                       ))}
@@ -808,18 +903,18 @@ export default function MapPage() {
                       Regions
                     </p>
                     <div className="space-y-1">
-                      {stats.top_regions.map((r) => (
+                      {stats.top_regions.map((region) => (
                         <div
-                          key={r.region}
+                          key={region.region}
                           className="flex justify-between text-[10px]"
                         >
                           <span className="text-gray-500">
-                            {r.region
+                            {region.region
                               .replace(/_/g, " ")
                               .replace(/\b\w/g, (c) => c.toUpperCase())}
                           </span>
                           <span className="font-medium text-gray-800">
-                            {r.job_count.toLocaleString()}
+                            {region.job_count.toLocaleString()}
                           </span>
                         </div>
                       ))}
@@ -944,7 +1039,7 @@ export default function MapPage() {
             view={panelView}
             mode={view}
             onModeChange={setView}
-            selectedCity={city}
+            hasLocation={Boolean(city || country)}
             total={resultTotal}
             sort={sort}
             onSortChange={setSort}

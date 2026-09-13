@@ -18,28 +18,28 @@ export function useStatusBar(): StatusBar {
   const [stats, setStats] = useState<StatsData | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    let disposed = false;
     const unsubscribe = onApiReachability((reachable) => {
-      if (!cancelled) setConnected(reachable);
+      if (!disposed) setConnected(reachable);
     });
 
     fetch(`${API_BASE}/health`, {
       signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
     })
-      .then((r) => {
-        if (!cancelled) setConnected(r.ok);
+      .then((res) => {
+        if (!disposed) setConnected(res.ok);
       })
       .catch(() => {});
 
     return () => {
-      cancelled = true;
+      disposed = true;
       unsubscribe();
     };
   }, []);
 
   useEffect(() => {
     fetch(`https://api.github.com/repos/${GITHUB_REPO}`)
-      .then((r) => r.json())
+      .then((res) => res.json())
       .then((d: { stargazers_count?: number }) => {
         if (typeof d.stargazers_count === "number")
           setStars(d.stargazers_count);
@@ -48,15 +48,15 @@ export function useStatusBar(): StatusBar {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    let disposed = false;
     const ac = new AbortController();
     fetchStats(ac.signal)
       .then((d) => {
-        if (!cancelled) setStats(d);
+        if (!disposed) setStats(d);
       })
       .catch(() => {});
     return () => {
-      cancelled = true;
+      disposed = true;
       ac.abort();
     };
   }, []);

@@ -20,7 +20,7 @@ def _slugify(name: str) -> str:
 def seed_cities() -> None:
     """Seed the city table from data/cities.json, skipping cities that already exist.
 
-    Uses a single ON CONFLICT DO NOTHING insert rather than check-then-insert: two
+    Uses a single ON CONFLICT DO NOTHING insert instead of check-then-insert: two
     replicas booting against an empty table would otherwise both pass the existence
     check and the loser would fail startup on the unique City.slug constraint.
     """

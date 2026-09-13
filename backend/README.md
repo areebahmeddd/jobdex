@@ -53,6 +53,43 @@ uv run uvicorn app.main:app --port 8000 --reload
 
 API: `http://localhost:8000` | Docs: `http://localhost:8000/docs`
 
+## Database
+
+### Fresh Setup
+
+The seed scripts exit if a server is live, since the scheduler would crawl the same boards
+at the same time. Run each command one at a time and wait for it to complete.
+
+```bash
+# terminal 1: start the server to apply migrations and seed cities, then Ctrl+C at "Ready."
+uv run uvicorn app.main:app --port 8000 --reload
+```
+
+```bash
+# terminal 2: populate the database with the server stopped
+uv run python scripts/discover.py        # register companies from all ingesters (incl. seed files)
+uv run python scripts/probe.py           # upgrade YC companies onto the slug-addressed ATS
+uv run python scripts/ingest.py --all    # ingest jobs for all registered companies
+uv run python scripts/enrich.py --all    # enrich all companies with Wikidata/Wikipedia
+```
+
+Start the server again once they finish. `--force` skips the check.
+
+### Migrations
+
+> **Only run these if you modified `app/models.py`.** Migrations are not needed for any other changes.
+
+```bash
+# generate
+uv run alembic revision --autogenerate -m "describe the change"
+
+# apply
+uv run alembic upgrade head
+
+# rollback
+uv run alembic downgrade -1
+```
+
 ## API
 
 ### Endpoints
@@ -97,43 +134,6 @@ Runs in-process via APScheduler. No separate worker needed. Ingestion ticks ever
 
 See [ARCHITECTURE.md](../docs/ARCHITECTURE.md#background-jobs) for the job table and [Configuration](../docs/ARCHITECTURE.md#configuration) for every setting.
 
-## Database
-
-### Fresh Setup
-
-The seed scripts exit if a server is live, since the scheduler would crawl the same boards
-at the same time. Run each command one at a time and wait for it to complete.
-
-```bash
-# terminal 1: start the server to apply migrations and seed cities, then Ctrl+C at "Ready."
-uv run uvicorn app.main:app --port 8000 --reload
-```
-
-```bash
-# terminal 2: populate the database with the server stopped
-uv run python scripts/discover.py        # register companies from all ingesters (incl. seed files)
-uv run python scripts/probe.py           # upgrade YC companies onto the slug-addressed ATS
-uv run python scripts/ingest.py --all    # ingest jobs for all registered companies
-uv run python scripts/enrich.py --all    # enrich all companies with Wikidata/Wikipedia
-```
-
-Start the server again once they finish. `--force` skips the check.
-
-### Migrations
-
-> **Only run these if you modified `app/models.py`.** Migrations are not needed for any other changes.
-
-```bash
-# generate
-uv run alembic revision --autogenerate -m "describe the change"
-
-# apply
-uv run alembic upgrade head
-
-# rollback
-uv run alembic downgrade -1
-```
-
 ## Testing
 
 Unit tests require no DB. Integration tests need `DATABASE_URL`.
@@ -147,17 +147,17 @@ See [tests/README.md](tests/README.md) for details.
 
 ## Management Scripts
 
-| Script                           | Purpose                                                              |
-| -------------------------------- | -------------------------------------------------------------------- |
+| Script                           | Purpose                                                                                  |
+| -------------------------------- | ---------------------------------------------------------------------------------------- |
 | `scripts/discover.py`            | Register companies from all ingesters (YC directory + `data/companies_{ats}.json` seeds) |
-| `scripts/probe.py`               | Probe YC companies against the slug-addressed ATS; upgrade matches   |
-| `scripts/ingest.py --all`        | Ingest jobs for all active companies                                 |
-| `scripts/ingest.py <ats> <slug>` | Ingest jobs for a single company                                     |
-| `scripts/enrich.py <slug>`       | Enrich a single company with Wikidata/Wikipedia                      |
-| `scripts/enrich.py --all`        | Enrich all unenriched companies                                      |
-| `scripts/renormalize.py`         | Re-resolve locations for stored jobs whose city never matched        |
-| `scripts/reset.py`               | Delete all jobs and reset company crawl state                        |
-| `scripts/nuke.py`                | Drop all tables (full database wipe)                                 |
+| `scripts/probe.py`               | Probe YC companies against the slug-addressed ATS; upgrade matches                       |
+| `scripts/ingest.py --all`        | Ingest jobs for all active companies                                                     |
+| `scripts/ingest.py <ats> <slug>` | Ingest jobs for a single company                                                         |
+| `scripts/enrich.py <slug>`       | Enrich a single company with Wikidata/Wikipedia                                          |
+| `scripts/enrich.py --all`        | Enrich all unenriched companies                                                          |
+| `scripts/renormalize.py`         | Re-resolve locations for stored jobs whose city never matched                            |
+| `scripts/reset.py`               | Delete all jobs and reset company crawl state                                            |
+| `scripts/nuke.py`                | Drop all tables (full database wipe)                                                     |
 
 ## Docker
 
@@ -173,6 +173,6 @@ Run from the repo root. Loads `backend/.env` automatically.
 
 ```bash
 cd backend
-docker build -t jobdex-backend .
+docker build -f ../docker/Dockerfile.backend -t jobdex-backend .
 docker run -p 8000:8000 -e DATABASE_URL="postgresql+psycopg2://..." jobdex-backend
 ```

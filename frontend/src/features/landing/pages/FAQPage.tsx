@@ -23,7 +23,7 @@ const SECTIONS: {
     questions: [
       {
         q: "How often are listings updated?",
-        a: "Ingestion runs as a rotating queue rather than one big sweep: every 15 minutes the least recently crawled companies are refreshed, so coverage cycles through continuously. When a role disappears from the source, it is marked inactive rather than deleted.",
+        a: "Continuously. The crawler cycles through every company on a 15-minute tick, always refreshing whichever ones have gone longest without a check, so nothing sits stale for long. When a role disappears from the source, it is marked inactive, not deleted.",
       },
       {
         q: "Why can't I find a company I'm looking for?",

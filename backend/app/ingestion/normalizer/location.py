@@ -94,7 +94,7 @@ def get_country_code_for_name(name: str | None) -> str | None:
 
 
 def canonicalize_city(name: str) -> str | None:
-    """Return the canonical city name for the input string, or None if unrecognised."""
+    """Return the canonical city name for the input string, or None if unrecognized."""
     lowered = name.lower().strip()
     if lowered in _CITY_ALIASES:
         return _CITY_ALIASES[lowered]

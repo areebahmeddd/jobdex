@@ -7,7 +7,7 @@ React frontend for JobDex. Renders the landing page, interactive world map and j
 | Layer                 | Choice                        |
 | --------------------- | ----------------------------- |
 | Framework             | React 19 + Vite               |
-| Language              | TypeScript v6                 |
+| Language              | TypeScript v7                 |
 | Styling               | Tailwind CSS v4               |
 | Components            | shadcn/ui (base-nova)         |
 | UI Extras             | Magic UI (Globe, Highlighter) |
@@ -54,7 +54,7 @@ docker compose up --build
 ```bash
 cd frontend
 
-docker build -t jobdex-frontend .
+docker build -f ../docker/Dockerfile.frontend -t jobdex-frontend .
 
 docker run -p 3000:80 jobdex-frontend
 ```

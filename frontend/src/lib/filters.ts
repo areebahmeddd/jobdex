@@ -167,3 +167,13 @@ export function postedLabel(days: number | null): string | null {
   if (days === null) return null;
   return POSTED_OPTIONS.find((o) => o.value === days)?.label ?? `Past ${days}d`;
 }
+
+const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
+
+export function countryName(code: string): string {
+  try {
+    return regionNames.of(code.toUpperCase()) ?? code;
+  } catch {
+    return code;
+  }
+}

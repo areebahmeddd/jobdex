@@ -46,16 +46,18 @@ def search(
     )
 
     page_company_jobs: dict[str, tuple[Company, list[Job]]] = {}
-    for job, co in paged_rows:
-        if co.id not in page_company_jobs:
-            page_company_jobs[co.id] = (co, [])
-        page_company_jobs[co.id][1].append(job)
+    for job, company in paged_rows:
+        if company.id not in page_company_jobs:
+            page_company_jobs[company.id] = (company, [])
+        page_company_jobs[company.id][1].append(job)
 
     companies_out = [
-        build_company_response(co, len(jobs), [j.role_category for j in jobs if j.role_category])
-        for co, jobs in page_company_jobs.values()
+        build_company_response(
+            company, len(jobs), [j.role_category for j in jobs if j.role_category]
+        )
+        for company, jobs in page_company_jobs.values()
     ]
-    jobs_out = [build_job_response(job, co) for job, co in paged_rows]
+    jobs_out = [build_job_response(job, company) for job, company in paged_rows]
 
     return SearchResponse(
         companies=companies_out,

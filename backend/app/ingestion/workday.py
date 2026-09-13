@@ -21,7 +21,7 @@ from app.ingestion.normalizer import (
 from app.models import Company, Job
 
 # A board is addressed by three per-customer values that cannot be derived from the
-# company name: tenant, data-centre number (wd1-wd12), and board name. They are packed
+# company name: tenant, data center number (wd1-wd12), and board name. They are packed
 # into the slug as "tenant:wdN:board" so ats_slug stays a single string.
 _LIST_URL = "https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{board}/jobs"
 _DETAIL_URL = "https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{board}{path}"
@@ -75,8 +75,10 @@ class WorkdayIngester(BaseIngester):
                     total = data.get("total", 0)
 
                 # An offset past the last page wraps around and re-serves page 0.
-                fresh = [p for p in batch if p.get("externalPath") not in seen_paths]
-                seen_paths.update(p.get("externalPath") for p in fresh)
+                fresh = [
+                    posting for posting in batch if posting.get("externalPath") not in seen_paths
+                ]
+                seen_paths.update(posting.get("externalPath") for posting in fresh)
                 postings.extend(fresh)
 
                 if not fresh or len(batch) < _PAGE_SIZE or (total and len(postings) >= total):
@@ -98,7 +100,7 @@ class WorkdayIngester(BaseIngester):
         ) as client:
             sem = asyncio.Semaphore(_DETAIL_CONCURRENCY)
             enriched = await asyncio.gather(
-                *[_fetch_detail(client, tenant, wd, board, p, sem) for p in raw_jobs],
+                *[_fetch_detail(client, tenant, wd, board, posting, sem) for posting in raw_jobs],
                 return_exceptions=True,
             )
         return [

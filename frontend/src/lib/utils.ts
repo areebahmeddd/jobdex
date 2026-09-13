@@ -17,8 +17,8 @@ export function relativeTime(dateStr: string | null): string {
   });
 }
 
-export function escapeHtml(s: string): string {
-  return s
+export function escapeHtml(text: string): string {
+  return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")

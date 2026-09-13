@@ -5,11 +5,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import Query
-from sqlalchemy import and_, case, or_, text
+from sqlalchemy import and_, case, or_, select, text
 from sqlalchemy.orm import Query as OrmQuery
 
 from app.ingestion.normalizer import canonicalize_city
-from app.models import Job
+from app.models import Company, Job
 
 SORT_RECENT = "recent"
 SORT_RELEVANCE = "relevance"
@@ -22,7 +22,11 @@ WORK_MODES = (WORK_MODE_REMOTE, WORK_MODE_HYBRID, WORK_MODE_ONSITE)
 
 POSTED_WITHIN_MAX_DAYS = 365
 
-# Caps on user-supplied repeated params before they reach an IN clause.
+# City and country are one choice in the UI, so a location facet skips both.
+LOCATION_DIMENSIONS = frozenset({"city", "country_code"})
+
+# Caps on user-supplied input before it reaches a query: the first two bound an
+# IN clause, the third bounds the free-text search string.
 _MAX_VALUES_PER_FILTER = 25
 _MAX_VALUE_LENGTH = 100
 _MAX_QUERY_LENGTH = 200
@@ -74,6 +78,11 @@ def _clean_multi(values: list[str] | None) -> list[str]:
         if len(out) >= _MAX_VALUES_PER_FILTER:
             break
     return out
+
+
+def _escape_like(value: str) -> str:
+    """Escape LIKE wildcards so a literal query stays literal."""
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class JobFilters:
@@ -129,7 +138,7 @@ class JobFilters:
     ):
         raw_city = city.strip() if city else ""
         # Resolved once: canonicalize_city can fuzzy match, and /jobs/facets applies
-        # the same filters six times.
+        # the same filters eight times.
         self.city = (canonicalize_city(raw_city) or raw_city) if raw_city else None
         self.country_code = country_code.strip().upper() if country_code else None
         self.region = region.strip().lower() if region else None
@@ -173,38 +182,40 @@ class JobFilters:
             or self.is_remote is not None
         )
 
-    def apply(self, query: OrmQuery, *, skip: str | None = None) -> OrmQuery:
+    def apply(self, query: OrmQuery, *, skip: frozenset[str] = frozenset()) -> OrmQuery:
         """Apply every active filter to a query already scoped to active jobs.
 
-        `skip` omits one dimension so a facet count can ignore its own selection.
+        `skip` omits dimensions so a facet count can ignore its own selection.
         """
-        if self.city:
+        if self.city and "city" not in skip:
             query = query.filter(Job.city == self.city)
-        if self.country_code:
+        if self.country_code and "country_code" not in skip:
             query = query.filter(Job.country_code == self.country_code)
         if self.region:
             query = query.filter(Job.region == self.region)
-        if self.role_category and skip != "role_category":
+        if self.role_category and "role_category" not in skip:
             query = query.filter(Job.role_category.in_(self.role_category))
         if self.role_subcategory:
             query = query.filter(Job.role_subcategory.in_(self.role_subcategory))
-        if self.seniority and skip != "seniority":
+        if self.seniority and "seniority" not in skip:
             query = query.filter(Job.seniority.in_(self.seniority))
-        if self.job_type and skip != "job_type":
+        if self.job_type and "job_type" not in skip:
             query = query.filter(Job.job_type.in_(self.job_type))
-        if self.ats_type and skip != "ats_type":
+        if self.ats_type and "ats_type" not in skip:
             query = query.filter(Job.ats_type.in_(self.ats_type))
-        if skip != "work_mode":
+        if "work_mode" not in skip:
             query = self._apply_work_mode(query)
         # Gated on posted_within so without("posted_within") clears the window too.
         if self.posted_within and self.posted_cutoff:
             query = query.filter(Job.posted_at >= self.posted_cutoff)
         if self.q:
-            query = query.filter(
-                text(f"{FTS_VECTOR_SQL} @@ websearch_to_tsquery('english', :fts_q)").bindparams(
-                    fts_q=self.q
-                )
+            # A query matches a job's text or its company's name, so "Adobe" and
+            # "devops" both list jobs on every surface.
+            fts = text(f"{FTS_VECTOR_SQL} @@ websearch_to_tsquery('english', :fts_q)").bindparams(
+                fts_q=self.q
             )
+            named = select(Company.id).where(Company.name.ilike(f"%{_escape_like(self.q)}%"))
+            query = query.filter(or_(fts, Job.company_id.in_(named)))
         return query
 
     def _apply_work_mode(self, query: OrmQuery) -> OrmQuery:

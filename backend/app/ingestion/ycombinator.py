@@ -26,11 +26,11 @@ class YCombinatorIngester(BaseIngester):
     async def fetch_raw(self, slug: str) -> list[dict]:
         """Fetch the YC company by slug and return it if actively hiring."""
         async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT) as client:
-            resp = await client.get(_API_BASE, params={"q": slug})
-            resp.raise_for_status()
-            data = resp.json()
+            response = await client.get(_API_BASE, params={"q": slug})
+            response.raise_for_status()
+            data = response.json()
 
-        match = next((c for c in data.get("companies", []) if c.get("slug") == slug), None)
+        match = next((yc for yc in data.get("companies", []) if yc.get("slug") == slug), None)
         if match is None or "isHiring" not in (match.get("badges") or []):
             return []
 
@@ -114,12 +114,12 @@ class YCombinatorIngester(BaseIngester):
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             while page <= total_pages:
-                resp = await client.get(
+                response = await client.get(
                     _API_BASE,
                     params={"isHiring": "true", "page": str(page)},
                 )
-                resp.raise_for_status()
-                data = resp.json()
+                response.raise_for_status()
+                data = response.json()
                 total_pages = data.get("totalPages", 1)
 
                 for yc in data.get("companies", []):

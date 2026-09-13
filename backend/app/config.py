@@ -24,6 +24,9 @@ class Settings(BaseSettings):
 
     HTTP_TIMEOUT: float = 30.0
     CRAWL_DELAY: float = 0.3
+    HTTP_RETRY_ATTEMPTS: int = 3
+    HTTP_RETRY_MIN_WAIT: float = 2.0
+    HTTP_RETRY_MAX_WAIT: float = 30.0
 
     # Ingestion runs as a rotating queue: every tick takes the INGEST_BATCH_SIZE least
     # recently crawled companies. Companies covered per day is
@@ -41,10 +44,6 @@ class Settings(BaseSettings):
     ENRICHMENT_REQUEST_TIMEOUT: float = 15.0
     ENRICHMENT_STEP_DELAY: float = 0.5
     ENRICH_REFRESH_DAYS: int = 90
-
-    HTTP_RETRY_ATTEMPTS: int = 3
-    HTTP_RETRY_MIN_WAIT: float = 2.0
-    HTTP_RETRY_MAX_WAIT: float = 30.0
 
     ALLOWED_ORIGINS: list[str] = [
         "https://jobdex-api.1mindlabs.org",

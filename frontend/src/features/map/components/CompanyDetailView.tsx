@@ -38,6 +38,8 @@ type Props = {
   loading: boolean;
   failed: boolean;
   jobs: Job[];
+  jobsTotal: number | null;
+  jobsFiltered: boolean;
   jobsLoading: boolean;
   nextCursor: string | null;
   loadingMore: boolean;
@@ -149,6 +151,8 @@ export function CompanyDetailView({
   loading,
   failed,
   jobs,
+  jobsTotal,
+  jobsFiltered,
   jobsLoading,
   nextCursor,
   loadingMore,
@@ -157,6 +161,7 @@ export function CompanyDetailView({
   onBack,
 }: Props) {
   const [descExpanded, setDescExpanded] = useState(false);
+  const shownCount = jobsTotal ?? company?.job_count ?? 0;
 
   if (failed && !company) {
     return (
@@ -418,8 +423,8 @@ export function CompanyDetailView({
               </span>
             </div>
             <div className="flex flex-col gap-1.5">
-              {founders.map((f) => (
-                <FounderCard key={f.name} founder={f} />
+              {founders.map((founder) => (
+                <FounderCard key={founder.name} founder={founder} />
               ))}
             </div>
           </div>
@@ -432,12 +437,12 @@ export function CompanyDetailView({
               <span className="text-[11px] text-gray-500">Key investors</span>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {investors.map((inv) => (
+              {investors.map((investor) => (
                 <span
-                  key={inv.name}
+                  key={investor.name}
                   className="rounded-full border border-black/8 bg-gray-50 px-2 py-0.5 text-[10px] text-gray-600"
                 >
-                  {inv.name}
+                  {investor.name}
                 </span>
               ))}
             </div>
@@ -450,7 +455,7 @@ export function CompanyDetailView({
               <Briefcase className="h-3 w-3 text-gray-500" />
               <span className="text-[11px] text-gray-500">
                 Open positions
-                {company.job_count > 0 ? ` (${company.job_count})` : ""}
+                {shownCount > 0 ? ` (${shownCount})` : ""}
               </span>
             </div>
           </div>
@@ -461,7 +466,9 @@ export function CompanyDetailView({
             </div>
           ) : jobs.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-1 py-8 text-center">
-              <p className="text-sm text-gray-500">No open roles</p>
+              <p className="text-sm text-gray-500">
+                {jobsFiltered ? "No matching roles" : "No open roles"}
+              </p>
             </div>
           ) : (
             <div className="flex flex-col py-1">

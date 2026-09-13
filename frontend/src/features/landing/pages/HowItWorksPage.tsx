@@ -18,7 +18,7 @@ const STEPS: {
         same APIs companies use to publish their roles are what JobDex reads.
       </>,
 
-      "Crawling runs as a rotating queue rather than a full sweep: each tick picks up the companies that were crawled longest ago, which keeps load on every provider bounded and coverage cycling continuously. Requests are retried automatically on failure with exponential backoff, and a short delay is inserted between companies to be a respectful API client. Any errors are recorded against the company without stopping the rest of the crawl.",
+      "Crawling runs as a rotating queue, not a full sweep: each tick picks up the companies that were crawled longest ago, which keeps load on every provider bounded and coverage cycling continuously. Requests are retried automatically on failure with exponential backoff, and a short delay is inserted between companies to be a respectful API client. Any errors are recorded against the company without stopping the rest of the crawl.",
     ],
   },
   {
@@ -48,9 +48,9 @@ const STEPS: {
     body: [
       "Once a company is first seen, a background enrichment job fills in its profile using three external sources. Wikidata provides structured facts like founding year, industry, funding stage, key investors, and social profile links. Wikipedia provides a long-form description when Wikidata has none.",
       <>
-        Headquarters coordinates and the company logo come from Clearbit.
-        Enrichment runs <strong>every 12 hours</strong> and refreshes profiles
-        older than <strong>90 days</strong>.
+        Headquarters coordinates come from Clearbit, and the company logo from a
+        favicon lookup. Enrichment runs <strong>every 12 hours</strong> and
+        refreshes profiles older than <strong>90 days</strong>.
       </>,
     ],
   },
@@ -112,7 +112,7 @@ const STACK: {
 }[] = [
   {
     label: "Docker",
-    detail: "Containerisation",
+    detail: "Containerization",
     slug: "docker",
     color: "2496ED",
   },
@@ -131,7 +131,7 @@ const STACK: {
   },
   {
     label: "Cloudflare",
-    detail: "Web Hosting",
+    detail: "Web hosting",
     slug: "cloudflare",
     color: "F48120",
   },
@@ -298,14 +298,14 @@ export default function HowItWorksPage() {
             Supported ATS (Applicant Tracking System) providers
           </h2>
           <div className="mt-4 flex flex-wrap gap-2">
-            {ATS_PROVIDERS.map((p) => (
+            {ATS_PROVIDERS.map((provider) => (
               <span
-                key={p.name}
+                key={provider.name}
                 className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1 text-xs text-gray-600"
               >
-                {p.slug && (
+                {provider.slug && (
                   <img
-                    src={`https://cdn.simpleicons.org/${p.slug}/${p.color}`}
+                    src={`https://cdn.simpleicons.org/${provider.slug}/${provider.color}`}
                     alt=""
                     aria-hidden="true"
                     width={12}
@@ -313,8 +313,8 @@ export default function HowItWorksPage() {
                     className="size-3 shrink-0"
                   />
                 )}
-                {p.name}
-                <span className="text-gray-500">{p.region}</span>
+                {provider.name}
+                <span className="text-gray-500">{provider.region}</span>
               </span>
             ))}
           </div>
@@ -325,32 +325,32 @@ export default function HowItWorksPage() {
             Technology Stack
           </h2>
           <div className="mt-4 flex flex-wrap gap-2">
-            {STACK.map((t) => (
+            {STACK.map((tech) => (
               <span
-                key={t.label}
+                key={tech.label}
                 className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1 text-xs text-gray-600"
               >
-                {t.icon ? (
-                  t.icon
-                ) : t.slug ? (
+                {tech.icon ? (
+                  tech.icon
+                ) : tech.slug ? (
                   <img
-                    src={`https://cdn.simpleicons.org/${t.slug}/${t.color}`}
+                    src={`https://cdn.simpleicons.org/${tech.slug}/${tech.color}`}
                     alt=""
                     aria-hidden="true"
                     width={12}
                     height={12}
                     className="size-3 shrink-0"
                   />
-                ) : t.emoji ? (
+                ) : tech.emoji ? (
                   <span className="shrink-0 leading-none" aria-hidden="true">
-                    {t.emoji}
+                    {tech.emoji}
                   </span>
                 ) : null}
-                {t.label}
-                <span className="text-gray-500">{t.detail}</span>
-                {t.version && (
+                {tech.label}
+                <span className="text-gray-500">{tech.detail}</span>
+                {tech.version && (
                   <span className="font-mono text-[10px] text-gray-500">
-                    v{t.version}
+                    v{tech.version}
                   </span>
                 )}
               </span>

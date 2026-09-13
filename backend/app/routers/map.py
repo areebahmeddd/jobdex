@@ -20,94 +20,46 @@ def map_companies(
     response: Response = None,
     db: Session = Depends(get_db),
 ):
-    """Return company map pins with coordinates and filtered job counts for the globe UI."""
-    loc_counts_q = db.query(
-        Job.company_id,
-        Job.latitude,
-        Job.longitude,
-        Job.city,
-        Job.country_code,
-        Job.region,
-        func.count(Job.id).label("loc_cnt"),
-    ).filter(Job.is_active.is_(True), Job.latitude.isnot(None))
-
-    loc_counts = loc_counts_q.group_by(
-        Job.company_id, Job.latitude, Job.longitude, Job.city, Job.country_code, Job.region
-    ).subquery("loc_counts")
-
-    best_loc = (
-        db.query(
-            loc_counts.c.company_id,
-            loc_counts.c.latitude,
-            loc_counts.c.longitude,
-            loc_counts.c.city,
-            loc_counts.c.country_code,
-            loc_counts.c.region,
-        )
-        .distinct(loc_counts.c.company_id)
-        .order_by(loc_counts.c.company_id, loc_counts.c.loc_cnt.desc())
-        .subquery("best_loc")
-    )
-
-    resolved_lat = func.coalesce(Company.latitude, best_loc.c.latitude)
-    resolved_lng = func.coalesce(Company.longitude, best_loc.c.longitude)
-    resolved_city = func.coalesce(Company.city, best_loc.c.city)
-    resolved_cc = func.coalesce(Company.country_code, best_loc.c.country_code)
-    resolved_region = func.coalesce(Company.region, best_loc.c.region)
-
-    # A pin's job count must match what the panel lists. Location dimensions are
-    # dropped here; they constrain the pin's own coordinates below.
-    filtered_jobs_q = filters.without("city", "country_code", "region").apply(
-        db.query(Job.id, Job.company_id).filter(Job.is_active.is_(True))
-    )
-    filtered_jobs = filtered_jobs_q.subquery("filtered_jobs")
-
-    q = (
+    """Return one pin per company per city it is hiring in, with that city's job count."""
+    query = filters.without("city").apply(
         db.query(
             Company.id,
             Company.name,
             Company.slug,
-            resolved_city.label("city"),
-            resolved_cc.label("country_code"),
-            resolved_region.label("region"),
-            resolved_lat.label("latitude"),
-            resolved_lng.label("longitude"),
+            Job.city,
+            Job.country_code,
+            Job.region,
+            Job.latitude,
+            Job.longitude,
             Company.industry,
             Company.logo_url,
-            func.count(filtered_jobs.c.id).label("job_count"),
+            func.count(Job.id).label("job_count"),
         )
-        .outerjoin(best_loc, best_loc.c.company_id == Company.id)
-        .join(filtered_jobs, filtered_jobs.c.company_id == Company.id)
-        .filter(
-            Company.is_active.is_(True),
-            resolved_lat.isnot(None),
-        )
-        .group_by(
-            Company.id,
-            best_loc.c.latitude,
-            best_loc.c.longitude,
-            best_loc.c.city,
-            best_loc.c.country_code,
-            best_loc.c.region,
-        )
+        .join(Company, Job.company_id == Company.id)
+        .filter(Job.is_active.is_(True), Company.is_active.is_(True), Job.latitude.isnot(None))
     )
 
     if lat_min is not None:
-        q = q.filter(resolved_lat >= lat_min)
+        query = query.filter(Job.latitude >= lat_min)
     if lat_max is not None:
-        q = q.filter(resolved_lat <= lat_max)
+        query = query.filter(Job.latitude <= lat_max)
     if lng_min is not None:
-        q = q.filter(resolved_lng >= lng_min)
+        query = query.filter(Job.longitude >= lng_min)
     if lng_max is not None:
-        q = q.filter(resolved_lng <= lng_max)
+        query = query.filter(Job.longitude <= lng_max)
 
-    # These narrow the pin's own resolved location, not its jobs.
-    if filters.region:
-        q = q.filter(resolved_region == filters.region)
-    if filters.country_code:
-        q = q.filter(resolved_cc == filters.country_code)
+    pins = query.group_by(
+        Company.id, Job.city, Job.country_code, Job.region, Job.latitude, Job.longitude
+    ).subquery("pins")
 
-    rows = q.order_by(func.count(filtered_jobs.c.id).desc()).limit(500).all()
+    # Every company's largest location outranks its second, so world zoom shows
+    # each company once instead of one employer's forty offices.
+    rank = (
+        func.row_number()
+        .over(partition_by=pins.c.id, order_by=pins.c.job_count.desc())
+        .label("rank")
+    )
+    rows = db.query(pins, rank).order_by(rank, pins.c.job_count.desc()).limit(500).all()
 
     if response is not None:
         response.headers["Cache-Control"] = "public, max-age=120, stale-while-revalidate=30"
@@ -115,19 +67,19 @@ def map_companies(
     return {
         "companies": [
             {
-                "id": r.id,
-                "name": r.name,
-                "slug": r.slug,
-                "city": r.city,
-                "country_code": r.country_code,
-                "region": r.region,
-                "latitude": r.latitude,
-                "longitude": r.longitude,
-                "industry": r.industry or [],
-                "logo_url": r.logo_url,
-                "job_count": r.job_count,
+                "id": row.id,
+                "name": row.name,
+                "slug": row.slug,
+                "city": row.city,
+                "country_code": row.country_code,
+                "region": row.region,
+                "latitude": row.latitude,
+                "longitude": row.longitude,
+                "industry": row.industry or [],
+                "logo_url": row.logo_url,
+                "job_count": row.job_count,
             }
-            for r in rows
+            for row in rows
         ],
         "total": len(rows),
     }
@@ -145,7 +97,7 @@ def map_cities(
 ):
     """Return city cluster pins with aggregated job and company counts for the map UI."""
     # A city pin is what selecting that city would return, so its own filter is dropped.
-    job_agg_q = filters.without("city", "country_code", "region").apply(
+    job_agg_query = filters.without("city", "country_code", "region").apply(
         db.query(
             City.id.label("city_id"),
             func.count(Job.id).label("job_count"),
@@ -155,9 +107,9 @@ def map_cities(
         .filter(Job.is_active.is_(True), City.latitude.isnot(None))
     )
 
-    job_agg = job_agg_q.group_by(City.id).subquery("job_agg")
+    job_agg = job_agg_query.group_by(City.id).subquery("job_agg")
 
-    city_q = (
+    city_query = (
         db.query(
             City,
             job_agg.c.job_count,
@@ -168,20 +120,20 @@ def map_cities(
     )
 
     if filters.region:
-        city_q = city_q.filter(City.region == filters.region)
+        city_query = city_query.filter(City.region == filters.region)
     if filters.country_code:
-        city_q = city_q.filter(City.country_code == filters.country_code)
+        city_query = city_query.filter(City.country_code == filters.country_code)
 
     if lat_min is not None:
-        city_q = city_q.filter(City.latitude >= lat_min)
+        city_query = city_query.filter(City.latitude >= lat_min)
     if lat_max is not None:
-        city_q = city_q.filter(City.latitude <= lat_max)
+        city_query = city_query.filter(City.latitude <= lat_max)
     if lng_min is not None:
-        city_q = city_q.filter(City.longitude >= lng_min)
+        city_query = city_query.filter(City.longitude >= lng_min)
     if lng_max is not None:
-        city_q = city_q.filter(City.longitude <= lng_max)
+        city_query = city_query.filter(City.longitude <= lng_max)
 
-    rows = city_q.order_by(City.name).limit(500).all()
+    rows = city_query.order_by(City.name).limit(500).all()
 
     if response is not None:
         response.headers["Cache-Control"] = "public, max-age=120, stale-while-revalidate=30"
@@ -189,16 +141,16 @@ def map_cities(
     return {
         "cities": [
             {
-                "name": r.City.name,
-                "slug": r.City.slug,
-                "latitude": r.City.latitude,
-                "longitude": r.City.longitude,
-                "country_code": r.City.country_code,
-                "region": r.City.region,
-                "job_count": r.job_count,
-                "company_count": r.company_count,
+                "name": row.City.name,
+                "slug": row.City.slug,
+                "latitude": row.City.latitude,
+                "longitude": row.City.longitude,
+                "country_code": row.City.country_code,
+                "region": row.City.region,
+                "job_count": row.job_count,
+                "company_count": row.company_count,
             }
-            for r in rows
+            for row in rows
         ],
         "total": len(rows),
     }
@@ -236,12 +188,12 @@ def company_offices(slug: str, response: Response = None, db: Session = Depends(
     return {
         "offices": [
             {
-                "city": r.city,
-                "country_code": r.country_code,
-                "latitude": float(r.latitude),
-                "longitude": float(r.longitude),
-                "job_count": r.job_count,
+                "city": row.city,
+                "country_code": row.country_code,
+                "latitude": float(row.latitude),
+                "longitude": float(row.longitude),
+                "job_count": row.job_count,
             }
-            for r in rows
+            for row in rows
         ]
     }

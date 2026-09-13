@@ -46,8 +46,8 @@ async def enrich_all() -> None:
     """Enrich all active companies that have not yet been enriched."""
     with get_session() as db:
         slugs = [
-            c.slug
-            for c in db.query(Company)
+            company.slug
+            for company in db.query(Company)
             .filter(Company.is_active.is_(True), Company.enriched_at.is_(None))
             .order_by(Company.name)
             .all()

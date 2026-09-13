@@ -21,7 +21,7 @@ export const ROUTE_META: Record<string, RouteMeta> = {
   "/how-it-works": {
     title: "How it works | JobDex",
     description:
-      "How JobDex ingests, deduplicates and categorises startup job listings from public hiring APIs.",
+      "How JobDex ingests, deduplicates and categorizes startup job listings from public hiring APIs.",
   },
   "/legal": {
     title: "Legal | JobDex",

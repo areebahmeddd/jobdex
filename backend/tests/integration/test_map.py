@@ -105,7 +105,22 @@ def test_map_companies_respects_the_source_filter(client):
 def test_map_companies_role_filter_narrows_counts(client):
     everything = client.get("/map/companies").json()
     scoped = client.get("/map/companies", params={"role_category": "design"}).json()
-    baseline = {p["slug"]: p["job_count"] for p in everything["companies"]}
+    baseline = {(p["slug"], p["city"]): p["job_count"] for p in everything["companies"]}
     for pin in scoped["companies"]:
-        if pin["slug"] in baseline:
-            assert pin["job_count"] <= baseline[pin["slug"]]
+        key = (pin["slug"], pin["city"])
+        if key in baseline:
+            assert pin["job_count"] <= baseline[key]
+
+
+@pytest.mark.integration
+def test_map_companies_pin_where_the_jobs_are(client):
+    bounds = {"lat_min": 2.9, "lat_max": 3.4, "lng_min": 101.4, "lng_max": 101.9}
+    cities = client.get("/map/cities", params=bounds).json()["cities"]
+    if not cities:
+        pytest.skip("No city in this viewport")
+    pins = client.get("/map/companies", params=bounds).json()["companies"]
+    by_city = {}
+    for p in pins:
+        by_city.setdefault(p["city"], set()).add(p["slug"])
+    for city in cities:
+        assert len(by_city.get(city["name"], ())) == city["company_count"]

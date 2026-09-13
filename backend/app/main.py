@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from app import scheduler as _scheduler
+from app import scheduler
 from app.config import settings
 from app.database import migrate_db
 from app.routers import cities, companies, jobs, map, payments, search, stats
@@ -17,10 +17,10 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}...")
     migrate_db()
     seed_cities()
-    _scheduler.start()
+    scheduler.start()
     logger.info("Ready.")
     yield
-    _scheduler.stop()
+    scheduler.stop()
     logger.info("Shutting down.")
 
 

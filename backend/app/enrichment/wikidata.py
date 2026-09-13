@@ -201,14 +201,14 @@ async def fetch_company_data(client: httpx.AsyncClient, qid: str) -> dict:
 
         founder_name = _val(row, "founderLabel")
         if founder_name and not any(founder["name"] == founder_name for founder in founders):
-            tw = _val(row, "founderTwitter")
-            li = _val(row, "founderLinkedin")
+            twitter = _val(row, "founderTwitter")
+            linkedin = _val(row, "founderLinkedin")
             founders.append(
                 {
                     "name": founder_name,
                     "title": _val(row, "founderTitle"),
-                    "twitter_url": f"https://twitter.com/{tw}" if tw else None,
-                    "linkedin_url": f"https://linkedin.com/in/{li}" if li else None,
+                    "twitter_url": f"https://twitter.com/{twitter}" if twitter else None,
+                    "linkedin_url": f"https://linkedin.com/in/{linkedin}" if linkedin else None,
                     "photo_url": _val(row, "founderPhoto"),
                 }
             )

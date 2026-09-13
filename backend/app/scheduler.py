@@ -42,7 +42,7 @@ async def run_ingestion(batch_size: int | None = None) -> None:
         )
         if limit:
             query = query.limit(limit)
-        targets = [(c.ats_type, c.ats_slug, c.slug) for c in query.all()]
+        targets = [(company.ats_type, company.ats_slug, company.slug) for company in query.all()]
 
     for ats_type, ats_slug, slug in targets:
         ingester = INGESTERS.get(ats_type)

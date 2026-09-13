@@ -11,6 +11,7 @@ from app.models import Company, Job
 from app.routers._builders import build_job_detail_response, build_job_response
 from app.routers._filters import (
     FTS_VECTOR_SQL,
+    LOCATION_DIMENSIONS,
     SORT_OPTIONS,
     SORT_RECENT,
     SORT_RELEVANCE,
@@ -128,12 +129,15 @@ def list_jobs(
     )
 
 
+# (column, dimensions its count ignores, parent column for hierarchical buckets)
 _FACET_DIMENSIONS = {
-    "ats_type": Job.ats_type,
-    "role_category": Job.role_category,
-    "seniority": Job.seniority,
-    "job_type": Job.job_type,
-    "work_mode": WORK_MODE_EXPR,
+    "ats_type": (Job.ats_type, frozenset({"ats_type"}), None),
+    "role_category": (Job.role_category, frozenset({"role_category"}), None),
+    "seniority": (Job.seniority, frozenset({"seniority"}), None),
+    "job_type": (Job.job_type, frozenset({"job_type"}), None),
+    "work_mode": (WORK_MODE_EXPR, frozenset({"work_mode"}), None),
+    "country_code": (Job.country_code, LOCATION_DIMENSIONS, None),
+    "city": (Job.city, LOCATION_DIMENSIONS, Job.country_code),
 }
 _FACET_TOTAL = "total"
 
@@ -148,14 +152,17 @@ def _listable_jobs(*columns):
     )
 
 
-def _facet_select(filters: JobFilters, dimension: str, column):
+def _facet_select(filters: JobFilters, dimension: str, column, skip, parent):
     """Count jobs per value of one dimension, ignoring that dimension's own selection."""
+    parent_col = cast(parent, String) if parent is not None else cast(null(), String)
     stmt = _listable_jobs(
         literal(dimension).label("dimension"),
         cast(column, String).label("value"),
+        parent_col.label("parent"),
         func.count(Job.id).label("count"),
     )
-    return filters.apply(stmt, skip=dimension).group_by(column)
+    stmt = filters.apply(stmt, skip=skip).group_by(column)
+    return stmt.group_by(parent) if parent is not None else stmt
 
 
 @router.get("/facets", response_model=JobFacetsResponse)
@@ -169,12 +176,16 @@ def job_facets(filters: JobFilters = Depends(), db: Session = Depends(get_db)):
         _listable_jobs(
             literal(_FACET_TOTAL).label("dimension"),
             cast(null(), String).label("value"),
+            cast(null(), String).label("parent"),
             func.count(Job.id).label("count"),
         )
     )
     stmt = union_all(
         total_stmt,
-        *(_facet_select(filters, dim, col) for dim, col in _FACET_DIMENSIONS.items()),
+        *(
+            _facet_select(filters, dim, col, skip, parent)
+            for dim, (col, skip, parent) in _FACET_DIMENSIONS.items()
+        ),
     )
 
     buckets: dict[str, list[FacetBucket]] = {dim: [] for dim in _FACET_DIMENSIONS}
@@ -183,7 +194,9 @@ def job_facets(filters: JobFilters = Depends(), db: Session = Depends(get_db)):
         if row.dimension == _FACET_TOTAL:
             total = row.count
         elif row.value is not None:
-            buckets[row.dimension].append(FacetBucket(value=row.value, count=row.count))
+            buckets[row.dimension].append(
+                FacetBucket(value=row.value, count=row.count, parent=row.parent)
+            )
 
     for values in buckets.values():
         values.sort(key=lambda b: (-b.count, b.value))

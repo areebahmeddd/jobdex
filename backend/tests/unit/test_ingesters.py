@@ -187,7 +187,7 @@ class TestWorkday:
         assert job.country_code == "US"
         assert job.region == "north_america"
 
-    def test_unrecognised_country_leaves_code_unset(self, company):
+    def test_unrecognized_country_leaves_code_unset(self, company):
         job = workday.build_job(
             {
                 **WORKDAY_JOB,
@@ -288,7 +288,7 @@ class TestRippling:
         assert job.country_code == "CA"
         assert job.region == "north_america"
 
-    def test_unrecognised_location_tail_leaves_code_unset(self, company):
+    def test_unrecognized_location_tail_leaves_code_unset(self, company):
         job = rippling.build_job(
             {**RIPPLING_JOB, "workLocations": ["Somewhere, Atlantis"]}, company, "moov"
         )

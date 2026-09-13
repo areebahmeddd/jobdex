@@ -25,7 +25,7 @@ def _counts_by_city(db: Session, city_names: list[str]) -> dict[str, tuple[int, 
         .group_by(Job.city)
         .all()
     )
-    return {r.city: (r.job_count, r.company_count) for r in rows}
+    return {row.city: (row.job_count, row.company_count) for row in rows}
 
 
 @router.get("", response_model=PaginatedCitiesResponse)
@@ -38,23 +38,23 @@ def list_cities(
     db: Session = Depends(get_db),
 ):
     """Return a paginated list of cities with live job and company counts."""
-    q = db.query(City)
+    query = db.query(City)
     if region:
-        q = q.filter(City.region == region.lower())
+        query = query.filter(City.region == region.lower())
     if country_code:
-        q = q.filter(City.country_code == country_code.upper())
+        query = query.filter(City.country_code == country_code.upper())
 
-    total = q.count()
-    cities = q.order_by(City.name).offset(offset).limit(limit).all()
+    total = query.count()
+    cities = query.order_by(City.name).offset(offset).limit(limit).all()
 
-    names = [c.name for c in cities]
+    names = [city.name for city in cities]
     counts = _counts_by_city(db, names)
 
     if response is not None:
         response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=60"
 
     return PaginatedCitiesResponse(
-        cities=[build_city_response(c, *counts.get(c.name, (0, 0))) for c in cities],
+        cities=[build_city_response(city, *counts.get(city.name, (0, 0))) for city in cities],
         total=total,
         limit=limit,
         offset=offset,

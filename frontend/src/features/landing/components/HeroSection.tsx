@@ -76,7 +76,7 @@ export function HeroSection() {
               A global index of startup hiring by city.
             </h1>
             <p className="mx-auto mt-5 max-w-md text-lg text-balance text-gray-500">
-              Aggregates startup jobs from hundreds of hiring sources onto a{" "}
+              Aggregates jobs from over a thousand startups onto a{" "}
               <Highlighter
                 action="underline"
                 color="#111111"

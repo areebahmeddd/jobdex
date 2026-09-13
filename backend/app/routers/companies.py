@@ -70,15 +70,15 @@ def list_companies(
     work_mode: list[str] | None = Query(None, description="Repeatable: remote, hybrid, onsite"),
     is_remote: bool | None = Query(None, description="Legacy remote filter; prefer work_mode"),
     posted_within: int | None = Query(None, ge=1, le=365, description="Open-role recency in days"),
-    country_code: str | None = Query(None, description="Company HQ country"),
-    region: str | None = Query(None, description="Company HQ region"),
+    country_code: str | None = Query(None, description="Only companies hiring in this country"),
+    region: str | None = Query(None, description="Only companies hiring in this region"),
     industry: str | None = Query(None),
     stage: str | None = Query(None),
     ats_type: list[str] | None = Query(None, description="Repeatable ATS source"),
     has_errors: bool | None = Query(
         None, description="true = only companies with a crawl error; false = only error-free"
     ),
-    q: str | None = Query(None, description="Search company name / description"),
+    q: str | None = Query(None, description="Search open roles and company names"),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -88,21 +88,20 @@ def list_companies(
     # subquery, not the company row.
     job_filters = JobFilters(
         city=city,
+        country_code=country_code,
+        region=region,
         role_category=role_category,
         seniority=seniority,
         job_type=job_type,
         work_mode=work_mode,
         is_remote=is_remote,
         posted_within=posted_within,
+        q=q,
     )
     base = _company_query_with_counts(db, job_filters, narrowed=job_filters.has_job_scope).filter(
         Company.is_active.is_(True)
     )
 
-    if country_code:
-        base = base.filter(Company.country_code == country_code.upper())
-    if region:
-        base = base.filter(Company.region == region.lower())
     if stage:
         base = base.filter(Company.stage == stage.lower())
     if ats_type:
@@ -111,8 +110,6 @@ def list_companies(
         base = base.filter(Company.crawl_error.isnot(None))
     elif has_errors is False:
         base = base.filter(Company.crawl_error.is_(None))
-    if q:
-        base = base.filter(Company.name.ilike(f"%{q}%") | Company.description.ilike(f"%{q}%"))
     if industry:
         base = base.filter(Company.industry.cast(JSONB).contains([industry.lower()]))
 
@@ -149,7 +146,7 @@ def get_company(slug: str, db: Session = Depends(get_db)):
     )
     categories = _bulk_categories([company.id], db).get(company.id, [])
 
-    dept_rows = (
+    department_rows = (
         db.query(Job.department)
         .filter(
             Job.company_id == company.id,
@@ -159,7 +156,7 @@ def get_company(slug: str, db: Session = Depends(get_db)):
         .distinct()
         .all()
     )
-    departments = [r.department for r in dept_rows]
+    departments = [row.department for row in department_rows]
 
     remote_rows = (
         db.query(Job.is_remote, Job.remote_type)

@@ -104,6 +104,11 @@ def _backfill_company_hq(company: Company, db: Session) -> None:
         company.longitude = row.longitude
 
 
+def logo_url_for(domain: str) -> str:
+    """Google's favicon service; Clearbit's logo host no longer resolves."""
+    return f"https://www.google.com/s2/favicons?domain={domain}&sz=128"
+
+
 async def _fetch_company_geo(name: str) -> dict:
     """Query Clearbit autocomplete for company HQ city, country, coordinates, and logo URL."""
     try:
@@ -125,9 +130,7 @@ async def _fetch_company_geo(name: str) -> dict:
                 "country": geo.get("country"),
                 "latitude": geo.get("lat"),
                 "longitude": geo.get("lng"),
-                "logo_url": (
-                    f"https://logo.clearbit.com/{top['domain']}" if top.get("domain") else None
-                ),
+                "logo_url": logo_url_for(top["domain"]) if top.get("domain") else None,
             }
     except Exception:
         return {}

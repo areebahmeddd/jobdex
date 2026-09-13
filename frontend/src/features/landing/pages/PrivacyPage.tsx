@@ -62,9 +62,9 @@ export default function PrivacyPage() {
           <p className="text-sm leading-relaxed">
             The site fetches the public GitHub star count for the repository
             from the GitHub API. This request does not include any user data.
-            Company metadata such as headquarters location and logo URL is
-            sourced from the Clearbit autocomplete API during ingestion. No user
-            data is involved in either call.
+            Company headquarters location is sourced from the Clearbit
+            autocomplete API during ingestion; the logo comes from a favicon
+            lookup. No user data is involved in either call.
           </p>
         </section>
 

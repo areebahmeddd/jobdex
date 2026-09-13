@@ -61,8 +61,8 @@ async def main() -> None:
 
     with get_session() as db:
         slugs = [
-            c.slug
-            for c in db.query(Company)
+            company.slug
+            for company in db.query(Company)
             .filter(Company.ats_type == "ycombinator", Company.is_active.is_(True))
             .order_by(Company.name)
             .all()

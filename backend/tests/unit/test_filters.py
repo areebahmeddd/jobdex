@@ -23,7 +23,7 @@ class TestMultiValueCleaning:
 
 
 class TestJobFilters:
-    def test_normalises_scalars(self):
+    def test_normalizes_scalars(self):
         f = JobFilters(country_code=" in ", region=" South_Asia ", q="  rust  ")
         assert f.country_code == "IN"
         assert f.region == "south_asia"

@@ -18,7 +18,8 @@ function setMeta(selector: string, content: string) {
 }
 
 function RouteEffects() {
-  const { pathname, hash } = useLocation();
+  const { pathname: rawPathname, hash } = useLocation();
+  const pathname = rawPathname.replace(/\/+$/, "") || "/";
 
   useEffect(() => {
     const known = pathname in ROUTE_META;
